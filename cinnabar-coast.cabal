@@ -1,0 +1,46 @@
+cabal-version:   3.0
+name:            cinnabar-coast
+version:         0.1.0.0
+synopsis:        Pokemon Gen 1/2 save file engine
+license:         BSD-3-Clause
+build-type:      Simple
+
+data-dir:        data
+data-files:
+  csv/*.csv
+  charsets/*.json
+  event-pokemon/*.csv
+
+common warnings
+  ghc-options: -Wall -Wno-unused-imports
+
+library
+  import:           warnings
+  hs-source-dirs:   src
+  default-language: GHC2021
+  exposed-modules:
+    Pokemon.Types
+  build-depends:
+    base       >= 4.18 && < 5,
+    containers >= 0.6,
+    text       >= 2.0
+
+executable cinnabar
+  import:           warnings
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  default-language: GHC2021
+  build-depends:
+    base >= 4.18 && < 5,
+    cinnabar-coast
+
+test-suite cinnabar-test
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Spec.hs
+  default-language: GHC2021
+  build-depends:
+    base >= 4.18 && < 5,
+    cinnabar-coast,
+    hspec >= 2.11

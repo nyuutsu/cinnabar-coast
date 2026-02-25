@@ -1,0 +1,1040 @@
+{
+  "generation": 2,
+  "region": "de",
+  "source": "Bulbapedia: Character encoding (Generation II), Text entry (Generation II)",
+  "notes": "German Gold/Silver and Crystal have different default naming screens. See 'variants' key. Both remove gender symbols and semicolon vs Gen I. Gold/Silver removes × but keeps space; Crystal removes space but keeps ×.",
+  "variants": {
+    "gold_silver": {
+      "notes": "German Gold/Silver: has space and umlauts; no semicolon, no multiplication sign.",
+      "characters": [
+        {
+          "hex": "0x7F",
+          "glyph": " ",
+          "normal": true,
+          "description": "space"
+        },
+        {
+          "hex": "0x80",
+          "glyph": "A",
+          "normal": true
+        },
+        {
+          "hex": "0x81",
+          "glyph": "B",
+          "normal": true
+        },
+        {
+          "hex": "0x82",
+          "glyph": "C",
+          "normal": true
+        },
+        {
+          "hex": "0x83",
+          "glyph": "D",
+          "normal": true
+        },
+        {
+          "hex": "0x84",
+          "glyph": "E",
+          "normal": true
+        },
+        {
+          "hex": "0x85",
+          "glyph": "F",
+          "normal": true
+        },
+        {
+          "hex": "0x86",
+          "glyph": "G",
+          "normal": true
+        },
+        {
+          "hex": "0x87",
+          "glyph": "H",
+          "normal": true
+        },
+        {
+          "hex": "0x88",
+          "glyph": "I",
+          "normal": true
+        },
+        {
+          "hex": "0x89",
+          "glyph": "J",
+          "normal": true
+        },
+        {
+          "hex": "0x8A",
+          "glyph": "K",
+          "normal": true
+        },
+        {
+          "hex": "0x8B",
+          "glyph": "L",
+          "normal": true
+        },
+        {
+          "hex": "0x8C",
+          "glyph": "M",
+          "normal": true
+        },
+        {
+          "hex": "0x8D",
+          "glyph": "N",
+          "normal": true
+        },
+        {
+          "hex": "0x8E",
+          "glyph": "O",
+          "normal": true
+        },
+        {
+          "hex": "0x8F",
+          "glyph": "P",
+          "normal": true
+        },
+        {
+          "hex": "0x90",
+          "glyph": "Q",
+          "normal": true
+        },
+        {
+          "hex": "0x91",
+          "glyph": "R",
+          "normal": true
+        },
+        {
+          "hex": "0x92",
+          "glyph": "S",
+          "normal": true
+        },
+        {
+          "hex": "0x93",
+          "glyph": "T",
+          "normal": true
+        },
+        {
+          "hex": "0x94",
+          "glyph": "U",
+          "normal": true
+        },
+        {
+          "hex": "0x95",
+          "glyph": "V",
+          "normal": true
+        },
+        {
+          "hex": "0x96",
+          "glyph": "W",
+          "normal": true
+        },
+        {
+          "hex": "0x97",
+          "glyph": "X",
+          "normal": true
+        },
+        {
+          "hex": "0x98",
+          "glyph": "Y",
+          "normal": true
+        },
+        {
+          "hex": "0x99",
+          "glyph": "Z",
+          "normal": true
+        },
+        {
+          "hex": "0x9A",
+          "glyph": "(",
+          "normal": true
+        },
+        {
+          "hex": "0x9B",
+          "glyph": ")",
+          "normal": true
+        },
+        {
+          "hex": "0x9C",
+          "glyph": ":",
+          "normal": true,
+          "note": "bold colon variant (0x9C); 0x6D is the non-bold colon used only for playtime display"
+        },
+        {
+          "hex": "0x9D",
+          "glyph": ";",
+          "choosable": false,
+          "description": "semicolon (not on German Gen II naming screen)"
+        },
+        {
+          "hex": "0x9E",
+          "glyph": "[",
+          "normal": true
+        },
+        {
+          "hex": "0x9F",
+          "glyph": "]",
+          "normal": true
+        },
+        {
+          "hex": "0xA0",
+          "glyph": "a",
+          "normal": true
+        },
+        {
+          "hex": "0xA1",
+          "glyph": "b",
+          "normal": true
+        },
+        {
+          "hex": "0xA2",
+          "glyph": "c",
+          "normal": true
+        },
+        {
+          "hex": "0xA3",
+          "glyph": "d",
+          "normal": true
+        },
+        {
+          "hex": "0xA4",
+          "glyph": "e",
+          "normal": true
+        },
+        {
+          "hex": "0xA5",
+          "glyph": "f",
+          "normal": true
+        },
+        {
+          "hex": "0xA6",
+          "glyph": "g",
+          "normal": true
+        },
+        {
+          "hex": "0xA7",
+          "glyph": "h",
+          "normal": true
+        },
+        {
+          "hex": "0xA8",
+          "glyph": "i",
+          "normal": true
+        },
+        {
+          "hex": "0xA9",
+          "glyph": "j",
+          "normal": true
+        },
+        {
+          "hex": "0xAA",
+          "glyph": "k",
+          "normal": true
+        },
+        {
+          "hex": "0xAB",
+          "glyph": "l",
+          "normal": true
+        },
+        {
+          "hex": "0xAC",
+          "glyph": "m",
+          "normal": true
+        },
+        {
+          "hex": "0xAD",
+          "glyph": "n",
+          "normal": true
+        },
+        {
+          "hex": "0xAE",
+          "glyph": "o",
+          "normal": true
+        },
+        {
+          "hex": "0xAF",
+          "glyph": "p",
+          "normal": true
+        },
+        {
+          "hex": "0xB0",
+          "glyph": "q",
+          "normal": true
+        },
+        {
+          "hex": "0xB1",
+          "glyph": "r",
+          "normal": true
+        },
+        {
+          "hex": "0xB2",
+          "glyph": "s",
+          "normal": true
+        },
+        {
+          "hex": "0xB3",
+          "glyph": "t",
+          "normal": true
+        },
+        {
+          "hex": "0xB4",
+          "glyph": "u",
+          "normal": true
+        },
+        {
+          "hex": "0xB5",
+          "glyph": "v",
+          "normal": true
+        },
+        {
+          "hex": "0xB6",
+          "glyph": "w",
+          "normal": true
+        },
+        {
+          "hex": "0xB7",
+          "glyph": "x",
+          "normal": true
+        },
+        {
+          "hex": "0xB8",
+          "glyph": "y",
+          "normal": true
+        },
+        {
+          "hex": "0xB9",
+          "glyph": "z",
+          "normal": true
+        },
+        {
+          "hex": "0xC0",
+          "glyph": "Ä",
+          "normal": true
+        },
+        {
+          "hex": "0xC1",
+          "glyph": "Ö",
+          "normal": true
+        },
+        {
+          "hex": "0xC2",
+          "glyph": "Ü",
+          "normal": true
+        },
+        {
+          "hex": "0xC3",
+          "glyph": "ä",
+          "normal": true
+        },
+        {
+          "hex": "0xC4",
+          "glyph": "ö",
+          "normal": true
+        },
+        {
+          "hex": "0xC5",
+          "glyph": "ü",
+          "normal": true
+        },
+        {
+          "hex": "0xD0",
+          "glyph": "'d",
+          "choosable": false,
+          "description": "contraction (e.g. FARFETCH'D)"
+        },
+        {
+          "hex": "0xD1",
+          "glyph": "'l",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD2",
+          "glyph": "'m",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD3",
+          "glyph": "'r",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD4",
+          "glyph": "'s",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD5",
+          "glyph": "'t",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD6",
+          "glyph": "'v",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xE0",
+          "glyph": "'",
+          "choosable": false,
+          "description": "apostrophe"
+        },
+        {
+          "hex": "0xE1",
+          "glyph": "PK",
+          "normal": false,
+          "description": "PK ligature: single-width glyph with superscript P over subscript K"
+        },
+        {
+          "hex": "0xE2",
+          "glyph": "MN",
+          "normal": false,
+          "description": "MN ligature: single-width glyph with superscript M over subscript N"
+        },
+        {
+          "hex": "0xE3",
+          "glyph": "-",
+          "normal": true
+        },
+        {
+          "hex": "0xE6",
+          "glyph": "?",
+          "normal": true
+        },
+        {
+          "hex": "0xE7",
+          "glyph": "!",
+          "normal": true
+        },
+        {
+          "hex": "0xE8",
+          "glyph": ".",
+          "normal": true,
+          "note": "period for user input in Gen II"
+        },
+        {
+          "hex": "0xE9",
+          "glyph": "&",
+          "choosable": false,
+          "description": "ampersand"
+        },
+        {
+          "hex": "0xEA",
+          "glyph": "é",
+          "choosable": false,
+          "description": "used in POKéMON text"
+        },
+        {
+          "hex": "0xEF",
+          "glyph": "♂",
+          "choosable": false,
+          "description": "male gender symbol"
+        },
+        {
+          "hex": "0xF0",
+          "glyph": "¥",
+          "choosable": false,
+          "description": "yen sign"
+        },
+        {
+          "hex": "0xF1",
+          "glyph": "×",
+          "choosable": false,
+          "description": "multiplication sign (not on Gold/Silver naming screen)"
+        },
+        {
+          "hex": "0xF2",
+          "glyph": ".",
+          "choosable": false,
+          "description": "dialogue period (naming screen uses 0xE8)"
+        },
+        {
+          "hex": "0xF3",
+          "glyph": "/",
+          "normal": true
+        },
+        {
+          "hex": "0xF4",
+          "glyph": ",",
+          "normal": true
+        },
+        {
+          "hex": "0xF5",
+          "glyph": "♀",
+          "choosable": false,
+          "description": "female gender symbol"
+        },
+        {
+          "hex": "0xF6",
+          "glyph": "0",
+          "choosable": false
+        },
+        {
+          "hex": "0xF7",
+          "glyph": "1",
+          "choosable": false
+        },
+        {
+          "hex": "0xF8",
+          "glyph": "2",
+          "choosable": false
+        },
+        {
+          "hex": "0xF9",
+          "glyph": "3",
+          "choosable": false
+        },
+        {
+          "hex": "0xFA",
+          "glyph": "4",
+          "choosable": false
+        },
+        {
+          "hex": "0xFB",
+          "glyph": "5",
+          "choosable": false
+        },
+        {
+          "hex": "0xFC",
+          "glyph": "6",
+          "choosable": false
+        },
+        {
+          "hex": "0xFD",
+          "glyph": "7",
+          "choosable": false
+        },
+        {
+          "hex": "0xFE",
+          "glyph": "8",
+          "choosable": false
+        },
+        {
+          "hex": "0xFF",
+          "glyph": "9",
+          "choosable": false
+        }
+      ]
+    },
+    "crystal": {
+      "notes": "German Crystal: has multiplication sign and umlauts; no semicolon, no space.",
+      "characters": [
+        {
+          "hex": "0x7F",
+          "glyph": " ",
+          "choosable": false,
+          "description": "space (not on Crystal German naming screen)"
+        },
+        {
+          "hex": "0x80",
+          "glyph": "A",
+          "normal": true
+        },
+        {
+          "hex": "0x81",
+          "glyph": "B",
+          "normal": true
+        },
+        {
+          "hex": "0x82",
+          "glyph": "C",
+          "normal": true
+        },
+        {
+          "hex": "0x83",
+          "glyph": "D",
+          "normal": true
+        },
+        {
+          "hex": "0x84",
+          "glyph": "E",
+          "normal": true
+        },
+        {
+          "hex": "0x85",
+          "glyph": "F",
+          "normal": true
+        },
+        {
+          "hex": "0x86",
+          "glyph": "G",
+          "normal": true
+        },
+        {
+          "hex": "0x87",
+          "glyph": "H",
+          "normal": true
+        },
+        {
+          "hex": "0x88",
+          "glyph": "I",
+          "normal": true
+        },
+        {
+          "hex": "0x89",
+          "glyph": "J",
+          "normal": true
+        },
+        {
+          "hex": "0x8A",
+          "glyph": "K",
+          "normal": true
+        },
+        {
+          "hex": "0x8B",
+          "glyph": "L",
+          "normal": true
+        },
+        {
+          "hex": "0x8C",
+          "glyph": "M",
+          "normal": true
+        },
+        {
+          "hex": "0x8D",
+          "glyph": "N",
+          "normal": true
+        },
+        {
+          "hex": "0x8E",
+          "glyph": "O",
+          "normal": true
+        },
+        {
+          "hex": "0x8F",
+          "glyph": "P",
+          "normal": true
+        },
+        {
+          "hex": "0x90",
+          "glyph": "Q",
+          "normal": true
+        },
+        {
+          "hex": "0x91",
+          "glyph": "R",
+          "normal": true
+        },
+        {
+          "hex": "0x92",
+          "glyph": "S",
+          "normal": true
+        },
+        {
+          "hex": "0x93",
+          "glyph": "T",
+          "normal": true
+        },
+        {
+          "hex": "0x94",
+          "glyph": "U",
+          "normal": true
+        },
+        {
+          "hex": "0x95",
+          "glyph": "V",
+          "normal": true
+        },
+        {
+          "hex": "0x96",
+          "glyph": "W",
+          "normal": true
+        },
+        {
+          "hex": "0x97",
+          "glyph": "X",
+          "normal": true
+        },
+        {
+          "hex": "0x98",
+          "glyph": "Y",
+          "normal": true
+        },
+        {
+          "hex": "0x99",
+          "glyph": "Z",
+          "normal": true
+        },
+        {
+          "hex": "0x9A",
+          "glyph": "(",
+          "normal": true
+        },
+        {
+          "hex": "0x9B",
+          "glyph": ")",
+          "normal": true
+        },
+        {
+          "hex": "0x9C",
+          "glyph": ":",
+          "normal": true,
+          "note": "bold colon variant (0x9C); 0x6D is the non-bold colon used only for playtime display"
+        },
+        {
+          "hex": "0x9D",
+          "glyph": ";",
+          "choosable": false,
+          "description": "semicolon (not on German Gen II naming screen)"
+        },
+        {
+          "hex": "0x9E",
+          "glyph": "[",
+          "normal": true
+        },
+        {
+          "hex": "0x9F",
+          "glyph": "]",
+          "normal": true
+        },
+        {
+          "hex": "0xA0",
+          "glyph": "a",
+          "normal": true
+        },
+        {
+          "hex": "0xA1",
+          "glyph": "b",
+          "normal": true
+        },
+        {
+          "hex": "0xA2",
+          "glyph": "c",
+          "normal": true
+        },
+        {
+          "hex": "0xA3",
+          "glyph": "d",
+          "normal": true
+        },
+        {
+          "hex": "0xA4",
+          "glyph": "e",
+          "normal": true
+        },
+        {
+          "hex": "0xA5",
+          "glyph": "f",
+          "normal": true
+        },
+        {
+          "hex": "0xA6",
+          "glyph": "g",
+          "normal": true
+        },
+        {
+          "hex": "0xA7",
+          "glyph": "h",
+          "normal": true
+        },
+        {
+          "hex": "0xA8",
+          "glyph": "i",
+          "normal": true
+        },
+        {
+          "hex": "0xA9",
+          "glyph": "j",
+          "normal": true
+        },
+        {
+          "hex": "0xAA",
+          "glyph": "k",
+          "normal": true
+        },
+        {
+          "hex": "0xAB",
+          "glyph": "l",
+          "normal": true
+        },
+        {
+          "hex": "0xAC",
+          "glyph": "m",
+          "normal": true
+        },
+        {
+          "hex": "0xAD",
+          "glyph": "n",
+          "normal": true
+        },
+        {
+          "hex": "0xAE",
+          "glyph": "o",
+          "normal": true
+        },
+        {
+          "hex": "0xAF",
+          "glyph": "p",
+          "normal": true
+        },
+        {
+          "hex": "0xB0",
+          "glyph": "q",
+          "normal": true
+        },
+        {
+          "hex": "0xB1",
+          "glyph": "r",
+          "normal": true
+        },
+        {
+          "hex": "0xB2",
+          "glyph": "s",
+          "normal": true
+        },
+        {
+          "hex": "0xB3",
+          "glyph": "t",
+          "normal": true
+        },
+        {
+          "hex": "0xB4",
+          "glyph": "u",
+          "normal": true
+        },
+        {
+          "hex": "0xB5",
+          "glyph": "v",
+          "normal": true
+        },
+        {
+          "hex": "0xB6",
+          "glyph": "w",
+          "normal": true
+        },
+        {
+          "hex": "0xB7",
+          "glyph": "x",
+          "normal": true
+        },
+        {
+          "hex": "0xB8",
+          "glyph": "y",
+          "normal": true
+        },
+        {
+          "hex": "0xB9",
+          "glyph": "z",
+          "normal": true
+        },
+        {
+          "hex": "0xC0",
+          "glyph": "Ä",
+          "normal": true
+        },
+        {
+          "hex": "0xC1",
+          "glyph": "Ö",
+          "normal": true
+        },
+        {
+          "hex": "0xC2",
+          "glyph": "Ü",
+          "normal": true
+        },
+        {
+          "hex": "0xC3",
+          "glyph": "ä",
+          "normal": true
+        },
+        {
+          "hex": "0xC4",
+          "glyph": "ö",
+          "normal": true
+        },
+        {
+          "hex": "0xC5",
+          "glyph": "ü",
+          "normal": true
+        },
+        {
+          "hex": "0xD0",
+          "glyph": "'d",
+          "choosable": false,
+          "description": "contraction (e.g. FARFETCH'D)"
+        },
+        {
+          "hex": "0xD1",
+          "glyph": "'l",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD2",
+          "glyph": "'m",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD3",
+          "glyph": "'r",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD4",
+          "glyph": "'s",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD5",
+          "glyph": "'t",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xD6",
+          "glyph": "'v",
+          "choosable": false,
+          "description": "contraction"
+        },
+        {
+          "hex": "0xE0",
+          "glyph": "'",
+          "choosable": false,
+          "description": "apostrophe"
+        },
+        {
+          "hex": "0xE1",
+          "glyph": "PK",
+          "normal": false,
+          "description": "PK ligature: single-width glyph with superscript P over subscript K"
+        },
+        {
+          "hex": "0xE2",
+          "glyph": "MN",
+          "normal": false,
+          "description": "MN ligature: single-width glyph with superscript M over subscript N"
+        },
+        {
+          "hex": "0xE3",
+          "glyph": "-",
+          "normal": true
+        },
+        {
+          "hex": "0xE6",
+          "glyph": "?",
+          "normal": true
+        },
+        {
+          "hex": "0xE7",
+          "glyph": "!",
+          "normal": true
+        },
+        {
+          "hex": "0xE8",
+          "glyph": ".",
+          "normal": true,
+          "note": "period for user input in Gen II"
+        },
+        {
+          "hex": "0xE9",
+          "glyph": "&",
+          "choosable": false,
+          "description": "ampersand"
+        },
+        {
+          "hex": "0xEA",
+          "glyph": "é",
+          "choosable": false,
+          "description": "used in POKéMON text"
+        },
+        {
+          "hex": "0xEF",
+          "glyph": "♂",
+          "choosable": false,
+          "description": "male gender symbol"
+        },
+        {
+          "hex": "0xF0",
+          "glyph": "¥",
+          "choosable": false,
+          "description": "yen sign"
+        },
+        {
+          "hex": "0xF1",
+          "glyph": "×",
+          "normal": false,
+          "description": "multiplication sign (not letter x)"
+        },
+        {
+          "hex": "0xF2",
+          "glyph": ".",
+          "choosable": false,
+          "description": "dialogue period (naming screen uses 0xE8)"
+        },
+        {
+          "hex": "0xF3",
+          "glyph": "/",
+          "normal": true
+        },
+        {
+          "hex": "0xF4",
+          "glyph": ",",
+          "normal": true
+        },
+        {
+          "hex": "0xF5",
+          "glyph": "♀",
+          "choosable": false,
+          "description": "female gender symbol"
+        },
+        {
+          "hex": "0xF6",
+          "glyph": "0",
+          "choosable": false
+        },
+        {
+          "hex": "0xF7",
+          "glyph": "1",
+          "choosable": false
+        },
+        {
+          "hex": "0xF8",
+          "glyph": "2",
+          "choosable": false
+        },
+        {
+          "hex": "0xF9",
+          "glyph": "3",
+          "choosable": false
+        },
+        {
+          "hex": "0xFA",
+          "glyph": "4",
+          "choosable": false
+        },
+        {
+          "hex": "0xFB",
+          "glyph": "5",
+          "choosable": false
+        },
+        {
+          "hex": "0xFC",
+          "glyph": "6",
+          "choosable": false
+        },
+        {
+          "hex": "0xFD",
+          "glyph": "7",
+          "choosable": false
+        },
+        {
+          "hex": "0xFE",
+          "glyph": "8",
+          "choosable": false
+        },
+        {
+          "hex": "0xFF",
+          "glyph": "9",
+          "choosable": false
+        }
+      ]
+    }
+  }
+}

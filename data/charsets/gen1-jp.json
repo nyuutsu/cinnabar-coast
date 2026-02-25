@@ -1,0 +1,763 @@
+{
+  "generation": 1,
+  "region": "jp",
+  "source": "Bulbapedia: Character encoding (Generation I), Text entry (Generation I)",
+  "notes": [
+    "Default naming screen (player/rival/pokemon).",
+    "Dakuten/handakuten kana are entered via modifier keys on the naming screen; the resulting character is stored as a control byte in the 0x00-0x48 range.",
+    "No distinction between hiragana he/katakana he (0xCD) or hiragana ri/katakana ri (0xD8).",
+    "Small vowel kana (ァ ィ ゥ ェ ォ / ぁ ぃ ぅ ぇ ぉ) CANNOT be entered in Gen I.",
+    "ヲ (0xAA) and を (0xDD) CANNOT be entered in Gen I.",
+    "No digits, punctuation (except ー), or symbols on the Gen I Japanese naming screen."
+  ],
+  "characters": [
+    {
+      "hex": "0x05",
+      "glyph": "ガ",
+      "normal": true
+    },
+    {
+      "hex": "0x06",
+      "glyph": "ギ",
+      "normal": true
+    },
+    {
+      "hex": "0x07",
+      "glyph": "グ",
+      "normal": true
+    },
+    {
+      "hex": "0x08",
+      "glyph": "ゲ",
+      "normal": true
+    },
+    {
+      "hex": "0x09",
+      "glyph": "ゴ",
+      "normal": true
+    },
+    {
+      "hex": "0x0A",
+      "glyph": "ザ",
+      "normal": true
+    },
+    {
+      "hex": "0x0B",
+      "glyph": "ジ",
+      "normal": true
+    },
+    {
+      "hex": "0x0C",
+      "glyph": "ズ",
+      "normal": true
+    },
+    {
+      "hex": "0x0D",
+      "glyph": "ゼ",
+      "normal": true
+    },
+    {
+      "hex": "0x0E",
+      "glyph": "ゾ",
+      "normal": true
+    },
+    {
+      "hex": "0x0F",
+      "glyph": "ダ",
+      "normal": true
+    },
+    {
+      "hex": "0x10",
+      "glyph": "ヂ",
+      "normal": true
+    },
+    {
+      "hex": "0x11",
+      "glyph": "ヅ",
+      "normal": true
+    },
+    {
+      "hex": "0x12",
+      "glyph": "デ",
+      "normal": true
+    },
+    {
+      "hex": "0x13",
+      "glyph": "ド",
+      "normal": true
+    },
+    {
+      "hex": "0x19",
+      "glyph": "バ",
+      "normal": true
+    },
+    {
+      "hex": "0x1A",
+      "glyph": "ビ",
+      "normal": true
+    },
+    {
+      "hex": "0x1B",
+      "glyph": "ブ",
+      "normal": true
+    },
+    {
+      "hex": "0x1C",
+      "glyph": "ボ",
+      "normal": true
+    },
+    {
+      "hex": "0x26",
+      "glyph": "が",
+      "normal": true
+    },
+    {
+      "hex": "0x27",
+      "glyph": "ぎ",
+      "normal": true
+    },
+    {
+      "hex": "0x28",
+      "glyph": "ぐ",
+      "normal": true
+    },
+    {
+      "hex": "0x29",
+      "glyph": "げ",
+      "normal": true
+    },
+    {
+      "hex": "0x2A",
+      "glyph": "ご",
+      "normal": true
+    },
+    {
+      "hex": "0x2B",
+      "glyph": "ざ",
+      "normal": true
+    },
+    {
+      "hex": "0x2C",
+      "glyph": "じ",
+      "normal": true
+    },
+    {
+      "hex": "0x2D",
+      "glyph": "ず",
+      "normal": true
+    },
+    {
+      "hex": "0x2E",
+      "glyph": "ぜ",
+      "normal": true
+    },
+    {
+      "hex": "0x2F",
+      "glyph": "ぞ",
+      "normal": true
+    },
+    {
+      "hex": "0x30",
+      "glyph": "だ",
+      "normal": true
+    },
+    {
+      "hex": "0x31",
+      "glyph": "ぢ",
+      "normal": true
+    },
+    {
+      "hex": "0x32",
+      "glyph": "づ",
+      "normal": true
+    },
+    {
+      "hex": "0x33",
+      "glyph": "で",
+      "normal": true
+    },
+    {
+      "hex": "0x34",
+      "glyph": "ど",
+      "normal": true
+    },
+    {
+      "hex": "0x3A",
+      "glyph": "ば",
+      "normal": true
+    },
+    {
+      "hex": "0x3B",
+      "glyph": "び",
+      "normal": true
+    },
+    {
+      "hex": "0x3C",
+      "glyph": "ぶ",
+      "normal": true
+    },
+    {
+      "hex": "0x3D",
+      "glyph": "べ/ベ",
+      "normal": true,
+      "note": "shared codepoint: hiragana be (べ) and katakana be (ベ) are indistinguishable (derived from shared he at 0xCD)"
+    },
+    {
+      "hex": "0x3E",
+      "glyph": "ぼ",
+      "normal": true
+    },
+    {
+      "hex": "0x40",
+      "glyph": "パ",
+      "normal": true
+    },
+    {
+      "hex": "0x41",
+      "glyph": "ピ",
+      "normal": true
+    },
+    {
+      "hex": "0x42",
+      "glyph": "プ",
+      "normal": true
+    },
+    {
+      "hex": "0x43",
+      "glyph": "ポ",
+      "normal": true
+    },
+    {
+      "hex": "0x44",
+      "glyph": "ぱ",
+      "normal": true
+    },
+    {
+      "hex": "0x45",
+      "glyph": "ぴ",
+      "normal": true
+    },
+    {
+      "hex": "0x46",
+      "glyph": "ぷ",
+      "normal": true
+    },
+    {
+      "hex": "0x47",
+      "glyph": "ぺ/ペ",
+      "normal": true,
+      "note": "shared codepoint: hiragana pe (ぺ) and katakana pe (ペ) are indistinguishable (derived from shared he at 0xCD)"
+    },
+    {
+      "hex": "0x48",
+      "glyph": "ぽ",
+      "normal": true
+    },
+    {
+      "hex": "0x7F",
+      "glyph": " ",
+      "normal": true,
+      "description": "space"
+    },
+    {
+      "hex": "0x80",
+      "glyph": "ア",
+      "normal": true
+    },
+    {
+      "hex": "0x81",
+      "glyph": "イ",
+      "normal": true
+    },
+    {
+      "hex": "0x82",
+      "glyph": "ウ",
+      "normal": true
+    },
+    {
+      "hex": "0x83",
+      "glyph": "エ",
+      "normal": true
+    },
+    {
+      "hex": "0x84",
+      "glyph": "オ",
+      "normal": true
+    },
+    {
+      "hex": "0x85",
+      "glyph": "カ",
+      "normal": true
+    },
+    {
+      "hex": "0x86",
+      "glyph": "キ",
+      "normal": true
+    },
+    {
+      "hex": "0x87",
+      "glyph": "ク",
+      "normal": true
+    },
+    {
+      "hex": "0x88",
+      "glyph": "ケ",
+      "normal": true
+    },
+    {
+      "hex": "0x89",
+      "glyph": "コ",
+      "normal": true
+    },
+    {
+      "hex": "0x8A",
+      "glyph": "サ",
+      "normal": true
+    },
+    {
+      "hex": "0x8B",
+      "glyph": "シ",
+      "normal": true
+    },
+    {
+      "hex": "0x8C",
+      "glyph": "ス",
+      "normal": true
+    },
+    {
+      "hex": "0x8D",
+      "glyph": "セ",
+      "normal": true
+    },
+    {
+      "hex": "0x8E",
+      "glyph": "ソ",
+      "normal": true
+    },
+    {
+      "hex": "0x8F",
+      "glyph": "タ",
+      "normal": true
+    },
+    {
+      "hex": "0x90",
+      "glyph": "チ",
+      "normal": true
+    },
+    {
+      "hex": "0x91",
+      "glyph": "ツ",
+      "normal": true
+    },
+    {
+      "hex": "0x92",
+      "glyph": "テ",
+      "normal": true
+    },
+    {
+      "hex": "0x93",
+      "glyph": "ト",
+      "normal": true
+    },
+    {
+      "hex": "0x94",
+      "glyph": "ナ",
+      "normal": true
+    },
+    {
+      "hex": "0x95",
+      "glyph": "ニ",
+      "normal": true
+    },
+    {
+      "hex": "0x96",
+      "glyph": "ヌ",
+      "normal": true
+    },
+    {
+      "hex": "0x97",
+      "glyph": "ネ",
+      "normal": true
+    },
+    {
+      "hex": "0x98",
+      "glyph": "ノ",
+      "normal": true
+    },
+    {
+      "hex": "0x99",
+      "glyph": "ハ",
+      "normal": true
+    },
+    {
+      "hex": "0x9A",
+      "glyph": "ヒ",
+      "normal": true
+    },
+    {
+      "hex": "0x9B",
+      "glyph": "フ",
+      "normal": true
+    },
+    {
+      "hex": "0x9C",
+      "glyph": "ホ",
+      "normal": true
+    },
+    {
+      "hex": "0x9D",
+      "glyph": "マ",
+      "normal": true
+    },
+    {
+      "hex": "0x9E",
+      "glyph": "ミ",
+      "normal": true
+    },
+    {
+      "hex": "0x9F",
+      "glyph": "ム",
+      "normal": true
+    },
+    {
+      "hex": "0xA0",
+      "glyph": "メ",
+      "normal": true
+    },
+    {
+      "hex": "0xA1",
+      "glyph": "モ",
+      "normal": true
+    },
+    {
+      "hex": "0xA2",
+      "glyph": "ヤ",
+      "normal": true
+    },
+    {
+      "hex": "0xA3",
+      "glyph": "ユ",
+      "normal": true
+    },
+    {
+      "hex": "0xA4",
+      "glyph": "ヨ",
+      "normal": true
+    },
+    {
+      "hex": "0xA5",
+      "glyph": "ラ",
+      "normal": true
+    },
+    {
+      "hex": "0xA6",
+      "glyph": "ル",
+      "normal": true
+    },
+    {
+      "hex": "0xA7",
+      "glyph": "レ",
+      "normal": true
+    },
+    {
+      "hex": "0xA8",
+      "glyph": "ロ",
+      "normal": true
+    },
+    {
+      "hex": "0xA9",
+      "glyph": "ワ",
+      "normal": true
+    },
+    {
+      "hex": "0xAA",
+      "glyph": "ヲ",
+      "choosable": false,
+      "description": "katakana wo (not on Gen I naming screen)"
+    },
+    {
+      "hex": "0xAB",
+      "glyph": "ン",
+      "normal": true
+    },
+    {
+      "hex": "0xAC",
+      "glyph": "ッ",
+      "normal": true
+    },
+    {
+      "hex": "0xAD",
+      "glyph": "ャ",
+      "normal": true
+    },
+    {
+      "hex": "0xAE",
+      "glyph": "ュ",
+      "normal": true
+    },
+    {
+      "hex": "0xAF",
+      "glyph": "ョ",
+      "normal": true
+    },
+    {
+      "hex": "0xB1",
+      "glyph": "あ",
+      "normal": true
+    },
+    {
+      "hex": "0xB2",
+      "glyph": "い",
+      "normal": true
+    },
+    {
+      "hex": "0xB3",
+      "glyph": "う",
+      "normal": true
+    },
+    {
+      "hex": "0xB4",
+      "glyph": "え",
+      "normal": true
+    },
+    {
+      "hex": "0xB5",
+      "glyph": "お",
+      "normal": true
+    },
+    {
+      "hex": "0xB6",
+      "glyph": "か",
+      "normal": true
+    },
+    {
+      "hex": "0xB7",
+      "glyph": "き",
+      "normal": true
+    },
+    {
+      "hex": "0xB8",
+      "glyph": "く",
+      "normal": true
+    },
+    {
+      "hex": "0xB9",
+      "glyph": "け",
+      "normal": true
+    },
+    {
+      "hex": "0xBA",
+      "glyph": "こ",
+      "normal": true
+    },
+    {
+      "hex": "0xBB",
+      "glyph": "さ",
+      "normal": true
+    },
+    {
+      "hex": "0xBC",
+      "glyph": "し",
+      "normal": true
+    },
+    {
+      "hex": "0xBD",
+      "glyph": "す",
+      "normal": true
+    },
+    {
+      "hex": "0xBE",
+      "glyph": "せ",
+      "normal": true
+    },
+    {
+      "hex": "0xBF",
+      "glyph": "そ",
+      "normal": true
+    },
+    {
+      "hex": "0xC0",
+      "glyph": "た",
+      "normal": true
+    },
+    {
+      "hex": "0xC1",
+      "glyph": "ち",
+      "normal": true
+    },
+    {
+      "hex": "0xC2",
+      "glyph": "つ",
+      "normal": true
+    },
+    {
+      "hex": "0xC3",
+      "glyph": "て",
+      "normal": true
+    },
+    {
+      "hex": "0xC4",
+      "glyph": "と",
+      "normal": true
+    },
+    {
+      "hex": "0xC5",
+      "glyph": "な",
+      "normal": true
+    },
+    {
+      "hex": "0xC6",
+      "glyph": "に",
+      "normal": true
+    },
+    {
+      "hex": "0xC7",
+      "glyph": "ぬ",
+      "normal": true
+    },
+    {
+      "hex": "0xC8",
+      "glyph": "ね",
+      "normal": true
+    },
+    {
+      "hex": "0xC9",
+      "glyph": "の",
+      "normal": true
+    },
+    {
+      "hex": "0xCA",
+      "glyph": "は",
+      "normal": true
+    },
+    {
+      "hex": "0xCB",
+      "glyph": "ひ",
+      "normal": true
+    },
+    {
+      "hex": "0xCC",
+      "glyph": "ふ",
+      "normal": true
+    },
+    {
+      "hex": "0xCD",
+      "glyph": "へ/ヘ",
+      "normal": true,
+      "note": "shared codepoint: hiragana he (へ) and katakana he (ヘ) are indistinguishable"
+    },
+    {
+      "hex": "0xCE",
+      "glyph": "ほ",
+      "normal": true
+    },
+    {
+      "hex": "0xCF",
+      "glyph": "ま",
+      "normal": true
+    },
+    {
+      "hex": "0xD0",
+      "glyph": "み",
+      "normal": true
+    },
+    {
+      "hex": "0xD1",
+      "glyph": "む",
+      "normal": true
+    },
+    {
+      "hex": "0xD2",
+      "glyph": "め",
+      "normal": true
+    },
+    {
+      "hex": "0xD3",
+      "glyph": "も",
+      "normal": true
+    },
+    {
+      "hex": "0xD4",
+      "glyph": "や",
+      "normal": true
+    },
+    {
+      "hex": "0xD5",
+      "glyph": "ゆ",
+      "normal": true
+    },
+    {
+      "hex": "0xD6",
+      "glyph": "よ",
+      "normal": true
+    },
+    {
+      "hex": "0xD7",
+      "glyph": "ら",
+      "normal": true
+    },
+    {
+      "hex": "0xD8",
+      "glyph": "り/リ",
+      "normal": true,
+      "note": "shared codepoint: hiragana ri (り) and katakana ri (リ) are indistinguishable"
+    },
+    {
+      "hex": "0xD9",
+      "glyph": "る",
+      "normal": true
+    },
+    {
+      "hex": "0xDA",
+      "glyph": "れ",
+      "normal": true
+    },
+    {
+      "hex": "0xDB",
+      "glyph": "ろ",
+      "normal": true
+    },
+    {
+      "hex": "0xDC",
+      "glyph": "わ",
+      "normal": true
+    },
+    {
+      "hex": "0xDD",
+      "glyph": "を",
+      "choosable": false,
+      "description": "hiragana wo (not on Gen I naming screen)"
+    },
+    {
+      "hex": "0xDE",
+      "glyph": "ん",
+      "normal": true
+    },
+    {
+      "hex": "0xDF",
+      "glyph": "っ",
+      "normal": true
+    },
+    {
+      "hex": "0xE0",
+      "glyph": "ゃ",
+      "normal": true
+    },
+    {
+      "hex": "0xE1",
+      "glyph": "ゅ",
+      "normal": true
+    },
+    {
+      "hex": "0xE2",
+      "glyph": "ょ",
+      "normal": true
+    },
+    {
+      "hex": "0xE3",
+      "glyph": "ー",
+      "normal": true,
+      "description": "chōonpu (long vowel mark)"
+    }
+  ]
+}
