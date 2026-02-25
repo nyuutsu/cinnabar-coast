@@ -18,12 +18,16 @@ library
   import:           warnings
   hs-source-dirs:   src
   default-language: GHC2021
+  autogen-modules:  Paths_cinnabar_coast
+  other-modules:    Paths_cinnabar_coast
   exposed-modules:
     Pokemon.Types
+    Pokemon.Data
   build-depends:
     base       >= 4.18 && < 5,
     containers >= 0.6,
-    text       >= 2.0
+    text       >= 2.0,
+    filepath   >= 1.4
 
 executable cinnabar
   import:           warnings
@@ -32,6 +36,7 @@ executable cinnabar
   default-language: GHC2021
   build-depends:
     base >= 4.18 && < 5,
+    containers >= 0.6,
     cinnabar-coast
 
 test-suite cinnabar-test
