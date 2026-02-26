@@ -1,13 +1,9 @@
 {
   "generation": 2,
   "region": "en",
-  "also_applies_to": [
-    "fr",
-    "it",
-    "es"
-  ],
+  "also_applies_to": [],
   "source": "Bulbapedia: Character encoding (Generation II), Text entry (Generation II)",
-  "notes": "Default naming screen (player/rival/pokemon). Gender symbols (♂ ♀) removed from Gen I. Period codepoint changed from 0xF2 to 0xE8. All non-German Western languages share this identical set.",
+  "notes": "English-only encoding. Gender symbols (♂ ♀) removed from naming screen vs Gen I. Period codepoint changed from 0xF2 to 0xE8. Three distinct Western Gen 2 encodings exist: English, French+German, Italian+Spanish (differ at 0xBA-0xDF, same as Gen 1).",
   "characters": [
     {
       "hex": "0x7F",

@@ -142,8 +142,8 @@ loadCodec gen lang = do
 
 
 -- | Map (Gen, Language) to the charset JSON filename.
--- FR/IT/ES share the EN file in our current data. This will
--- change when we add proper per-language charset files.
+-- Three Western encoding groups: EN, FR+DE, IT+ES.
+-- Files are named for the full language group they serve.
 charsetFilename :: Gen -> Language -> FilePath
 charsetFilename gen lang = prefix ++ "-" ++ suffix ++ ".json"
   where
@@ -152,10 +152,10 @@ charsetFilename gen lang = prefix ++ "-" ++ suffix ++ ".json"
       Gen2 -> "gen2"
     suffix = case lang of
       English  -> "en"
-      French   -> "en"   -- shared with EN (TODO: separate FR file)
-      Italian  -> "en"   -- shared with EN (TODO: separate IT file)
-      Spanish  -> "en"   -- shared with EN (TODO: separate ES file)
-      German   -> "de"
+      French   -> "frde"
+      German   -> "frde"
+      Italian  -> "ites"
+      Spanish  -> "ites"
       Japanese -> "jp"
 
 

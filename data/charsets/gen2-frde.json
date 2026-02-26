@@ -1,8 +1,9 @@
 {
   "generation": 2,
-  "region": "de",
+  "region": "frde",
+  "also_applies_to": [],
   "source": "Bulbapedia: Character encoding (Generation II), Text entry (Generation II)",
-  "notes": "German Gold/Silver and Crystal have different default naming screens. See 'variants' key. Both remove gender symbols and semicolon vs Gen I. Gold/Silver removes × but keeps space; Crystal removes space but keeps ×.",
+  "notes": "French+German shared encoding. Differs from English at 0xBA-0xDF (accented chars, French ligatures instead of English contractions) and 0xE4 (plus sign). Gold/Silver and Crystal have different default naming screens — see 'variants' key. Both remove gender symbols and semicolon vs Gen I. Gold/Silver removes × but keeps space; Crystal removes space but keeps ×.",
   "variants": {
     "gold_silver": {
       "notes": "German Gold/Silver: has space and umlauts; no semicolon, no multiplication sign.",
@@ -306,6 +307,42 @@
           "normal": true
         },
         {
+          "hex": "0xBA",
+          "glyph": "à",
+          "choosable": false,
+          "description": "a with grave accent"
+        },
+        {
+          "hex": "0xBB",
+          "glyph": "è",
+          "choosable": false,
+          "description": "e with grave accent"
+        },
+        {
+          "hex": "0xBC",
+          "glyph": "é",
+          "choosable": false,
+          "description": "e with acute accent (used in POKéMON text)"
+        },
+        {
+          "hex": "0xBD",
+          "glyph": "ù",
+          "choosable": false,
+          "description": "u with grave accent"
+        },
+        {
+          "hex": "0xBE",
+          "glyph": "ß",
+          "choosable": false,
+          "description": "eszett (sharp s)"
+        },
+        {
+          "hex": "0xBF",
+          "glyph": "ç",
+          "choosable": false,
+          "description": "c with cedilla"
+        },
+        {
           "hex": "0xC0",
           "glyph": "Ä",
           "normal": true
@@ -336,46 +373,118 @@
           "normal": true
         },
         {
-          "hex": "0xD0",
-          "glyph": "'d",
+          "hex": "0xC6",
+          "glyph": "ë",
           "choosable": false,
-          "description": "contraction (e.g. FARFETCH'D)"
+          "description": "e with diaeresis"
         },
         {
-          "hex": "0xD1",
-          "glyph": "'l",
+          "hex": "0xC7",
+          "glyph": "ï",
           "choosable": false,
-          "description": "contraction"
+          "description": "i with diaeresis"
         },
         {
-          "hex": "0xD2",
-          "glyph": "'m",
+          "hex": "0xC8",
+          "glyph": "â",
           "choosable": false,
-          "description": "contraction"
+          "description": "a with circumflex"
         },
         {
-          "hex": "0xD3",
-          "glyph": "'r",
+          "hex": "0xC9",
+          "glyph": "ô",
           "choosable": false,
-          "description": "contraction"
+          "description": "o with circumflex"
+        },
+        {
+          "hex": "0xCA",
+          "glyph": "û",
+          "choosable": false,
+          "description": "u with circumflex"
+        },
+        {
+          "hex": "0xCB",
+          "glyph": "ê",
+          "choosable": false,
+          "description": "e with circumflex"
+        },
+        {
+          "hex": "0xCC",
+          "glyph": "î",
+          "choosable": false,
+          "description": "i with circumflex"
         },
         {
           "hex": "0xD4",
-          "glyph": "'s",
+          "glyph": "c'",
           "choosable": false,
-          "description": "contraction"
+          "description": "French ligature"
         },
         {
           "hex": "0xD5",
-          "glyph": "'t",
+          "glyph": "d'",
           "choosable": false,
-          "description": "contraction"
+          "description": "French ligature"
         },
         {
           "hex": "0xD6",
-          "glyph": "'v",
+          "glyph": "j'",
           "choosable": false,
-          "description": "contraction"
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xD7",
+          "glyph": "l'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xD8",
+          "glyph": "m'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xD9",
+          "glyph": "n'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDA",
+          "glyph": "p'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDB",
+          "glyph": "s'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDC",
+          "glyph": "'s",
+          "choosable": false,
+          "description": "contraction/possessive"
+        },
+        {
+          "hex": "0xDD",
+          "glyph": "t'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDE",
+          "glyph": "u'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDF",
+          "glyph": "y'",
+          "choosable": false,
+          "description": "French ligature"
         },
         {
           "hex": "0xE0",
@@ -399,6 +508,12 @@
           "hex": "0xE3",
           "glyph": "-",
           "normal": true
+        },
+        {
+          "hex": "0xE4",
+          "glyph": "+",
+          "choosable": false,
+          "description": "plus sign"
         },
         {
           "hex": "0xE6",
@@ -436,9 +551,9 @@
         },
         {
           "hex": "0xF0",
-          "glyph": "¥",
+          "glyph": "$",
           "choosable": false,
-          "description": "yen sign"
+          "description": "Pokédollar (custom Game Boy glyph, no exact Unicode equivalent)"
         },
         {
           "hex": "0xF1",
@@ -822,6 +937,42 @@
           "normal": true
         },
         {
+          "hex": "0xBA",
+          "glyph": "à",
+          "choosable": false,
+          "description": "a with grave accent"
+        },
+        {
+          "hex": "0xBB",
+          "glyph": "è",
+          "choosable": false,
+          "description": "e with grave accent"
+        },
+        {
+          "hex": "0xBC",
+          "glyph": "é",
+          "choosable": false,
+          "description": "e with acute accent (used in POKéMON text)"
+        },
+        {
+          "hex": "0xBD",
+          "glyph": "ù",
+          "choosable": false,
+          "description": "u with grave accent"
+        },
+        {
+          "hex": "0xBE",
+          "glyph": "ß",
+          "choosable": false,
+          "description": "eszett (sharp s)"
+        },
+        {
+          "hex": "0xBF",
+          "glyph": "ç",
+          "choosable": false,
+          "description": "c with cedilla"
+        },
+        {
           "hex": "0xC0",
           "glyph": "Ä",
           "normal": true
@@ -852,46 +1003,118 @@
           "normal": true
         },
         {
-          "hex": "0xD0",
-          "glyph": "'d",
+          "hex": "0xC6",
+          "glyph": "ë",
           "choosable": false,
-          "description": "contraction (e.g. FARFETCH'D)"
+          "description": "e with diaeresis"
         },
         {
-          "hex": "0xD1",
-          "glyph": "'l",
+          "hex": "0xC7",
+          "glyph": "ï",
           "choosable": false,
-          "description": "contraction"
+          "description": "i with diaeresis"
         },
         {
-          "hex": "0xD2",
-          "glyph": "'m",
+          "hex": "0xC8",
+          "glyph": "â",
           "choosable": false,
-          "description": "contraction"
+          "description": "a with circumflex"
         },
         {
-          "hex": "0xD3",
-          "glyph": "'r",
+          "hex": "0xC9",
+          "glyph": "ô",
           "choosable": false,
-          "description": "contraction"
+          "description": "o with circumflex"
+        },
+        {
+          "hex": "0xCA",
+          "glyph": "û",
+          "choosable": false,
+          "description": "u with circumflex"
+        },
+        {
+          "hex": "0xCB",
+          "glyph": "ê",
+          "choosable": false,
+          "description": "e with circumflex"
+        },
+        {
+          "hex": "0xCC",
+          "glyph": "î",
+          "choosable": false,
+          "description": "i with circumflex"
         },
         {
           "hex": "0xD4",
-          "glyph": "'s",
+          "glyph": "c'",
           "choosable": false,
-          "description": "contraction"
+          "description": "French ligature"
         },
         {
           "hex": "0xD5",
-          "glyph": "'t",
+          "glyph": "d'",
           "choosable": false,
-          "description": "contraction"
+          "description": "French ligature"
         },
         {
           "hex": "0xD6",
-          "glyph": "'v",
+          "glyph": "j'",
           "choosable": false,
-          "description": "contraction"
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xD7",
+          "glyph": "l'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xD8",
+          "glyph": "m'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xD9",
+          "glyph": "n'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDA",
+          "glyph": "p'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDB",
+          "glyph": "s'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDC",
+          "glyph": "'s",
+          "choosable": false,
+          "description": "contraction/possessive"
+        },
+        {
+          "hex": "0xDD",
+          "glyph": "t'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDE",
+          "glyph": "u'",
+          "choosable": false,
+          "description": "French ligature"
+        },
+        {
+          "hex": "0xDF",
+          "glyph": "y'",
+          "choosable": false,
+          "description": "French ligature"
         },
         {
           "hex": "0xE0",
@@ -915,6 +1138,12 @@
           "hex": "0xE3",
           "glyph": "-",
           "normal": true
+        },
+        {
+          "hex": "0xE4",
+          "glyph": "+",
+          "choosable": false,
+          "description": "plus sign"
         },
         {
           "hex": "0xE6",
@@ -952,9 +1181,9 @@
         },
         {
           "hex": "0xF0",
-          "glyph": "¥",
+          "glyph": "$",
           "choosable": false,
-          "description": "yen sign"
+          "description": "Pokédollar (custom Game Boy glyph, no exact Unicode equivalent)"
         },
         {
           "hex": "0xF1",

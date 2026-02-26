@@ -47,7 +47,7 @@ cinnabar-coast/
 │   └── TextCodec.hs  -- Game Boy text encoding/decoding
 ├── app/Main.hs       -- CLI entry point
 ├── data/csv/          -- Game data (species, moves, learnsets, TM/HM, evolutions)
-├── data/charsets/     -- Character encoding JSONs
+├── data/charsets/     -- Character encoding JSONs (en, frde, ites, jp × gen1/gen2)
 ├── data/event-pokemon/ -- Event distribution CSVs (not loaded yet)
 ├── scripts/           -- Data extraction scripts (Python)
 ├── sketch/            -- Design drafts (not compiled)
@@ -103,8 +103,10 @@ cinnabar-coast/
 
 CSV files are from the oldrod project (same author), originally
 ripped from pret disassemblies (pokered, pokecrystal). Event CSVs
-are curated from distribution records. Charset JSONs define the
-Game Boy's custom byte↔Unicode mapping per gen/region.
+are curated from distribution records. Charset JSONs are from
+Bulbapedia's "Character encoding" and "Text entry" pages
+(which derive from pret disassemblies). Files are named by
+language group: en, frde, ites, jp.
 
 ## What's built
 
@@ -117,13 +119,12 @@ Game Boy's custom byte↔Unicode mapping per gen/region.
   extracted from pret ASM sources via scripts/generate_evolutions.py
 - [x] Text codec (Pokemon.TextCodec) — Game Boy character encoding/decoding
   with GameChar wrapper type, NamingScreen per-variant choosable data
+- [x] Complete charset data — all 8 JSON files (en, frde, ites, jp × gen1/gen2)
+  verified against Bulbapedia. Three Western encoding groups (differ at 0xBA-0xDF).
 
 ## What's next (rough order)
 
-1. **Fix charset data** — gen1-de.json is wrong (English layout, not FR+DE),
-   JP files incomplete (missing 0xE4-0xFF range), gen1-en 0xF0 is yen not
-   pokédollar. FR/IT/ES need separate files (differ from EN at 0xBA-0xDF).
-2. **Save parser** — binary format reading/writing for Gen 1 and Gen 2
+1. **Save parser** — binary format reading/writing for Gen 1 and Gen 2
 3. **Event matching** — constraint checking against event profiles
 4. **CLI interface** — subcommands (info, edit, classify, etc.)
 5. Tests alongside each module

@@ -1,7 +1,7 @@
 {
   "generation": 1,
-  "region": "de",
-  "also_applies_to": ["fr"],
+  "region": "frde",
+  "also_applies_to": [],
   "source": "Bulbapedia: Character encoding (Generation I), Text entry (Generation I)",
   "notes": "French+German shared encoding. Differs from English at 0xBA-0xDF (accented chars and French ligatures instead of English contractions) and 0xE4-0xE5 (plus sign and blank instead of 'r and 'm). German naming screen adds six umlauts (Ä Ö Ü ä ö ü) beyond the standard Western character set; accented characters and ligatures are decode-only (appear in dialogue but not enterable on the naming screen).",
   "characters": [
