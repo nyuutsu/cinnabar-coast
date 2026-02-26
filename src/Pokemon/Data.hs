@@ -43,6 +43,12 @@ loadGameData gen = do
   items    <- case gen of
     Gen2 -> loadItems (csv "items.csv")
     _    -> pure Map.empty
+  evolutions <- loadEvolutions gen (csv "evolutions.csv")
+
+  let evolvesInto = Map.fromListWith (++)
+        [ (stepFrom e, [e]) | e <- evolutions ]
+      evolvesFrom = Map.fromListWith (++)
+        [ (stepTo e, [e]) | e <- evolutions ]
 
   pure GameData
     { gameGen           = gen
@@ -54,6 +60,8 @@ loadGameData gen = do
     , gameEggMoves      = eggMoves
     , gameTutorMoves    = tutors
     , gameItems         = items
+    , gameEvolvesInto   = evolvesInto
+    , gameEvolvesFrom   = evolvesFrom
     }
 
 
@@ -260,3 +268,32 @@ loadItems path = do
     | row <- rows
     , int (row !! 0) == 2
     ]
+
+
+-- | evolutions.csv → [EvolutionStep]
+-- Schema: gen,from_dex,to_dex,method,param
+loadEvolutions :: Gen -> FilePath -> IO [EvolutionStep]
+loadEvolutions gen path = do
+  rows <- readCSV path
+  let matching = forGen gen rows
+  pure [ EvolutionStep
+           { stepFrom    = int (row !! 1)
+           , stepTo      = int (row !! 2)
+           , stepTrigger = parseTrigger (row !! 3) (row !! 4)
+           }
+       | row <- matching
+       ]
+
+parseTrigger :: T.Text -> T.Text -> EvoTrigger
+parseTrigger method param = case method of
+  "level"           -> EvoLevel (int param)
+  "item"            -> EvoItem (int param)
+  "trade"           -> EvoTrade
+  "trade_item"      -> EvoTradeItem (int param)
+  "happiness"       -> EvoHappiness
+  "happiness_day"   -> EvoHappinessDay
+  "happiness_night" -> EvoHappinessNight
+  "stat_lt"         -> EvoStatLT (int param)
+  "stat_gt"         -> EvoStatGT (int param)
+  "stat_eq"         -> EvoStatEQ (int param)
+  _                 -> error $ "Unknown evolution method: " ++ T.unpack method

@@ -35,6 +35,10 @@ module Pokemon.Types
   , Pokemon (..)
   , GenData (..)
 
+    -- * Evolution
+  , EvoTrigger (..)
+  , EvolutionStep (..)
+
     -- * TM / HM
   , Machine (..)
 
@@ -236,6 +240,31 @@ data GenData
   deriving (Eq, Show)
 
 
+-- ── Evolution ─────────────────────────────────────────────────
+
+-- | What triggers an evolution.
+data EvoTrigger
+  = EvoLevel !Int           -- reach this level
+  | EvoItem !Int            -- use item (item ID, per-gen)
+  | EvoTrade                -- trade
+  | EvoTradeItem !Int       -- trade holding item (Gen 2, item ID)
+  | EvoHappiness            -- friendship ≥ 220, any time
+  | EvoHappinessDay         -- friendship + daytime (Gen 2)
+  | EvoHappinessNight       -- friendship + nighttime (Gen 2)
+  | EvoStatLT !Int          -- level + Atk < Def (Tyrogue → Hitmonchan)
+  | EvoStatGT !Int          -- level + Atk > Def (Tyrogue → Hitmonlee)
+  | EvoStatEQ !Int          -- level + Atk = Def (Tyrogue → Hitmontop)
+  deriving (Eq, Show)
+
+-- | One evolution step: species A evolves into species B when
+-- a trigger condition is met.
+data EvolutionStep = EvolutionStep
+  { stepFrom    :: !Int          -- dex number of the source
+  , stepTo      :: !Int          -- dex number of the result
+  , stepTrigger :: !EvoTrigger
+  } deriving (Eq, Show)
+
+
 -- ── TM / HM ────────────────────────────────────────────────────
 
 -- | A teaching machine. The number is stable within a gen;
@@ -287,6 +316,8 @@ data GameData = GameData
   , gameEggMoves      :: !(Map Int (Set Int))
   , gameTutorMoves    :: !(Map Int (Set Int))
   , gameItems         :: !(Map Int Text)
+  , gameEvolvesInto   :: !(Map Int [EvolutionStep])  -- dex → what it evolves into
+  , gameEvolvesFrom   :: !(Map Int [EvolutionStep])  -- dex → what evolves into it
   } deriving (Show)
 
 
