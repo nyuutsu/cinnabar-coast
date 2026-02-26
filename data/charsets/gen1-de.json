@@ -1,8 +1,9 @@
 {
   "generation": 1,
   "region": "de",
+  "also_applies_to": ["fr"],
   "source": "Bulbapedia: Character encoding (Generation I), Text entry (Generation I)",
-  "notes": "Default naming screen (player/rival/pokemon). Same as EN/FR/IT/ES plus six umlauts at 0xC0-0xC5.",
+  "notes": "French+German shared encoding. Differs from English at 0xBA-0xDF (accented chars and French ligatures instead of English contractions) and 0xE4-0xE5 (plus sign and blank instead of 'r and 'm). German naming screen adds six umlauts (Ä Ö Ü ä ö ü) beyond the standard Western character set; accented characters and ligatures are decode-only (appear in dialogue but not enterable on the naming screen).",
   "characters": [
     {
       "hex": "0x7F",
@@ -303,69 +304,189 @@
     },
     {
       "hex": "0xBA",
-      "glyph": "é",
+      "glyph": "à",
       "choosable": false,
-      "description": "used in POKéMON text and species default names"
+      "description": "a with grave accent"
     },
     {
       "hex": "0xBB",
-      "glyph": "'d",
+      "glyph": "è",
       "choosable": false,
-      "description": "contraction (e.g. FARFETCH'D)"
+      "description": "e with grave accent"
     },
     {
       "hex": "0xBC",
-      "glyph": "'l",
+      "glyph": "é",
       "choosable": false,
-      "description": "contraction"
+      "description": "e with acute accent (used in POKéMON text)"
     },
     {
       "hex": "0xBD",
-      "glyph": "'s",
+      "glyph": "ù",
       "choosable": false,
-      "description": "contraction"
+      "description": "u with grave accent"
     },
     {
       "hex": "0xBE",
-      "glyph": "'t",
+      "glyph": "ß",
       "choosable": false,
-      "description": "contraction"
+      "description": "eszett (sharp s)"
     },
     {
       "hex": "0xBF",
-      "glyph": "'v",
+      "glyph": "ç",
       "choosable": false,
-      "description": "contraction"
+      "description": "c with cedilla"
     },
     {
       "hex": "0xC0",
       "glyph": "Ä",
-      "normal": true
+      "normal": true,
+      "description": "A with diaeresis (German naming screen)"
     },
     {
       "hex": "0xC1",
       "glyph": "Ö",
-      "normal": true
+      "normal": true,
+      "description": "O with diaeresis (German naming screen)"
     },
     {
       "hex": "0xC2",
       "glyph": "Ü",
-      "normal": true
+      "normal": true,
+      "description": "U with diaeresis (German naming screen)"
     },
     {
       "hex": "0xC3",
       "glyph": "ä",
-      "normal": true
+      "normal": true,
+      "description": "a with diaeresis (German naming screen)"
     },
     {
       "hex": "0xC4",
       "glyph": "ö",
-      "normal": true
+      "normal": true,
+      "description": "o with diaeresis (German naming screen)"
     },
     {
       "hex": "0xC5",
       "glyph": "ü",
-      "normal": true
+      "normal": true,
+      "description": "u with diaeresis (German naming screen)"
+    },
+    {
+      "hex": "0xC6",
+      "glyph": "ë",
+      "choosable": false,
+      "description": "e with diaeresis"
+    },
+    {
+      "hex": "0xC7",
+      "glyph": "ï",
+      "choosable": false,
+      "description": "i with diaeresis"
+    },
+    {
+      "hex": "0xC8",
+      "glyph": "â",
+      "choosable": false,
+      "description": "a with circumflex"
+    },
+    {
+      "hex": "0xC9",
+      "glyph": "ô",
+      "choosable": false,
+      "description": "o with circumflex"
+    },
+    {
+      "hex": "0xCA",
+      "glyph": "û",
+      "choosable": false,
+      "description": "u with circumflex"
+    },
+    {
+      "hex": "0xCB",
+      "glyph": "ê",
+      "choosable": false,
+      "description": "e with circumflex"
+    },
+    {
+      "hex": "0xCC",
+      "glyph": "î",
+      "choosable": false,
+      "description": "i with circumflex"
+    },
+    {
+      "hex": "0xD4",
+      "glyph": "c'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xD5",
+      "glyph": "d'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xD6",
+      "glyph": "j'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xD7",
+      "glyph": "l'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xD8",
+      "glyph": "m'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xD9",
+      "glyph": "n'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xDA",
+      "glyph": "p'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xDB",
+      "glyph": "s'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xDC",
+      "glyph": "'s",
+      "choosable": false,
+      "description": "contraction/possessive"
+    },
+    {
+      "hex": "0xDD",
+      "glyph": "t'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xDE",
+      "glyph": "u'",
+      "choosable": false,
+      "description": "French ligature"
+    },
+    {
+      "hex": "0xDF",
+      "glyph": "y'",
+      "choosable": false,
+      "description": "French ligature"
     },
     {
       "hex": "0xE0",
@@ -392,15 +513,9 @@
     },
     {
       "hex": "0xE4",
-      "glyph": "'r",
+      "glyph": "+",
       "choosable": false,
-      "description": "contraction"
-    },
-    {
-      "hex": "0xE5",
-      "glyph": "'m",
-      "choosable": false,
-      "description": "contraction"
+      "description": "plus sign"
     },
     {
       "hex": "0xE6",
@@ -426,9 +541,9 @@
     },
     {
       "hex": "0xF0",
-      "glyph": "¥",
+      "glyph": "$",
       "choosable": false,
-      "description": "yen sign"
+      "description": "Pokédollar (custom Game Boy glyph, no exact Unicode equivalent)"
     },
     {
       "hex": "0xF1",

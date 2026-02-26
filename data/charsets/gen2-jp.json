@@ -763,6 +763,18 @@
       "description": "chōonpu (long vowel mark)"
     },
     {
+      "hex": "0xE4",
+      "glyph": "゜",
+      "choosable": false,
+      "description": "handakuten mark (modifier key on naming screen, not a standalone character)"
+    },
+    {
+      "hex": "0xE5",
+      "glyph": "゛",
+      "choosable": false,
+      "description": "dakuten mark (modifier key on naming screen, not a standalone character)"
+    },
+    {
       "hex": "0xE6",
       "glyph": "?",
       "normal": true
@@ -771,6 +783,12 @@
       "hex": "0xE7",
       "glyph": "!",
       "normal": true
+    },
+    {
+      "hex": "0xE8",
+      "glyph": "。",
+      "choosable": false,
+      "description": "kuten (Japanese period)"
     },
     {
       "hex": "0xE9",
@@ -788,9 +806,105 @@
       "normal": true
     },
     {
+      "hex": "0xEF",
+      "glyph": "♂",
+      "choosable": false,
+      "description": "male symbol"
+    },
+    {
+      "hex": "0xF0",
+      "glyph": "円",
+      "choosable": false,
+      "description": "yen/money symbol (円)"
+    },
+    {
+      "hex": "0xF1",
+      "glyph": "×",
+      "choosable": false,
+      "description": "multiplication sign"
+    },
+    {
+      "hex": "0xF2",
+      "glyph": ".",
+      "choosable": false,
+      "description": "decimal point"
+    },
+    {
+      "hex": "0xF3",
+      "glyph": "/",
+      "choosable": false,
+      "description": "slash"
+    },
+    {
       "hex": "0xF4",
       "glyph": "ォ",
       "normal": true
+    },
+    {
+      "hex": "0xF5",
+      "glyph": "♀",
+      "choosable": false,
+      "description": "female symbol"
+    },
+    {
+      "hex": "0xF6",
+      "glyph": "0",
+      "choosable": false,
+      "description": "digit zero"
+    },
+    {
+      "hex": "0xF7",
+      "glyph": "1",
+      "choosable": false,
+      "description": "digit one"
+    },
+    {
+      "hex": "0xF8",
+      "glyph": "2",
+      "choosable": false,
+      "description": "digit two"
+    },
+    {
+      "hex": "0xF9",
+      "glyph": "3",
+      "choosable": false,
+      "description": "digit three"
+    },
+    {
+      "hex": "0xFA",
+      "glyph": "4",
+      "choosable": false,
+      "description": "digit four"
+    },
+    {
+      "hex": "0xFB",
+      "glyph": "5",
+      "choosable": false,
+      "description": "digit five"
+    },
+    {
+      "hex": "0xFC",
+      "glyph": "6",
+      "choosable": false,
+      "description": "digit six"
+    },
+    {
+      "hex": "0xFD",
+      "glyph": "7",
+      "choosable": false,
+      "description": "digit seven"
+    },
+    {
+      "hex": "0xFE",
+      "glyph": "8",
+      "choosable": false,
+      "description": "digit eight"
+    },
+    {
+      "hex": "0xFF",
+      "glyph": "9",
+      "choosable": false,
+      "description": "digit nine"
     }
   ]
 }

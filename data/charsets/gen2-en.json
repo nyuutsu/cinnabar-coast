@@ -443,9 +443,9 @@
     },
     {
       "hex": "0xF0",
-      "glyph": "¥",
+      "glyph": "$",
       "choosable": false,
-      "description": "yen sign"
+      "description": "Pokédollar (custom Game Boy glyph, no exact Unicode equivalent)"
     },
     {
       "hex": "0xF1",

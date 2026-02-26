@@ -1,13 +1,9 @@
 {
   "generation": 1,
   "region": "en",
-  "also_applies_to": [
-    "fr",
-    "it",
-    "es"
-  ],
+  "also_applies_to": [],
   "source": "Bulbapedia: Character encoding (Generation I), Text entry (Generation I)",
-  "notes": "Default naming screen (player/rival/pokemon). All non-German Western languages share this identical character set at identical codepoints.",
+  "notes": "Default naming screen (player/rival/pokemon). Bulbapedia documents three distinct Western Gen 1 encodings that differ at 0xBA-0xDF: English, French+German, and Italian+Spanish. Each needs its own charset file.",
   "characters": [
     {
       "hex": "0x7F",
@@ -401,9 +397,9 @@
     },
     {
       "hex": "0xF0",
-      "glyph": "¥",
+      "glyph": "$",
       "choosable": false,
-      "description": "yen sign"
+      "description": "Pokédollar (custom Game Boy glyph, no exact Unicode equivalent)"
     },
     {
       "hex": "0xF1",
