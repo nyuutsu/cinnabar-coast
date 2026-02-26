@@ -24,6 +24,7 @@ library
     Pokemon.Types
     Pokemon.Data
     Pokemon.Stats
+    Pokemon.Legality
   build-depends:
     base       >= 4.18 && < 5,
     containers >= 0.6,

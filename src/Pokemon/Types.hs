@@ -39,8 +39,8 @@ module Pokemon.Types
   , Machine (..)
 
     -- * Move classification
-  , MoveCategory (..)
-  , MoveTag (..)
+  , LearnMethod (..)
+  , LearnSource (..)
 
     -- * Game data (loaded per generation)
   , GameData (..)
@@ -250,7 +250,7 @@ data Machine
 -- ── Move Classification ─────────────────────────────────────────
 
 -- | How a species can learn a move, relative to a specific gen.
-data MoveCategory
+data LearnMethod
   = LevelUp
   | TMMachine
   | HMMachine
@@ -259,12 +259,17 @@ data MoveCategory
   | Tradeback      -- learnable in the OTHER gen, not this one
   | EventMove
   | PreEvo         -- learnable by a pre-evolution
-  | UnknownSource
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data MoveTag = MoveTag
-  { tagCategory :: !MoveCategory
-  , tagLabel    :: !Text         -- "L21", "TM38", "HM04", "EGG", etc.
+-- | One specific way a species can learn a move.
+-- sourceVia is empty for direct sources (level-up, TM, egg, tutor).
+-- For Tradeback and PreEvo it carries the nested sources that
+-- explain WHY — e.g. Tradeback "Gen 1" [LearnSource TMMachine "TM24" []]
+-- means "learnable by trading to Gen 1, where TM24 teaches it."
+data LearnSource = LearnSource
+  { sourceMethod :: !LearnMethod
+  , sourceDetail :: !Text
+  , sourceVia    :: [LearnSource]
   } deriving (Eq, Show)
 
 
