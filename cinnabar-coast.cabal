@@ -41,7 +41,9 @@ executable cinnabar
   default-language: GHC2021
   build-depends:
     base >= 4.18 && < 5,
+    bytestring >= 0.11,
     containers >= 0.6,
+    text >= 2.0,
     cinnabar-coast
 
 test-suite cinnabar-test
