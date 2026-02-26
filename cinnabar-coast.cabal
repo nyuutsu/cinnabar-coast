@@ -25,8 +25,11 @@ library
     Pokemon.Data
     Pokemon.Stats
     Pokemon.Legality
+    Pokemon.TextCodec
   build-depends:
     base       >= 4.18 && < 5,
+    aeson      >= 2.1,
+    bytestring >= 0.11,
     containers >= 0.6,
     text       >= 2.0,
     filepath   >= 1.4

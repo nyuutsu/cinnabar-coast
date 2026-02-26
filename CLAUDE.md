@@ -40,12 +40,16 @@ program that talks to the CLI. This is how git works, how ffmpeg works.
 ```
 cinnabar-coast/
 ├── src/Pokemon/
-│   ├── Types.hs      -- Core domain types (Species, Move, DVs, etc.)
-│   └── Data.hs       -- CSV loader → GameData
+│   ├── Types.hs      -- Core domain types (Species, Move, DVs, GameChar, etc.)
+│   ├── Data.hs       -- CSV loader → GameData
+│   ├── Stats.hs      -- Exp curves, stat calculation
+│   ├── Legality.hs   -- Move classification (how can species learn move?)
+│   └── TextCodec.hs  -- Game Boy text encoding/decoding
 ├── app/Main.hs       -- CLI entry point
-├── data/csv/          -- Game data (species, moves, learnsets, TM/HM, etc.)
-├── data/charsets/     -- Character encoding JSONs (not loaded yet)
+├── data/csv/          -- Game data (species, moves, learnsets, TM/HM, evolutions)
+├── data/charsets/     -- Character encoding JSONs
 ├── data/event-pokemon/ -- Event distribution CSVs (not loaded yet)
+├── scripts/           -- Data extraction scripts (Python)
 ├── sketch/            -- Design drafts (not compiled)
 └── test/              -- Tests (placeholder)
 ```
@@ -61,8 +65,18 @@ cinnabar-coast/
 - `Special` — Unified Int (Gen 1) | Split Int Int (Gen 2)
 - `Pokemon` — Instance in a save file, with GenData sum type
 - `Machine` — TM Int | HM Int (number only; move mapping is per-gen)
-- `MoveCategory` — LevelUp | TMMachine | HMMachine | EggMove | ...
+- `LearnMethod` — LevelUp | TMMachine | HMMachine | EggMove | Tradeback | PreEvo | ...
+- `LearnSource` — One way a species can learn a move. Nests recursively via
+  `sourceVia` to explain compound paths (e.g. PreEvo → Tradeback → TM).
+- `EvoTrigger` — Sum type of evolution conditions (level, item, trade, happiness, stat comparison)
+- `EvolutionStep` — Edge: species A → species B when trigger fires
 - `GameData` — All static data for one gen. Immutable. Pass to functions.
+  Includes bidirectional evolution maps (`gameEvolvesInto`, `gameEvolvesFrom`).
+- `Language` — English | French | German | Italian | Spanish | Japanese
+- `GameChar` — Literal Char | Ligature Text | UnknownByte Word8
+- `GameText` — Newtype over [GameChar]. Lossless decoded Game Boy text.
+- `TextCodec` — Decode/encode maps for one (Gen, Language) pair.
+- `NamingScreen` — One game variant's choosable character set.
 - `EventConstraint` — Predicate on Pokemon (Maybe = "any value valid")
 
 ### Key design decisions
@@ -72,8 +86,18 @@ cinnabar-coast/
 - The Special stat split (Gen 1→Gen 2) is modeled as a sum type
   in Special, not as conditional fields
 - Empty Maps represent absent features (no Maybe wrapping needed)
-- MoveCategory/Tradeback is always relative to the gen you're asking about
+- LearnMethod/Tradeback is always relative to the gen you're asking about
 - Event profiles are predicates (constraints), not Pokemon instances
+- GameText is the lossless intermediate representation for Game Boy text.
+  The codec decodes bytes → GameText (preserving ligatures and unknown
+  bytes); displayText converts GameText → Text (lossy, for display only).
+  This prevents the "normalize everything" trap where information is
+  silently lost during conversion.
+- NamingScreens are stored per game variant (not unioned) because the
+  legality check is existential: "does ANY single screen cover all chars
+  in this name?" A union would miss impossible combinations (e.g. space
+  + × in German Gen 2, where Gold has space and Crystal has ×, but no
+  single game has both).
 
 ## Data provenance
 
@@ -87,28 +111,32 @@ Game Boy's custom byte↔Unicode mapping per gen/region.
 - [x] Core domain types (Pokemon.Types)
 - [x] CSV data loader (Pokemon.Data) — loads GameData for Gen 1 and Gen 2
 - [x] Stats module (Pokemon.Stats) — exp curves, stat calculation
+- [x] Legality module (Pokemon.Legality) — move classification with full
+  derivation chains (LevelUp, TM/HM, EggMove, TutorMove, Tradeback, PreEvo)
+- [x] Evolution chains — flat edge model with bidirectional lookup maps,
+  extracted from pret ASM sources via scripts/generate_evolutions.py
+- [x] Text codec (Pokemon.TextCodec) — Game Boy character encoding/decoding
+  with GameChar wrapper type, NamingScreen per-variant choosable data
 
 ## What's next (rough order)
 
-1. **Stats module** — exp curves, stat calculation formulas
-2. **Legality module** — move classification (pure function: species + move + level + gen → tags)
-3. **Evolution chains** — needed for the PreEvo move category in legality
-4. **Save parser** — binary format reading/writing for Gen 1 and Gen 2
-5. **Text codec** — Game Boy character encoding/decoding
-6. **Event matching** — constraint checking against event profiles
-7. **CLI interface** — subcommands (info, edit, classify, etc.)
-8. Tests alongside each module
+1. **Fix charset data** — gen1-de.json is wrong (English layout, not FR+DE),
+   JP files incomplete (missing 0xE4-0xFF range), gen1-en 0xF0 is yen not
+   pokédollar. FR/IT/ES need separate files (differ from EN at 0xBA-0xDF).
+2. **Save parser** — binary format reading/writing for Gen 1 and Gen 2
+3. **Event matching** — constraint checking against event profiles
+4. **CLI interface** — subcommands (info, edit, classify, etc.)
+5. Tests alongside each module
 
 ## Known tricky areas
 
-- **Evolution chains**: Gen 1/2 have branching evolutions (Eevee → 5
-  forms), baby pre-evolutions added in Gen 2 (Pichu → Pikachu),
-  trade evolutions, item evolutions, and happiness evolutions. The
-  chain data is needed for the PreEvo move category (moves a
-  pre-evolution can learn but the evolved form can't). The data
-  structure needs to handle branching and multi-stage chains cleanly.
-  Discuss the type design before implementing — a naive linked list
-  won't work.
+- **Evolution chains** (SOLVED): Modeled as flat EvolutionStep edges with
+  bidirectional Map lookup. Handles branching (Eevee), babies (Pichu),
+  trade, item, happiness, and stat-comparison evolutions. PreEvo
+  legality walks backward through gameEvolvesFrom. Three-tier recursion
+  architecture prevents infinite loops: classifyMove (full) →
+  classifyMoveNoPreEvo (used by PreEvo check) →
+  classifyMoveNoTradeback (used by Tradeback check).
 
 - **Gen 1 ↔ Gen 2 species identity**: Gen 1 stores an internal species
   index (not the dex number). Pikachu is dex #25 but internal index

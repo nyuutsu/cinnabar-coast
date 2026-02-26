@@ -49,6 +49,11 @@ module Pokemon.Types
     -- * Game data (loaded per generation)
   , GameData (..)
 
+    -- * Text codec
+  , Language (..)
+  , GameChar (..)
+  , GameText (..)
+
     -- * Event constraints
   , EventConstraint (..)
   , DVConstraint (..)
@@ -319,6 +324,32 @@ data GameData = GameData
   , gameEvolvesInto   :: !(Map Int [EvolutionStep])  -- dex → what it evolves into
   , gameEvolvesFrom   :: !(Map Int [EvolutionStep])  -- dex → what evolves into it
   } deriving (Show)
+
+
+-- ── Language ──────────────────────────────────────────────────────
+
+-- | Game cartridge language. Determines which character encoding
+-- to use. EN/FR/IT/ES share some encodings in some gens, but
+-- the caller doesn't need to know — the codec loader resolves it.
+data Language = English | French | German | Italian | Spanish | Japanese
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+
+-- ── Game Text ─────────────────────────────────────────────────────
+
+-- | One character decoded from Game Boy text. Preserves the
+-- distinction between regular characters, multi-char ligatures
+-- (PK, MN, contractions), and unrecognized bytes.
+data GameChar
+  = Literal !Char         -- ^ Single Unicode character
+  | Ligature !Text        -- ^ Multi-char glyph: "PK", "MN", "'d", etc.
+  | UnknownByte !Word8    -- ^ Unrecognized byte, preserved for round-tripping
+  deriving (Eq, Ord, Show)
+
+-- | A decoded Game Boy text string. Lossless representation —
+-- use displayText to convert to human-readable Text.
+newtype GameText = GameText { gameTextChars :: [GameChar] }
+  deriving (Eq, Show)
 
 
 -- ── Event Constraints ───────────────────────────────────────────
