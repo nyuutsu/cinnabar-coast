@@ -23,7 +23,7 @@ program that talks to the CLI. This is how git works, how ffmpeg works.
   don't understand something, stop and explain it. Never steamroll
   past confusion for the sake of getting code written.
 - **Respect prior decisions.** Types and patterns already in the
-  codebase (like SpecialBase using Unified|Split) are settled design
+  codebase (like Special using Unified|Split) are settled design
   decisions. Don't offer alternatives that contradict them without
   explicitly flagging: "this differs from the existing pattern X,
   here's why." Never silently regress to a flatter/simpler design
@@ -55,9 +55,10 @@ cinnabar-coast/
 - `Gen` — Gen1 | Gen2
 - `Species` — Pokedex entry with base stats, types, growth rate
 - `Move` — Move definition (name, type, power, PP)
-- `DVs` — 4 determinant values (Atk, Def, Spd, Spc). HP derived.
+- `DVs` — 4 determinant values (Attack, Defense, Speed, Special). HP derived.
 - `StatExp` — 5 stat experience values. Same storage in both gens.
-- `SpecialBase` — Unified Int (Gen 1) | Split Int Int (Gen 2)
+- `CalcStats` — Calculated stats from species + DVs + stat exp + level
+- `Special` — Unified Int (Gen 1) | Split Int Int (Gen 2)
 - `Pokemon` — Instance in a save file, with GenData sum type
 - `Machine` — TM Int | HM Int (number only; move mapping is per-gen)
 - `MoveCategory` — LevelUp | TMMachine | HMMachine | EggMove | ...
@@ -69,7 +70,7 @@ cinnabar-coast/
 - Dex number is the universal species key across gens
 - DVs and StatExp are gen-agnostic types (same storage format)
 - The Special stat split (Gen 1→Gen 2) is modeled as a sum type
-  in SpecialBase, not as conditional fields
+  in Special, not as conditional fields
 - Empty Maps represent absent features (no Maybe wrapping needed)
 - MoveCategory/Tradeback is always relative to the gen you're asking about
 - Event profiles are predicates (constraints), not Pokemon instances
@@ -85,6 +86,7 @@ Game Boy's custom byte↔Unicode mapping per gen/region.
 
 - [x] Core domain types (Pokemon.Types)
 - [x] CSV data loader (Pokemon.Data) — loads GameData for Gen 1 and Gen 2
+- [x] Stats module (Pokemon.Stats) — exp curves, stat calculation
 
 ## What's next (rough order)
 
@@ -143,6 +145,14 @@ Game Boy's custom byte↔Unicode mapping per gen/region.
 - Comments explain WHY, not WHAT
 - No orphan instances
 - `-Wall` clean (zero warnings)
+- **Naming: be expressive.** Record field prefixes are full words, not
+  initials: `baseAttack` not `bsAtk`, `speciesName` not `specName`,
+  `gameSpecies` not `gdSpecies`. Stat names are spelled out (Attack,
+  Defense, Speed, Special). Domain abbreviations that ARE the standard
+  term stay abbreviated: DV, HP, PP, OT, TM, HM. When in doubt,
+  spell it out — verbosity is cheap, confusion is expensive.
+- Only derive typeclass instances that are actually used. Don't add
+  `Enum` or `Bounded` speculatively.
 
 ## Haskell notes for the user
 

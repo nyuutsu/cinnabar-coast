@@ -45,15 +45,15 @@ loadGameData gen = do
     _    -> pure Map.empty
 
   pure GameData
-    { gdGen           = gen
-    , gdSpecies       = species
-    , gdMoves         = moves
-    , gdMachines      = machines
-    , gdMachineCompat = compat
-    , gdLevelUp       = levelUp
-    , gdEggMoves      = eggMoves
-    , gdTutorMoves    = tutors
-    , gdItems         = items
+    { gameGen           = gen
+    , gameSpecies       = species
+    , gameMoves         = moves
+    , gameMachines      = machines
+    , gameMachineCompat = compat
+    , gameLevelUp       = levelUp
+    , gameEggMoves      = eggMoves
+    , gameTutorMoves    = tutors
+    , gameItems         = items
     }
 
 
@@ -123,8 +123,6 @@ typeFromId n  = error $ "Unknown type ID: " ++ show n
 
 growthFromId :: Int -> GrowthRate
 growthFromId 0 = MediumFast
-growthFromId 1 = SlightlyFast
-growthFromId 2 = SlightlySlow
 growthFromId 3 = MediumSlow
 growthFromId 4 = Fast
 growthFromId 5 = Slow
@@ -141,32 +139,32 @@ loadSpecies gen path = do
   rows <- readCSV path
   let matching = forGen gen rows
   pure $ Map.fromList
-    [ (specDex sp, sp)
+    [ (speciesDex sp, sp)
     | row <- matching
     , let sp = parseSpecies gen row
     ]
 
 parseSpecies :: Gen -> [T.Text] -> Species
 parseSpecies gen row = Species
-  { specDex           = int (row !! 2)
-  , specName          = T.strip (row !! 3)
-  , specBaseStats     = BaseStats
-      { bsHP  = int (row !! 4)
-      , bsAtk = int (row !! 5)
-      , bsDef = int (row !! 6)
-      , bsSpd = int (row !! 7)
-      , bsSpc = case gen of
+  { speciesDex           = int (row !! 2)
+  , speciesName          = T.strip (row !! 3)
+  , speciesBaseStats     = BaseStats
+      { baseHP      = int (row !! 4)
+      , baseAttack  = int (row !! 5)
+      , baseDefense = int (row !! 6)
+      , baseSpeed   = int (row !! 7)
+      , baseSpecial = case gen of
           Gen1 -> Unified (int (row !! 8))
           Gen2 -> Split   (int (row !! 9)) (int (row !! 10))
       }
-  , specTypes         = (typeFromId (int (row !! 11)), typeFromId (int (row !! 12)))
-  , specCatchRate     = int (row !! 13)
-  , specGrowthRate    = growthFromId (int (row !! 18))
-  , specGenderRatio   = maybeInt (row !! 14)
-  , specEggGroups     = case (maybeInt (row !! 15), maybeInt (row !! 16)) of
+  , speciesTypes         = (typeFromId (int (row !! 11)), typeFromId (int (row !! 12)))
+  , speciesCatchRate     = int (row !! 13)
+  , speciesGrowthRate    = growthFromId (int (row !! 18))
+  , speciesGenderRatio   = maybeInt (row !! 14)
+  , speciesEggGroups     = case (maybeInt (row !! 15), maybeInt (row !! 16)) of
       (Just a, Just b) -> Just (a, b)
       _                -> Nothing
-  , specBaseHappiness = maybeInt (row !! 17)
+  , speciesBaseHappiness = maybeInt (row !! 17)
   }
 
 

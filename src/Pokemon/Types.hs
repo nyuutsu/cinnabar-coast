@@ -17,8 +17,8 @@ module Pokemon.Types
     -- * Species (static game data)
   , Species (..)
   , BaseStats (..)
-  , SpecialBase (..)
-  , spcAtk, spcDef
+  , Special (..)
+  , specialAttack, specialDefense
 
     -- * Moves (static game data)
   , Move (..)
@@ -81,52 +81,50 @@ data PokemonType
 
 data GrowthRate
   = MediumFast    -- n³
-  | SlightlyFast  -- ¾n³ + 10n² − 30
-  | SlightlySlow  -- ¾n³ + 20n² − 70
   | MediumSlow    -- ⁶⁄₅n³ − 15n² + 100n − 140
   | Fast          -- ⅘n³
   | Slow          -- ⁵⁄₄n³
-  deriving (Eq, Ord, Show, Enum, Bounded)
+  deriving (Eq, Ord, Show)
 
 
 -- ── Base Stats ──────────────────────────────────────────────────
 
 data BaseStats = BaseStats
-  { bsHP  :: !Int
-  , bsAtk :: !Int
-  , bsDef :: !Int
-  , bsSpd :: !Int
-  , bsSpc :: !SpecialBase
+  { baseHP      :: !Int
+  , baseAttack  :: !Int
+  , baseDefense :: !Int
+  , baseSpeed   :: !Int
+  , baseSpecial :: !Special
   } deriving (Eq, Show)
 
 -- | Gen 1 has one Special stat; Gen 2 splits it into SpAtk / SpDef.
-data SpecialBase
+data Special
   = Unified !Int          -- Gen 1
   | Split   !Int !Int     -- Gen 2: (SpAtk, SpDef)
   deriving (Eq, Show)
 
-spcAtk :: SpecialBase -> Int
-spcAtk (Unified s)  = s
-spcAtk (Split sa _) = sa
+specialAttack :: Special -> Int
+specialAttack (Unified s)  = s
+specialAttack (Split sa _) = sa
 
-spcDef :: SpecialBase -> Int
-spcDef (Unified s)  = s
-spcDef (Split _ sd) = sd
+specialDefense :: Special -> Int
+specialDefense (Unified s)  = s
+specialDefense (Split _ sd) = sd
 
 
 -- ── Species ─────────────────────────────────────────────────────
 
 data Species = Species
-  { specDex           :: !Int
-  , specName          :: !Text
-  , specBaseStats     :: !BaseStats
-  , specTypes         :: !(PokemonType, PokemonType)
-  , specCatchRate     :: !Int
-  , specGrowthRate    :: !GrowthRate
+  { speciesDex           :: !Int
+  , speciesName          :: !Text
+  , speciesBaseStats     :: !BaseStats
+  , speciesTypes         :: !(PokemonType, PokemonType)
+  , speciesCatchRate     :: !Int
+  , speciesGrowthRate    :: !GrowthRate
   -- Gen 2 fields. Nothing for Gen 1 entries.
-  , specGenderRatio   :: !(Maybe Int)  -- 0=all♂, 254=all♀, 255=genderless
-  , specEggGroups     :: !(Maybe (Int, Int))
-  , specBaseHappiness :: !(Maybe Int)
+  , speciesGenderRatio   :: !(Maybe Int)  -- 0=all♂, 254=all♀, 255=genderless
+  , speciesEggGroups     :: !(Maybe (Int, Int))
+  , speciesBaseHappiness :: !(Maybe Int)
   } deriving (Eq, Show)
 
 
@@ -145,22 +143,22 @@ data Move = Move
 -- ── DVs ─────────────────────────────────────────────────────────
 
 -- | Determinant Values. Same 4 values in both gens.
--- dvSpc governs both SpAtk and SpDef in Gen 2 — the split only
+-- dvSpecial governs both SpAtk and SpDef in Gen 2 — the split only
 -- affects base stats and stat calculation, not DV storage.
 data DVs = DVs
-  { dvAtk :: !Int    -- 0–15
-  , dvDef :: !Int
-  , dvSpd :: !Int
-  , dvSpc :: !Int    -- SpAtk AND SpDef in Gen 2
+  { dvAttack  :: !Int    -- 0–15
+  , dvDefense :: !Int
+  , dvSpeed   :: !Int
+  , dvSpecial :: !Int    -- SpAtk AND SpDef in Gen 2
   } deriving (Eq, Show)
 
 -- | HP DV: derived from the low bits of the other four.
 dvHP :: DVs -> Int
 dvHP dv =
-      (dvAtk dv .&. 1) `shiftL` 3
-  .|. (dvDef dv .&. 1) `shiftL` 2
-  .|. (dvSpd dv .&. 1) `shiftL` 1
-  .|. (dvSpc dv .&. 1)
+      (dvAttack dv  .&. 1) `shiftL` 3
+  .|. (dvDefense dv .&. 1) `shiftL` 2
+  .|. (dvSpeed dv   .&. 1) `shiftL` 1
+  .|. (dvSpecial dv .&. 1)
 
 maxDVs :: DVs
 maxDVs = DVs 15 15 15 15
@@ -168,20 +166,20 @@ maxDVs = DVs 15 15 15 15
 -- | Shiny (Gen 2): Def=10, Spd=10, Spc=10, Atk bit 1 set.
 isShiny :: DVs -> Bool
 isShiny dv =
-  dvDef dv == 10 && dvSpd dv == 10 && dvSpc dv == 10
-  && (dvAtk dv .&. 2) /= 0
+  dvDefense dv == 10 && dvSpeed dv == 10 && dvSpecial dv == 10
+  && (dvAttack dv .&. 2) /= 0
 
 
 -- ── Stat Exp ────────────────────────────────────────────────────
 
 -- | Stat Experience. Same 5 values in both gens.
--- seSpc applies to both SpAtk and SpDef calcs in Gen 2.
+-- expSpecial applies to both SpAtk and SpDef calcs in Gen 2.
 data StatExp = StatExp
-  { seHP  :: !Int    -- 0–65535
-  , seAtk :: !Int
-  , seDef :: !Int
-  , seSpd :: !Int
-  , seSpc :: !Int
+  { expHP      :: !Int    -- 0–65535
+  , expAttack  :: !Int
+  , expDefense :: !Int
+  , expSpeed   :: !Int
+  , expSpecial :: !Int
   } deriving (Eq, Show)
 
 zeroStatExp :: StatExp
@@ -194,12 +192,12 @@ maxStatExp = StatExp 65535 65535 65535 65535 65535
 -- ── Move Slot ───────────────────────────────────────────────────
 
 -- | One of four move slots. Nothing = empty slot.
--- msCurrentPP is remaining uses (numerator). Max PP is derived:
---   max_pp = base_pp + (base_pp * msPPUps / 5)
+-- slotCurrentPP is remaining uses (numerator). Max PP is derived:
+--   max_pp = base_pp + (base_pp * slotPPUps / 5)
 data MoveSlot = MoveSlot
-  { msMove      :: !Int    -- move ID
-  , msPPUps     :: !Int    -- 0–3
-  , msCurrentPP :: !Int    -- 0–63, remaining uses
+  { slotMoveId   :: !Int    -- move ID
+  , slotPPUps    :: !Int    -- 0–3
+  , slotCurrentPP :: !Int   -- 0–63, remaining uses
   } deriving (Eq, Show)
 
 type MoveSlots = (Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot)
@@ -208,32 +206,32 @@ type MoveSlots = (Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot
 -- ── Pokemon ─────────────────────────────────────────────────────
 
 data Pokemon = Pokemon
-  { pokDex      :: !Int
-  , pokNickname :: !Text
-  , pokOTName   :: !Text
-  , pokOTID     :: !Int       -- 0–65535
-  , pokLevel    :: !Int       -- 1–100
-  , pokExp      :: !Int       -- 0–16,777,215
-  , pokMoves    :: !MoveSlots
-  , pokDVs      :: !DVs
-  , pokStatExp  :: !StatExp
-  , pokStatus   :: !Word8
-  , pokGenData  :: !GenData
+  { pokemonDex      :: !Int
+  , pokemonNickname :: !Text
+  , pokemonOTName   :: !Text
+  , pokemonOTID     :: !Int       -- 0–65535
+  , pokemonLevel    :: !Int       -- 1–100
+  , pokemonExp      :: !Int       -- 0–16,777,215
+  , pokemonMoves    :: !MoveSlots
+  , pokemonDVs      :: !DVs
+  , pokemonStatExp  :: !StatExp
+  , pokemonStatus   :: !Word8
+  , pokemonGenData  :: !GenData
   } deriving (Eq, Show)
 
 -- | Gen-specific fields. Pattern match to handle each gen.
 data GenData
-  = G1Data
-      { g1SpecIndex :: !Word8
-      , g1Type1     :: !PokemonType
-      , g1Type2     :: !PokemonType
-      , g1CatchRate :: !Word8
+  = Gen1Data
+      { gen1SpeciesIndex :: !Word8
+      , gen1Type1        :: !PokemonType
+      , gen1Type2        :: !PokemonType
+      , gen1CatchRate    :: !Word8
       }
-  | G2Data
-      { g2HeldItem   :: !Word8
-      , g2Friendship :: !Word8
-      , g2Pokerus    :: !Word8
-      , g2CaughtData :: !Word16
+  | Gen2Data
+      { gen2HeldItem   :: !Word8
+      , gen2Friendship :: !Word8
+      , gen2Pokerus    :: !Word8
+      , gen2CaughtData :: !Word16
       }
   deriving (Eq, Show)
 
@@ -265,8 +263,8 @@ data MoveCategory
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data MoveTag = MoveTag
-  { mtCategory :: !MoveCategory
-  , mtLabel    :: !Text         -- "L21", "TM38", "HM04", "EGG", etc.
+  { tagCategory :: !MoveCategory
+  , tagLabel    :: !Text         -- "L21", "TM38", "HM04", "EGG", etc.
   } deriving (Eq, Show)
 
 
@@ -275,15 +273,15 @@ data MoveTag = MoveTag
 -- | All static data for one generation, loaded from CSVs.
 -- Immutable. Pass to pure functions as an argument.
 data GameData = GameData
-  { gdGen           :: !Gen
-  , gdSpecies       :: !(Map Int Species)
-  , gdMoves         :: !(Map Int Move)
-  , gdMachines      :: !(Map Machine Int)        -- machine → move ID
-  , gdMachineCompat :: !(Map Int (Set Machine))  -- dex → compatible machines
-  , gdLevelUp       :: !(Map Int [(Int, Int)])    -- dex → [(level, move_id)]
-  , gdEggMoves      :: !(Map Int (Set Int))
-  , gdTutorMoves    :: !(Map Int (Set Int))
-  , gdItems         :: !(Map Int Text)
+  { gameGen           :: !Gen
+  , gameSpecies       :: !(Map Int Species)
+  , gameMoves         :: !(Map Int Move)
+  , gameMachines      :: !(Map Machine Int)        -- machine → move ID
+  , gameMachineCompat :: !(Map Int (Set Machine))  -- dex → compatible machines
+  , gameLevelUp       :: !(Map Int [(Int, Int)])    -- dex → [(level, move_id)]
+  , gameEggMoves      :: !(Map Int (Set Int))
+  , gameTutorMoves    :: !(Map Int (Set Int))
+  , gameItems         :: !(Map Int Text)
   } deriving (Show)
 
 
@@ -292,18 +290,18 @@ data GameData = GameData
 -- | A predicate on Pokemon, not a Pokemon itself.
 -- Nothing = "any value is valid" (unknown / random / hatcher's).
 data EventConstraint = EventConstraint
-  { ecName     :: !Text
-  , ecDex      :: !Int
-  , ecGen      :: !Gen
-  , ecLevel    :: !(Maybe Int)
-  , ecMoves    :: ![Maybe Int]
-  , ecOTName   :: !(Maybe Text)
-  , ecOTID     :: !(Maybe Int)
-  , ecHeldItem :: !(Maybe Int)
-  , ecDVs      :: !DVConstraint
-  , ecShiny    :: !ShinyStatus
-  , ecGender   :: !GenderStatus
-  , ecGames    :: ![Text]
+  { eventName     :: !Text
+  , eventDex      :: !Int
+  , eventGen      :: !Gen
+  , eventLevel    :: !(Maybe Int)
+  , eventMoves    :: ![Maybe Int]
+  , eventOTName   :: !(Maybe Text)
+  , eventOTID     :: !(Maybe Int)
+  , eventHeldItem :: !(Maybe Int)
+  , eventDVs      :: !DVConstraint
+  , eventShiny    :: !ShinyStatus
+  , eventGender   :: !GenderStatus
+  , eventGames    :: ![Text]
   } deriving (Eq, Show)
 
 data DVConstraint

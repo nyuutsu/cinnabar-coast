@@ -66,25 +66,25 @@ data BaseStats = BaseStats
   , bsAtk :: !Int
   , bsDef :: !Int
   , bsSpd :: !Int
-  , bsSpc :: !SpecialBase
+  , bsSpc :: !Special
   } deriving (Eq, Show)
 
 -- | The Special stat is ONE value in Gen 1, TWO in Gen 2.
 -- This is a property of the species definition, not the individual
 -- Pokémon — a Pikachu in Gen 1 has Spc 50; in Gen 2 it has
 -- SpAtk 50 / SpDef 40.
-data SpecialBase
+data Special
   = Unified !Int          -- Gen 1: one Special
   | Split   !Int !Int     -- Gen 2: (SpAtk, SpDef)
   deriving (Eq, Show)
 
 -- | Extract SpAtk, regardless of gen. Unified → same value for both.
-spcAtk :: SpecialBase -> Int
+spcAtk :: Special -> Int
 spcAtk (Unified s)  = s
 spcAtk (Split sa _) = sa
 
 -- | Extract SpDef, regardless of gen.
-spcDef :: SpecialBase -> Int
+spcDef :: Special -> Int
 spcDef (Unified s)  = s
 spcDef (Split _ sd) = sd
 

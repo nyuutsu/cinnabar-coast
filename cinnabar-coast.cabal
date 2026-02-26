@@ -23,6 +23,7 @@ library
   exposed-modules:
     Pokemon.Types
     Pokemon.Data
+    Pokemon.Stats
   build-depends:
     base       >= 4.18 && < 5,
     containers >= 0.6,
