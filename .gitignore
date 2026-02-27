@@ -4,3 +4,4 @@ dist-newstyle/
 *.dyn_hi
 *.dyn_o
 .claude/
+__pycache__/
