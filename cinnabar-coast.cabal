@@ -51,6 +51,12 @@ executable extract
   hs-source-dirs:   extract
   main-is:          Main.hs
   other-modules:    Extract.ASM
+                    Extract.Moves
+                    Extract.TMHM
+                    Extract.Items
+                    Extract.EggMoves
+                    Extract.EvosAttacks
+                    Extract.Species
   default-language: GHC2021
   build-depends:
     base       >= 4.18 && < 5,
