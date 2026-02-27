@@ -27,23 +27,23 @@ import Pokemon.Types
 loadGameData :: Gen -> IO GameData
 loadGameData gen = do
   dir <- getDataDir
-  let csv name = dir </> "csv" </> name
+  let csvPath name = dir </> "csv" </> name
 
-  species  <- loadSpecies gen  (csv "species.csv")
-  moves    <- loadMoves gen    (csv "moves.csv")
-  machines <- loadMachines gen (csv "tmhm.csv")
-  compat   <- loadCompat gen   (csv "tmhm_compat.csv")
-  levelUp  <- loadLearnsets gen (csv "learnsets.csv")
+  species  <- loadSpecies gen  (csvPath "species.csv")
+  moves    <- loadMoves gen    (csvPath "moves.csv")
+  machines <- loadMachines gen (csvPath "tmhm.csv")
+  compat   <- loadCompat gen   (csvPath "tmhm_compat.csv")
+  levelUp  <- loadLearnsets gen (csvPath "learnsets.csv")
   eggMoves <- case gen of
-    Gen2 -> loadPairMap (csv "egg_moves.csv")
+    Gen2 -> loadPairMap (csvPath "egg_moves.csv")
     _    -> pure Map.empty
   tutors   <- case gen of
-    Gen2 -> loadPairMap (csv "tutor.csv")
+    Gen2 -> loadPairMap (csvPath "tutor.csv")
     _    -> pure Map.empty
   items    <- case gen of
-    Gen2 -> loadItems (csv "items.csv")
+    Gen2 -> loadItems (csvPath "items.csv")
     _    -> pure Map.empty
-  evolutions <- loadEvolutions gen (csv "evolutions.csv")
+  evolutions <- loadEvolutions gen (csvPath "evolutions.csv")
 
   let evolvesInto = Map.fromListWith (++)
         [ (stepFrom e, [e]) | e <- evolutions ]
@@ -91,10 +91,10 @@ readCSV path = do
 -- The map lookup happens once; the returned function does only list
 -- indexing per row. Crashes immediately if the column doesn't exist.
 col :: CSV -> T.Text -> ([T.Text] -> T.Text)
-col csv' name =
-  case Map.lookup name (csvHeader csv') of
+col csv name =
+  case Map.lookup name (csvHeader csv) of
     Nothing -> error $ "CSV column not found: " ++ T.unpack name
-                    ++ " (have: " ++ T.unpack (T.intercalate ", " (Map.keys (csvHeader csv'))) ++ ")"
+                    ++ " (have: " ++ T.unpack (T.intercalate ", " (Map.keys (csvHeader csv))) ++ ")"
     Just i  -> \row -> row !! i
 
 
@@ -119,10 +119,10 @@ maybeInt t
 
 -- | Filter CSV rows where the "gen" column matches a gen number.
 forGen :: Gen -> CSV -> [[T.Text]]
-forGen gen csv' = filter match (csvRows csv')
+forGen gen csv = filter match (csvRows csv)
   where
     genN = fromEnum gen + 1
-    genCol = col csv' "gen"
+    genCol = col csv "gen"
     match row = int (genCol row) == genN
 
 
@@ -163,25 +163,25 @@ growthFromId n = error $ "Unknown growth rate: " ++ show n
 -- | species.csv → Map dex Species
 loadSpecies :: Gen -> FilePath -> IO (Map.Map Int Species)
 loadSpecies gen path = do
-  csv' <- readCSV path
-  let dex           = col csv' "dex"
-      name          = col csv' "name"
-      hp            = col csv' "hp"
-      atk           = col csv' "atk"
-      dfn           = col csv' "dfn"
-      spd           = col csv' "spd"
-      spc           = col csv' "spc"
-      spa           = col csv' "spa"
-      spDef         = col csv' "sp_def"
-      type1         = col csv' "type1"
-      type2         = col csv' "type2"
-      catchRate     = col csv' "catch_rate"
-      growthRate    = col csv' "growth_rate"
-      genderRatio   = col csv' "gender_ratio"
-      eggGroup1     = col csv' "egg_group1"
-      eggGroup2     = col csv' "egg_group2"
-      baseHappiness = col csv' "base_happiness"
-      matching      = forGen gen csv'
+  csv <- readCSV path
+  let dex           = col csv "dex"
+      name          = col csv "name"
+      hp            = col csv "hp"
+      atk           = col csv "atk"
+      dfn           = col csv "dfn"
+      spd           = col csv "spd"
+      spc           = col csv "spc"
+      spa           = col csv "spa"
+      spDef         = col csv "sp_def"
+      type1         = col csv "type1"
+      type2         = col csv "type2"
+      catchRate     = col csv "catch_rate"
+      growthRate    = col csv "growth_rate"
+      genderRatio   = col csv "gender_ratio"
+      eggGroup1     = col csv "egg_group1"
+      eggGroup2     = col csv "egg_group2"
+      baseHappiness = col csv "base_happiness"
+      matching      = forGen gen csv
   pure $ Map.fromList
     [ (speciesDex sp, sp)
     | row <- matching
@@ -212,14 +212,14 @@ loadSpecies gen path = do
 -- | moves.csv → Map moveId Move
 loadMoves :: Gen -> FilePath -> IO (Map.Map Int Move)
 loadMoves gen path = do
-  csv' <- readCSV path
-  let mid      = col csv' "id"
-      name     = col csv' "name"
-      typ      = col csv' "type"
-      power    = col csv' "power"
-      accuracy = col csv' "accuracy"
-      pp       = col csv' "pp"
-      matching = forGen gen csv'
+  csv <- readCSV path
+  let mid      = col csv "id"
+      name     = col csv "name"
+      typ      = col csv "type"
+      power    = col csv "power"
+      accuracy = col csv "accuracy"
+      pp       = col csv "pp"
+      matching = forGen gen csv
   pure $ Map.fromList
     [ (moveId mv, mv)
     | row <- matching
@@ -237,11 +237,11 @@ loadMoves gen path = do
 -- | tmhm.csv → Map Machine moveId
 loadMachines :: Gen -> FilePath -> IO (Map.Map Machine Int)
 loadMachines gen path = do
-  csv' <- readCSV path
-  let number  = col csv' "number"
-      moveId' = col csv' "move_id"
-      isHm    = col csv' "is_hm"
-      matching = forGen gen csv'
+  csv <- readCSV path
+  let number  = col csv "number"
+      moveId' = col csv "move_id"
+      isHm    = col csv "is_hm"
+      matching = forGen gen csv
   pure $ Map.fromList
     [ (machine, int (moveId' row))
     | row <- matching
@@ -254,10 +254,10 @@ loadMachines gen path = do
 -- Numbers 1–50 are TMs; 51+ are HMs (51=HM01, 52=HM02, etc.)
 loadCompat :: Gen -> FilePath -> IO (Map.Map Int (Set.Set Machine))
 loadCompat gen path = do
-  csv' <- readCSV path
-  let dex      = col csv' "dex"
-      number   = col csv' "number"
-      matching = forGen gen csv'
+  csv <- readCSV path
+  let dex      = col csv "dex"
+      number   = col csv "number"
+      matching = forGen gen csv
       pairs    = [ (int (dex row), numToMachine (int (number row)))
                  | row <- matching
                  ]
@@ -275,11 +275,11 @@ numToMachine n
 -- | learnsets.csv → Map dex [(level, moveId)]
 loadLearnsets :: Gen -> FilePath -> IO (Map.Map Int [(Int, Int)])
 loadLearnsets gen path = do
-  csv' <- readCSV path
-  let dex     = col csv' "dex"
-      level   = col csv' "level"
-      moveId' = col csv' "move_id"
-      matching = forGen gen csv'
+  csv <- readCSV path
+  let dex     = col csv "dex"
+      level   = col csv "level"
+      moveId' = col csv "move_id"
+      matching = forGen gen csv
       triples  = [ (int (dex row), (int (level row), int (moveId' row)))
                  | row <- matching
                  ]
@@ -293,25 +293,25 @@ loadLearnsets gen path = do
 -- No gen column — these are Gen 2 only.
 loadPairMap :: FilePath -> IO (Map.Map Int (Set.Set Int))
 loadPairMap path = do
-  csv' <- readCSV path
-  let dex     = col csv' "dex"
-      moveId' = col csv' "move_id"
+  csv <- readCSV path
+  let dex     = col csv "dex"
+      moveId' = col csv "move_id"
   pure $ Map.fromListWith Set.union
     [ (int (dex row), Set.singleton (int (moveId' row)))
-    | row <- csvRows csv'
+    | row <- csvRows csv
     ]
 
 
 -- | items.csv → Map itemId name
 loadItems :: FilePath -> IO (Map.Map Int T.Text)
 loadItems path = do
-  csv' <- readCSV path
-  let gen  = col csv' "gen"
-      mid  = col csv' "id"
-      name = col csv' "name"
+  csv <- readCSV path
+  let gen  = col csv "gen"
+      mid  = col csv "id"
+      name = col csv "name"
   pure $ Map.fromList
     [ (int (mid row), T.strip (name row))
-    | row <- csvRows csv'
+    | row <- csvRows csv
     , int (gen row) == 2
     ]
 
@@ -319,12 +319,12 @@ loadItems path = do
 -- | evolutions.csv → [EvolutionStep]
 loadEvolutions :: Gen -> FilePath -> IO [EvolutionStep]
 loadEvolutions gen path = do
-  csv' <- readCSV path
-  let fromDex = col csv' "from_dex"
-      toDex   = col csv' "to_dex"
-      method  = col csv' "method"
-      param   = col csv' "param"
-      matching = forGen gen csv'
+  csv <- readCSV path
+  let fromDex = col csv "from_dex"
+      toDex   = col csv "to_dex"
+      method  = col csv "method"
+      param   = col csv "param"
+      matching = forGen gen csv
   pure [ EvolutionStep
            { stepFrom    = int (fromDex row)
            , stepTo      = int (toDex row)
