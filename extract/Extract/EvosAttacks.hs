@@ -30,8 +30,8 @@ import Extract.ASM
 
 -- | Parsed data for one species.
 data EvosAttacksData = EvosAttacksData
-  { evolutions :: ![[Text]]       -- ^ Each evolution: raw db args [METHOD, ..., TARGET]
-  , learnset   :: ![(Text, Text)] -- ^ (level, move_name) pairs
+  { evosAttacksEvolutions :: ![[Text]]       -- ^ Each evolution: raw db args [METHOD, ..., TARGET]
+  , evosAttacksLearnset   :: ![(Text, Text)] -- ^ (level, move_name) pairs
   } deriving (Show)
 
 -- | Parse an evos_moves/evos_attacks file.
@@ -51,7 +51,7 @@ parseEvosAttacksFile = go []
                 evos <- parseSection
                 moves <- parseMoveSection
                 go ((name, EvosAttacksData evos moves) : acc)
-            , skipLine >> go acc
+            , restOfLine >> go acc
             ]
 
     -- A label: identifier characters up to ':', then consume rest of line.
@@ -74,7 +74,7 @@ parseEvosAttacksFile = go []
                 if args == ["0"]
                   then pure (reverse acc)
                   else go' (args : acc)
-            , skipLine >> go' acc
+            , restOfLine >> go' acc
             ]
 
     -- Parse the learnset section: db lines of (level, move) pairs
@@ -90,21 +90,19 @@ parseEvosAttacksFile = go []
                   ["0"] -> pure (reverse acc)
                   [level, move] -> go' ((level, move) : acc)
                   _ -> error $ "unexpected learnset entry: " ++ show args
-            , skipLine >> go' acc
+            , restOfLine >> go' acc
             ]
 
     parseDb = keyword "db" *> commaSeparated
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
     restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 
 -- | Format learnset data into CSV rows.
--- Takes gen label and pre-joined (dex, data) pairs.
 formatLearnsetRows :: Text -> [(Int, EvosAttacksData)] -> [[Text]]
 formatLearnsetRows gen blocks =
   [ [gen, T.pack (show dex), level, move]
   | (dex, dat) <- blocks
-  , (level, move) <- learnset dat
+  , (level, move) <- evosAttacksLearnset dat
   ]
 
 -- | Format evolution data into CSV rows.
@@ -115,17 +113,19 @@ formatEvolutionRows :: Text -> Map Text Int -> [(Int, EvosAttacksData)] -> [[Tex
 formatEvolutionRows gen speciesToDex blocks =
   [ formatEvoRow gen fromDex evoArgs
   | (fromDex, dat) <- blocks
-  , evoArgs <- evolutions dat
+  , evoArgs <- evosAttacksEvolutions dat
   ]
   where
     formatEvoRow :: Text -> Int -> [Text] -> [Text]
     formatEvoRow g fromDex args = case args of
       (method : rest) ->
         let target = last rest
-            params = init rest   -- middle arguments (between method and target)
+            middle = init rest   -- arguments between method and target
+            (param1, param2) = case middle of
+              []        -> ("", "")
+              [p1]      -> (p1, "")
+              (p1:p2:_) -> (p1, p2)
             toDex  = Map.findWithDefault 0 target speciesToDex
-            param1 = if length params >= 1 then params !! 0 else ""
-            param2 = if length params >= 2 then params !! 1 else ""
         in [g, T.pack (show fromDex), T.pack (show toDex), method, param1, param2]
       [] -> error "empty evolution entry"
 

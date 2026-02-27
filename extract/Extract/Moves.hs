@@ -46,11 +46,11 @@ parseMoveTable = go []
           horizontalSpace
           choice
             [ try (parseMoveLine >>= \fields -> go (fields : acc))
-            , skipLine >> go acc
+            , restOfLine >> go acc
             ]
 
     parseMoveLine = keyword "move" *> commaSeparated
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
+    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 -- | Format a parsed move line into a CSV row.
 -- Handles both 6-arg (Gen 1) and 7-arg (Gen 2) lines.

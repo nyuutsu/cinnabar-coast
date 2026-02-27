@@ -9,6 +9,7 @@ module Main where
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -70,9 +71,9 @@ extractAll pokered pokecrystal outDir = do
   writeCSV (outDir </> "moves.csv") movesHeader (gen1Moves ++ gen2Moves)
 
   -- ── TM/HM ────────────────────────────────────────────────────
-  gen1TM <- extractTMHM "1" (pokered </> "constants/item_constants.asm")
-  gen2TM <- extractTMHM "2" (pokecrystal </> "constants/item_constants.asm")
-  writeCSV (outDir </> "tmhm.csv") tmhmHeader (gen1TM ++ gen2TM)
+  gen1MachineRows <- extractTMHM "1" (pokered </> "constants/item_constants.asm")
+  gen2MachineRows <- extractTMHM "2" (pokecrystal </> "constants/item_constants.asm")
+  writeCSV (outDir </> "tmhm.csv") tmhmHeader (gen1MachineRows ++ gen2MachineRows)
 
   -- ── Items ────────────────────────────────────────────────────
   gen1Items <- extractItems "1" (pokered </> "data/items/names.asm")
@@ -106,34 +107,34 @@ extractAll pokered pokecrystal outDir = do
 
   -- ── Evolutions & Learnsets ───────────────────────────────────
   -- Gen 1: blocks in internal index order, need mapping to dex
-  gen1EA <- parseFile parseEvosAttacksFile
+  gen1EvosAttacks <- parseFile parseEvosAttacksFile
     (pokered </> "data/pokemon/evos_moves.asm")
-  let gen1EAJoined = joinGen1Blocks gen1DexOrder gen1EA
+  let gen1EvosAttacksJoined = joinGen1Blocks gen1DexOrder gen1EvosAttacks
 
   -- Gen 2: blocks in dex order
-  gen2EA <- parseFile parseEvosAttacksFile
+  gen2EvosAttacks <- parseFile parseEvosAttacksFile
     (pokecrystal </> "data/pokemon/evos_attacks.asm")
-  let gen2EAJoined = zip [1 :: Int ..] (map snd gen2EA)
+  let gen2EvosAttacksJoined = zip [1 :: Int ..] (map snd gen2EvosAttacks)
 
-  let learnRows = formatLearnsetRows "1" gen1EAJoined
-                ++ formatLearnsetRows "2" gen2EAJoined
-  writeCSV (outDir </> "learnsets.csv") learnsetHeader learnRows
+  let learnsetRows = formatLearnsetRows "1" gen1EvosAttacksJoined
+                   ++ formatLearnsetRows "2" gen2EvosAttacksJoined
+  writeCSV (outDir </> "learnsets.csv") learnsetHeader learnsetRows
 
-  let evoRows = formatEvolutionRows "1" gen1NameToDex gen1EAJoined
-              ++ formatEvolutionRows "2" gen2PokemonConsts gen2EAJoined
-  writeCSV (outDir </> "evolutions.csv") evolutionHeader evoRows
+  let evolutionRows = formatEvolutionRows "1" gen1NameToDex gen1EvosAttacksJoined
+                    ++ formatEvolutionRows "2" gen2PokemonConsts gen2EvosAttacksJoined
+  writeCSV (outDir </> "evolutions.csv") evolutionHeader evolutionRows
 
   -- ── Summary ──────────────────────────────────────────────────
   putStrLn "Extraction complete:"
   putStrLn $ "  moves:       " ++ show (length gen1Moves + length gen2Moves)
-  putStrLn $ "  tmhm:        " ++ show (length gen1TM + length gen2TM)
+  putStrLn $ "  tmhm:        " ++ show (length gen1MachineRows + length gen2MachineRows)
   putStrLn $ "  items:       " ++ show (length gen1Items + length gen2Items)
   putStrLn $ "  species:     " ++ show (length gen1SpeciesRows + length gen2SpeciesRows)
   putStrLn $ "  tmhm_compat: " ++ show (length gen1Compat + length gen2Compat)
   putStrLn $ "  tutor:       " ++ show (length tutorCompat)
   putStrLn $ "  egg_moves:   " ++ show (length eggMoves)
-  putStrLn $ "  learnsets:   " ++ show (length learnRows)
-  putStrLn $ "  evolutions:  " ++ show (length evoRows)
+  putStrLn $ "  learnsets:   " ++ show (length learnsetRows)
+  putStrLn $ "  evolutions:  " ++ show (length evolutionRows)
 
 
 -- ── Species extraction ─────────────────────────────────────────
@@ -186,7 +187,7 @@ parseDexOrderFile = go []
           horizontalSpace
           choice
             [ try (parseDbEntry >>= \name -> go (name : acc))
-            , skipLine >> go acc
+            , restOfLine >> go acc
             ]
 
     parseDbEntry = do
@@ -196,7 +197,7 @@ parseDexOrderFile = go []
       endOfLine
       pure (T.strip arg)
 
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
+    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 -- | Build species constant name → dex number for Gen 1.
 -- Composes: name → internal index → dex number.
@@ -243,11 +244,11 @@ buildTMHMCompat gen moveToNumber speciesData =
 -- Tutor moves are listed in the species' tmhm line but aren't TMs or HMs.
 buildTutorCompat :: TMHM -> [(Int, SpeciesData)] -> [[Text]]
 buildTutorCompat tmhm speciesData =
-  let tutorSet = Map.fromList [(m, ()) | m <- tutorMoves tmhm]
+  let tutorSet = Set.fromList (tutorMoves tmhm)
   in [ [T.pack (show dex), moveName]
      | (dex, dat) <- speciesData
      , moveName <- speciesTmhm dat
-     , Map.member moveName tutorSet
+     , Set.member moveName tutorSet
      ]
 
 

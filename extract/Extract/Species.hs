@@ -48,7 +48,7 @@ parseBaseStatsIncludes = go []
           horizontalSpace
           choice
             [ try (parseInclude >>= \path -> go (path : acc))
-            , skipLine >> go acc
+            , restOfLine >> go acc
             ]
 
     parseInclude = do
@@ -59,7 +59,6 @@ parseBaseStatsIncludes = go []
       restOfLine
       pure path
 
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
     restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 -- | Parse one species base_stats file.
@@ -84,8 +83,10 @@ parseBaseStats = go [] [] []
             [ try (parseDbLine >>= \args -> go (args : dbs) dns tmhms)
             , try (parseDnLine >>= \args -> go dbs (args : dns) tmhms)
             , try (parseTmhmLine >>= \args -> go dbs dns (args : tmhms))
-            , skipLine >> go dbs dns tmhms
+            , restOfLine >> go dbs dns tmhms
             ]
+
+    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
     parseDbLine = keyword "db" *> commaSeparated
     parseDnLine = keyword "dn" *> commaSeparated
@@ -113,52 +114,59 @@ parseBaseStats = go [] [] []
             pure part
         ]
 
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 
 -- | Format a Gen 1 species row from parsed data.
--- Gen 1 db args order: DEX, hp, atk, def, spd, spc,
---   TYPE1, TYPE2, catch_rate, base_exp, MOVE1..4, GROWTH_RATE, 0
+-- Gen 1 db args order (positional):
+--   [0] DEX, [1] hp, [2] attack, [3] defense, [4] speed, [5] special,
+--   [6] TYPE1, [7] TYPE2, [8] catch_rate, [9] base_exp,
+--   [10..13] starting moves, [14] GROWTH_RATE, [15] padding
 formatGen1Species :: Int -> SpeciesData -> [Text]
 formatGen1Species dex dat =
-  let a = speciesDbArgs dat
+  let fields = speciesDbArgs dat
   in [ "1", T.pack (show dex)
-     , a !! 1, a !! 2, a !! 3, a !! 4  -- hp, atk, def, spd
-     , a !! 5, a !! 5, a !! 5          -- spc = spa = spd (unified)
-     , a !! 6, a !! 7                   -- type1, type2
-     , a !! 8, a !! 9                   -- catch_rate, base_exp
-     , a !! 14                          -- growth_rate
-     , "", "", "", "", "", ""           -- Gen 2 fields absent
+     , fields !! 1                              -- hp
+     , fields !! 2, fields !! 3, fields !! 4    -- attack, defense, speed
+     , fields !! 5, fields !! 5, fields !! 5    -- special (all three columns, unified in Gen 1)
+     , fields !! 6, fields !! 7                 -- type1, type2
+     , fields !! 8, fields !! 9                 -- catch_rate, base_exp
+     , fields !! 14                             -- growth_rate
+     , "", "", "", "", "", ""                   -- Gen 2 fields absent
      ]
 
 -- | Format a Gen 2 species row from parsed data.
--- Gen 2 db args order: SPECIES, hp, atk, def, spd, spa, spd,
---   TYPE1, TYPE2, catch_rate, base_exp, ITEM1, ITEM2, GENDER,
---   base_happiness, hatch_cycles, unknown, GROWTH_RATE
+-- Gen 2 db args order (positional):
+--   [0] SPECIES, [1] hp, [2] attack, [3] defense, [4] speed,
+--   [5] special_attack, [6] special_defense,
+--   [7] TYPE1, [8] TYPE2, [9] catch_rate, [10] base_exp,
+--   [11] ITEM1, [12] ITEM2, [13] GENDER,
+--   [14] base_happiness, [15] hatch_cycles, [16] unknown, [17] GROWTH_RATE
 formatGen2Species :: Int -> SpeciesData -> [Text]
 formatGen2Species dex dat =
-  let a  = speciesDbArgs dat
-      dn = speciesDnArgs dat
-      egg1 = if length dn >= 1 then dn !! 0 else ""
-      egg2 = if length dn >= 2 then dn !! 1 else ""
+  let fields = speciesDbArgs dat
+      (eggGroup1, eggGroup2) = case speciesDnArgs dat of
+        []       -> ("", "")
+        [e1]     -> (e1, "")
+        (e1:e2:_) -> (e1, e2)
   in [ "2", T.pack (show dex)
-     , a !! 1, a !! 2, a !! 3, a !! 4  -- hp, atk, def, spd
-     , a !! 5, a !! 5, a !! 6          -- spc=spa, spa, spd
-     , a !! 7, a !! 8                   -- type1, type2
-     , a !! 9, a !! 10                  -- catch_rate, base_exp
-     , a !! 17                          -- growth_rate
-     , a !! 13                          -- gender_ratio
-     , egg1, egg2                       -- egg groups
-     , a !! 11, a !! 12                 -- items
-     , a !! 15                          -- hatch_cycles
-     , a !! 14                          -- base_happiness
+     , fields !! 1                              -- hp
+     , fields !! 2, fields !! 3, fields !! 4    -- attack, defense, speed
+     , fields !! 5, fields !! 5, fields !! 6    -- special = special_attack, special_attack, special_defense
+     , fields !! 7, fields !! 8                 -- type1, type2
+     , fields !! 9, fields !! 10                -- catch_rate, base_exp
+     , fields !! 17                             -- growth_rate
+     , fields !! 13                             -- gender_ratio
+     , eggGroup1, eggGroup2                     -- egg groups (from dn directive)
+     , fields !! 11, fields !! 12               -- item1, item2
+     , fields !! 15                             -- hatch_cycles
+     , fields !! 14                             -- base_happiness
      ]
 
 speciesHeader :: [Text]
 speciesHeader =
   [ "gen", "dex"
-  , "hp", "atk", "dfn", "spd"
-  , "spc", "spa", "sp_def"
+  , "hp", "attack", "defense", "speed"
+  , "special", "special_attack", "special_defense"
   , "type1", "type2"
   , "catch_rate", "base_exp", "growth_rate"
   , "gender_ratio", "egg_group1", "egg_group2"

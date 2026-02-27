@@ -33,7 +33,7 @@ parseItemNames = go []
           horizontalSpace
           choice
             [ try (parseLi >>= \name -> go (name : acc))
-            , skipLine >> go acc
+            , restOfLine >> go acc
             ]
 
     parseLi = do
@@ -44,7 +44,6 @@ parseItemNames = go []
       restOfLine
       pure name
 
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
     restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 formatRow :: Text -> Int -> Text -> [Text]

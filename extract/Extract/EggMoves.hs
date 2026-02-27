@@ -46,11 +46,10 @@ parsePointerTable = go []
           horizontalSpace
           choice
             [ try (parseDw >>= \name -> go (name : acc))
-            , skipLine >> go acc
+            , restOfLine >> go acc
             ]
 
     parseDw = keyword "dw" *> identifier <* restOfLine
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
     restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 -- | Parse egg move blocks: labeled sections of db MOVE_NAME entries.
@@ -69,7 +68,7 @@ parseEggMoveBlocks = go []
                 name <- parseLabel
                 moves <- many (try parseDbMove)
                 go ((name, moves) : acc)
-            , skipLine >> go acc
+            , restOfLine >> go acc
             ]
 
     -- A label: identifier followed by colon at start of line.
@@ -89,7 +88,6 @@ parseEggMoveBlocks = go []
       restOfLine
       pure move
 
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
     restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 eggMovesHeader :: [Text]
