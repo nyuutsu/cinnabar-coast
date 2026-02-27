@@ -26,6 +26,7 @@ module Pokemon.TextCodec
 
     -- * Display
   , displayText
+  , showHexByte
   ) where
 
 import qualified Data.Aeson as Aeson
@@ -37,7 +38,9 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import Data.Char (toUpper)
 import Data.Word (Word8)
+import Numeric (showHex)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
@@ -116,15 +119,13 @@ displayText (GameText chars) = T.concat (map renderChar chars)
   where
     renderChar (Literal c)     = T.singleton c
     renderChar (Ligature t)    = t
-    renderChar (UnknownByte w) = T.pack ("[0x" ++ showHex w ++ "]")
-    showHex w =
-      let h = fromIntegral w :: Int
-          hi = h `div` 16
-          lo = h `mod` 16
-          hexDigit n
-            | n < 10    = toEnum (n + fromEnum '0')
-            | otherwise = toEnum (n - 10 + fromEnum 'A')
-      in [hexDigit hi, hexDigit lo]
+    renderChar (UnknownByte w) = T.pack ("[0x" ++ showHexByte w ++ "]")
+
+-- | Format a Word8 as a 2-character uppercase hex string.
+showHexByte :: Word8 -> String
+showHexByte w = case showHex w "" of
+  [c] -> ['0', toUpper c]
+  s   -> map toUpper s
 
 
 -- ── JSON Loading ──────────────────────────────────────────────────

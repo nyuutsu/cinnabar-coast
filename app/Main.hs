@@ -213,12 +213,4 @@ showScreen ns = TIO.putStrLn $
 
 -- | Show a ByteString as space-separated hex pairs.
 showHexBytes :: BS.ByteString -> String
-showHexBytes bs = unwords [ hexByte b | b <- BS.unpack bs ]
-  where
-    hexByte w =
-      let hi = fromIntegral w `div` 16 :: Int
-          lo = fromIntegral w `mod` 16
-      in [hexDigit hi, hexDigit lo]
-    hexDigit n
-      | n < 10    = toEnum (n + fromEnum '0')
-      | otherwise = toEnum (n - 10 + fromEnum 'A')
+showHexBytes bs = unwords [ showHexByte b | b <- BS.unpack bs ]
