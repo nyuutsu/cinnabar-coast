@@ -119,13 +119,13 @@ demoLegality g1 g2 = do
   classify g2 (Just g1) "PIKACHU"  "THUNDERBOLT"  100
 
   -- PreEvo: Raichu can't learn Thunder Wave in Gen 2, but Pikachu can
-  classify g2 (Just g1) "RAICHU"   "THUNDER WAVE" 100
+  classify g2 (Just g1) "RAICHU"   "THUNDER_WAVE" 100
 
   -- Tradeback: Mega Punch is TM01 in Gen 1, gone in Gen 2
-  classify g2 (Just g1) "CHANSEY"  "MEGA PUNCH"   100
+  classify g2 (Just g1) "CHANSEY"  "MEGA_PUNCH"   100
 
   -- Tradeback + tutor: Body Slam is TM08 in Gen 1, tutor in Crystal
-  classify g2 (Just g1) "SNORLAX"  "BODY SLAM"    100
+  classify g2 (Just g1) "SNORLAX"  "BODY_SLAM"    100
 
   -- Reverse tradeback: Eevee learns Bite in Gen 2 but not Gen 1
   classify g1 (Just g2) "EEVEE"    "BITE"         100

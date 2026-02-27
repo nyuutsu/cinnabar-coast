@@ -21,6 +21,7 @@ module Pokemon.Types
   , specialAttack, specialDefense
 
     -- * Moves (static game data)
+  , MoveType (..)
   , Move (..)
   , MoveSlot (..)
   , MoveSlots
@@ -139,10 +140,20 @@ data Species = Species
 
 -- ── Move ────────────────────────────────────────────────────────
 
+-- | The type of a move. Most moves have a standard PokemonType, but
+-- Curse uses CURSE_TYPE (0x13 in the ROM, displays as "???") which
+-- doesn't correspond to any real element type. UnknownType preserves
+-- unrecognized type bytes for round-tripping.
+data MoveType
+  = StandardType !PokemonType
+  | CurseType                    -- ^ the ??? type, only used by Curse
+  | UnknownType !Word8           -- ^ unrecognized byte, preserved for round-tripping
+  deriving (Eq, Show)
+
 data Move = Move
   { moveId       :: !Int
   , moveName     :: !Text
-  , moveType     :: !PokemonType
+  , moveType     :: !MoveType
   , movePower    :: !Int    -- 0 for status moves
   , moveAccuracy :: !Int    -- 0 for never-miss
   , movePP       :: !Int    -- base PP before PP Ups
@@ -250,9 +261,9 @@ data GenData
 -- | What triggers an evolution.
 data EvoTrigger
   = EvoLevel !Int           -- reach this level
-  | EvoItem !Int            -- use item (item ID, per-gen)
-  | EvoTrade                -- trade
-  | EvoTradeItem !Int       -- trade holding item (Gen 2, item ID)
+  | EvoItem !Text           -- use item (constant name, e.g. "MOON_STONE")
+  | EvoTrade                -- trade (no held item required)
+  | EvoTradeItem !Text      -- trade holding item (Gen 2, e.g. "KINGS_ROCK")
   | EvoHappiness            -- friendship ≥ 220, any time
   | EvoHappinessDay         -- friendship + daytime (Gen 2)
   | EvoHappinessNight       -- friendship + nighttime (Gen 2)

@@ -15,7 +15,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Directory (doesFileExist)
 import System.Environment (getArgs)
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeBaseName)
 import Text.Megaparsec
 
 import Extract.ASM
@@ -84,8 +84,10 @@ extractAll pokered pokecrystal outDir = do
   gen1SpeciesData <- extractAllSpecies pokered
   gen2SpeciesData <- extractAllSpecies pokecrystal
 
-  let gen1SpeciesRows = [formatGen1Species dex dat | (dex, dat) <- gen1SpeciesData]
-      gen2SpeciesRows = [formatGen2Species dex dat | (dex, dat) <- gen2SpeciesData]
+  let gen1SpeciesRows = [formatGen1Species name dex dat
+                           | (dex, name, dat) <- gen1SpeciesData]
+      gen2SpeciesRows = [formatGen2Species name dex dat
+                           | (dex, name, dat) <- gen2SpeciesData]
   writeCSV (outDir </> "species.csv") speciesHeader
     (gen1SpeciesRows ++ gen2SpeciesRows)
 
@@ -141,14 +143,18 @@ extractAll pokered pokecrystal outDir = do
 
 -- | Extract all species from one gen's base_stats directory.
 -- Parses the INCLUDE list for dex order, then each species file.
+-- Returns (dex, name, data) triples. Name is derived from the
+-- INCLUDE filename (e.g. "bulbasaur.asm" → "BULBASAUR").
 -- Handles Mew specially (not in pokered's INCLUDE list).
-extractAllSpecies :: FilePath -> IO [(Int, SpeciesData)]
+extractAllSpecies :: FilePath -> IO [(Int, Text, SpeciesData)]
 extractAllSpecies repoPath = do
   includes <- parseFile parseBaseStatsIncludes
     (repoPath </> "data/pokemon/base_stats.asm")
   speciesList <- mapM (\inc -> extractSpeciesFile (repoPath </> T.unpack inc))
     includes
-  let numbered = zip [1 :: Int ..] speciesList
+  let nameFromInclude inc = T.toUpper . T.pack $ takeBaseName (T.unpack inc)
+      names = map nameFromInclude includes
+      numbered = zip3 [1 :: Int ..] names speciesList
       nextDex = length includes + 1
 
   -- Check for Mew (pokered excludes it from the INCLUDE list)
@@ -156,7 +162,7 @@ extractAllSpecies repoPath = do
   if mewExists && nextDex == 151
     then do
       mewData <- extractSpeciesFile (repoPath </> "data/pokemon/base_stats/mew.asm")
-      pure (numbered ++ [(151, mewData)])
+      pure (numbered ++ [(151, "MEW", mewData)])
     else pure numbered
 
 
@@ -232,21 +238,21 @@ buildMoveNumberMap tmhm =
 
 -- | Generate tmhm_compat rows from species data.
 -- For each species' tmhm moves, look up the TM/HM number.
-buildTMHMCompat :: Text -> Map Text Int -> [(Int, SpeciesData)] -> [[Text]]
+buildTMHMCompat :: Text -> Map Text Int -> [(Int, Text, SpeciesData)] -> [[Text]]
 buildTMHMCompat gen moveToNumber speciesData =
   [ [gen, T.pack (show dex), T.pack (show number)]
-  | (dex, dat) <- speciesData
+  | (dex, _name, dat) <- speciesData
   , moveName <- speciesTmhm dat
   , Just number <- [Map.lookup moveName moveToNumber]
   ]
 
 -- | Generate tutor compatibility rows.
 -- Tutor moves are listed in the species' tmhm line but aren't TMs or HMs.
-buildTutorCompat :: TMHM -> [(Int, SpeciesData)] -> [[Text]]
+buildTutorCompat :: TMHM -> [(Int, Text, SpeciesData)] -> [[Text]]
 buildTutorCompat tmhm speciesData =
   let tutorSet = Set.fromList (tutorMoves tmhm)
   in [ [T.pack (show dex), moveName]
-     | (dex, dat) <- speciesData
+     | (dex, _name, dat) <- speciesData
      , moveName <- speciesTmhm dat
      , Set.member moveName tutorSet
      ]

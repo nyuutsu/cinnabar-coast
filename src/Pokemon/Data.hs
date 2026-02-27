@@ -6,6 +6,10 @@
 -- them directly with Data.Text rather than pulling in a CSV library.
 -- If a field can't be parsed, we crash — the CSVs are curated and
 -- a parse error means something is genuinely wrong.
+--
+-- The CSVs store pret ASM constant names (NORMAL, FIRE, MOON_STONE,
+-- GROWTH_MEDIUM_SLOW, etc.) rather than numeric IDs. This module maps
+-- those names to our domain types.
 
 module Pokemon.Data
   ( loadGameData
@@ -15,6 +19,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import Data.Char (isDigit)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
@@ -24,25 +29,28 @@ import Pokemon.Types
 -- ── Public API ──────────────────────────────────────────────────
 
 -- | Load all static game data for one generation.
+-- Moves are loaded first because other CSVs reference moves by
+-- constant name rather than numeric ID.
 loadGameData :: Gen -> IO GameData
 loadGameData gen = do
   dir <- getDataDir
   let csvPath name = dir </> "csv" </> name
 
+  -- Step 1: Load moves (other CSVs reference moves by name)
+  (moves, moveNameToId) <- loadMoves gen (csvPath "moves.csv")
+
+  -- Step 2: Load everything else, resolving move names to IDs
   species  <- loadSpecies gen  (csvPath "species.csv")
-  moves    <- loadMoves gen    (csvPath "moves.csv")
-  machines <- loadMachines gen (csvPath "tmhm.csv")
+  machines <- loadMachines gen moveNameToId (csvPath "tmhm.csv")
   compat   <- loadCompat gen   (csvPath "tmhm_compat.csv")
-  levelUp  <- loadLearnsets gen (csvPath "learnsets.csv")
+  levelUp  <- loadLearnsets gen moveNameToId (csvPath "learnsets.csv")
   eggMoves <- case gen of
-    Gen2 -> loadPairMap (csvPath "egg_moves.csv")
+    Gen2 -> loadNamePairMap moveNameToId (csvPath "egg_moves.csv")
     _    -> pure Map.empty
   tutors   <- case gen of
-    Gen2 -> loadPairMap (csvPath "tutor.csv")
+    Gen2 -> loadNamePairMap moveNameToId (csvPath "tutor.csv")
     _    -> pure Map.empty
-  items    <- case gen of
-    Gen2 -> loadItems (csvPath "items.csv")
-    _    -> pure Map.empty
+  items    <- loadItems gen (csvPath "items.csv")
   evolutions <- loadEvolutions gen (csvPath "evolutions.csv")
 
   let evolvesInto = Map.fromListWith (++)
@@ -125,54 +133,73 @@ forGen gen csv = filter match (csvRows csv)
     genCol = col csv "gen"
     match row = int (genCol row) == genN
 
+-- | Check if a Text value looks like a number (digits, optionally
+-- preceded by a minus sign). Used to distinguish numeric params
+-- from constant names in evolution data.
+isNumeric :: T.Text -> Bool
+isNumeric t = case T.uncons (T.strip t) of
+  Nothing       -> True   -- empty = numeric (treated as 0)
+  Just ('-', r) -> T.all isDigit r && not (T.null r)
+  Just _        -> T.all isDigit (T.strip t)
 
--- ── Type ID mapping ─────────────────────────────────────────────
 
--- Game Boy internal type IDs → our PokemonType enum.
--- There's a gap from 0x0A to 0x13 (unused in the games).
-typeFromId :: Int -> PokemonType
-typeFromId  0 = Normal
-typeFromId  1 = Fighting
-typeFromId  2 = Flying
-typeFromId  3 = Poison
-typeFromId  4 = Ground
-typeFromId  5 = Rock
-typeFromId  7 = Bug
-typeFromId  8 = Ghost
-typeFromId  9 = Steel
-typeFromId 20 = Fire
-typeFromId 21 = Water
-typeFromId 22 = Grass
-typeFromId 23 = Electric
-typeFromId 24 = Psychic
-typeFromId 25 = Ice
-typeFromId 26 = Dragon
-typeFromId 27 = Dark
-typeFromId n  = error $ "Unknown type ID: " ++ show n
+-- ── Name-based mapping ──────────────────────────────────────────
 
-growthFromId :: Int -> GrowthRate
-growthFromId 0 = MediumFast
-growthFromId 3 = MediumSlow
-growthFromId 4 = Fast
-growthFromId 5 = Slow
-growthFromId n = error $ "Unknown growth rate: " ++ show n
+-- | Map pret ASM type constant name → PokemonType.
+-- Used for species types (which are always real element types).
+typeFromName :: T.Text -> PokemonType
+typeFromName "NORMAL"   = Normal
+typeFromName "FIGHTING" = Fighting
+typeFromName "FLYING"   = Flying
+typeFromName "POISON"   = Poison
+typeFromName "GROUND"   = Ground
+typeFromName "ROCK"     = Rock
+typeFromName "BUG"      = Bug
+typeFromName "GHOST"    = Ghost
+typeFromName "STEEL"    = Steel
+typeFromName "FIRE"     = Fire
+typeFromName "WATER"    = Water
+typeFromName "GRASS"    = Grass
+typeFromName "ELECTRIC" = Electric
+typeFromName "PSYCHIC"      = Psychic
+typeFromName "PSYCHIC_TYPE" = Psychic  -- pret alias (avoids collision with move name)
+typeFromName "ICE"      = Ice
+typeFromName "DRAGON"   = Dragon
+typeFromName "DARK"     = Dark
+typeFromName n          = error $ "Unknown type name: " ++ T.unpack n
+
+-- | Map pret ASM type constant name → MoveType.
+-- Handles CURSE_TYPE (the ??? type used only by Curse) and delegates
+-- to typeFromName for all standard element types.
+moveTypeFromName :: T.Text -> MoveType
+moveTypeFromName "CURSE_TYPE" = CurseType
+moveTypeFromName n            = StandardType (typeFromName n)
+
+-- | Map pret ASM growth rate constant name → GrowthRate.
+growthFromName :: T.Text -> GrowthRate
+growthFromName "GROWTH_MEDIUM_FAST" = MediumFast
+growthFromName "GROWTH_MEDIUM_SLOW" = MediumSlow
+growthFromName "GROWTH_FAST"        = Fast
+growthFromName "GROWTH_SLOW"        = Slow
+growthFromName n = error $ "Unknown growth rate: " ++ T.unpack n
 
 
 -- ── Loaders ─────────────────────────────────────────────────────
 
 -- | species.csv → Map dex Species
+-- Columns use ASM constant names for types, growth rate, etc.
 loadSpecies :: Gen -> FilePath -> IO (Map.Map Int Species)
 loadSpecies gen path = do
   csv <- readCSV path
   let dex           = col csv "dex"
       name          = col csv "name"
       hp            = col csv "hp"
-      atk           = col csv "atk"
-      dfn           = col csv "dfn"
-      spd           = col csv "spd"
-      spc           = col csv "spc"
-      spa           = col csv "spa"
-      spDef         = col csv "sp_def"
+      attack        = col csv "attack"
+      defense       = col csv "defense"
+      speed         = col csv "speed"
+      special       = col csv "special"
+      specialAttk   = col csv "special_attack"
+      specialDef    = col csv "special_defense"
       type1         = col csv "type1"
       type2         = col csv "type2"
       catchRate     = col csv "catch_rate"
@@ -190,16 +217,20 @@ loadSpecies gen path = do
             , speciesName          = T.strip (name row)
             , speciesBaseStats     = BaseStats
                 { baseHP      = int (hp row)
-                , baseAttack  = int (atk row)
-                , baseDefense = int (dfn row)
-                , baseSpeed   = int (spd row)
+                , baseAttack  = int (attack row)
+                , baseDefense = int (defense row)
+                , baseSpeed   = int (speed row)
                 , baseSpecial = case gen of
-                    Gen1 -> Unified (int (spc row))
-                    Gen2 -> Split   (int (spa row)) (int (spDef row))
+                    Gen1 -> Unified (int (special row))
+                    Gen2 -> Split   (int (specialAttk row)) (int (specialDef row))
                 }
-            , speciesTypes         = (typeFromId (int (type1 row)), typeFromId (int (type2 row)))
+            , speciesTypes         = (typeFromName (type1 row), typeFromName (type2 row))
             , speciesCatchRate     = int (catchRate row)
-            , speciesGrowthRate    = growthFromId (int (growthRate row))
+            , speciesGrowthRate    = growthFromName (growthRate row)
+            -- TODO: gender_ratio and egg_group columns now contain
+            -- constant names (GENDER_F50, EGG_MONSTER, etc.) rather
+            -- than numeric IDs. maybeInt returns Nothing for these.
+            -- Parse them properly when domain logic needs them.
             , speciesGenderRatio   = maybeInt (genderRatio row)
             , speciesEggGroups     = case (maybeInt (eggGroup1 row), maybeInt (eggGroup2 row)) of
                 (Just a, Just b) -> Just (a, b)
@@ -209,8 +240,10 @@ loadSpecies gen path = do
     ]
 
 
--- | moves.csv → Map moveId Move
-loadMoves :: Gen -> FilePath -> IO (Map.Map Int Move)
+-- | moves.csv → (Map moveId Move, Map moveName moveId)
+-- Returns both the move map and a name→ID lookup for use by
+-- other loaders that reference moves by constant name.
+loadMoves :: Gen -> FilePath -> IO (Map.Map Int Move, Map.Map T.Text Int)
 loadMoves gen path = do
   csv <- readCSV path
   let mid      = col csv "id"
@@ -220,33 +253,40 @@ loadMoves gen path = do
       accuracy = col csv "accuracy"
       pp       = col csv "pp"
       matching = forGen gen csv
-  pure $ Map.fromList
-    [ (moveId mv, mv)
-    | row <- matching
-    , let mv = Move
-            { moveId       = int (mid row)
-            , moveName     = T.strip (name row)
-            , moveType     = typeFromId (int (typ row))
-            , movePower    = int (power row)
-            , moveAccuracy = int (accuracy row)
-            , movePP       = int (pp row)
-            }
-    ]
+      moveList = [ mv
+                 | row <- matching
+                 , let mv = Move
+                         { moveId       = int (mid row)
+                         , moveName     = T.strip (name row)
+                         , moveType     = moveTypeFromName (typ row)
+                         , movePower    = int (power row)
+                         , moveAccuracy = int (accuracy row)
+                         , movePP       = int (pp row)
+                         }
+                 ]
+      moveMap    = Map.fromList [(moveId mv, mv) | mv <- moveList]
+      nameToId   = Map.fromList [(moveName mv, moveId mv) | mv <- moveList]
+  pure (moveMap, nameToId)
 
 
 -- | tmhm.csv → Map Machine moveId
-loadMachines :: Gen -> FilePath -> IO (Map.Map Machine Int)
-loadMachines gen path = do
+-- New schema: gen,number,move_name,kind (kind = "tm"/"hm"/"tutor")
+-- Tutors are skipped — they aren't TMs or HMs.
+loadMachines :: Gen -> Map.Map T.Text Int -> FilePath -> IO (Map.Map Machine Int)
+loadMachines gen moveNameToId path = do
   csv <- readCSV path
-  let number  = col csv "number"
-      moveId' = col csv "move_id"
-      isHm    = col csv "is_hm"
+  let number   = col csv "number"
+      moveName = col csv "move_name"
+      kind     = col csv "kind"
       matching = forGen gen csv
   pure $ Map.fromList
-    [ (machine, int (moveId' row))
+    [ (machine, mid)
     | row <- matching
-    , let num     = int (number row)
-          machine = if int (isHm row) == 1 then HM num else TM num
+    , let k = kind row
+    , k == "tm" || k == "hm"    -- skip tutors
+    , let num = int (number row)
+          machine = if k == "hm" then HM num else TM num
+    , Just mid <- [Map.lookup (moveName row) moveNameToId]
     ]
 
 
@@ -273,15 +313,17 @@ numToMachine n
 
 
 -- | learnsets.csv → Map dex [(level, moveId)]
-loadLearnsets :: Gen -> FilePath -> IO (Map.Map Int [(Int, Int)])
-loadLearnsets gen path = do
+-- New schema: gen,dex,level,move_name (name resolved via lookup map)
+loadLearnsets :: Gen -> Map.Map T.Text Int -> FilePath -> IO (Map.Map Int [(Int, Int)])
+loadLearnsets gen moveNameToId path = do
   csv <- readCSV path
-  let dex     = col csv "dex"
-      level   = col csv "level"
-      moveId' = col csv "move_id"
+  let dex      = col csv "dex"
+      level    = col csv "level"
+      moveName = col csv "move_name"
       matching = forGen gen csv
-      triples  = [ (int (dex row), (int (level row), int (moveId' row)))
+      triples  = [ (int (dex row), (int (level row), mid))
                  | row <- matching
+                 , Just mid <- [Map.lookup (moveName row) moveNameToId]
                  ]
   pure $ Map.fromListWith (++)
     [ (d, [entry])
@@ -290,59 +332,71 @@ loadLearnsets gen path = do
 
 
 -- | egg_moves.csv or tutor.csv → Map dex (Set moveId)
--- No gen column — these are Gen 2 only.
-loadPairMap :: FilePath -> IO (Map.Map Int (Set.Set Int))
-loadPairMap path = do
+-- New schema: dex,move_name (no gen column — Gen 2 only).
+-- Move names are resolved to IDs via the lookup map.
+loadNamePairMap :: Map.Map T.Text Int -> FilePath -> IO (Map.Map Int (Set.Set Int))
+loadNamePairMap moveNameToId path = do
   csv <- readCSV path
-  let dex     = col csv "dex"
-      moveId' = col csv "move_id"
+  let dex      = col csv "dex"
+      moveName = col csv "move_name"
   pure $ Map.fromListWith Set.union
-    [ (int (dex row), Set.singleton (int (moveId' row)))
+    [ (int (dex row), Set.singleton mid)
     | row <- csvRows csv
+    , Just mid <- [Map.lookup (moveName row) moveNameToId]
     ]
 
 
 -- | items.csv → Map itemId name
-loadItems :: FilePath -> IO (Map.Map Int T.Text)
-loadItems path = do
+loadItems :: Gen -> FilePath -> IO (Map.Map Int T.Text)
+loadItems gen path = do
   csv <- readCSV path
-  let gen  = col csv "gen"
+  let genN = fromEnum gen + 1
+      genCol = col csv "gen"
       mid  = col csv "id"
       name = col csv "name"
   pure $ Map.fromList
     [ (int (mid row), T.strip (name row))
     | row <- csvRows csv
-    , int (gen row) == 2
+    , int (genCol row) == genN
     ]
 
 
 -- | evolutions.csv → [EvolutionStep]
+-- New schema: gen,from_dex,to_dex,method,param1,param2
+-- Methods and params use pret ASM constant names.
 loadEvolutions :: Gen -> FilePath -> IO [EvolutionStep]
 loadEvolutions gen path = do
   csv <- readCSV path
   let fromDex = col csv "from_dex"
       toDex   = col csv "to_dex"
       method  = col csv "method"
-      param   = col csv "param"
+      param1  = col csv "param1"
+      param2  = col csv "param2"
       matching = forGen gen csv
   pure [ EvolutionStep
            { stepFrom    = int (fromDex row)
            , stepTo      = int (toDex row)
-           , stepTrigger = parseTrigger (method row) (param row)
+           , stepTrigger = parseTrigger (method row) (param1 row) (param2 row)
            }
        | row <- matching
        ]
 
-parseTrigger :: T.Text -> T.Text -> EvoTrigger
-parseTrigger method param = case method of
-  "level"           -> EvoLevel (int param)
-  "item"            -> EvoItem (int param)
-  "trade"           -> EvoTrade
-  "trade_item"      -> EvoTradeItem (int param)
-  "happiness"       -> EvoHappiness
-  "happiness_day"   -> EvoHappinessDay
-  "happiness_night" -> EvoHappinessNight
-  "stat_lt"         -> EvoStatLT (int param)
-  "stat_gt"         -> EvoStatGT (int param)
-  "stat_eq"         -> EvoStatEQ (int param)
-  _                 -> error $ "Unknown evolution method: " ++ T.unpack method
+-- | Parse an evolution trigger from ASM constant names.
+parseTrigger :: T.Text -> T.Text -> T.Text -> EvoTrigger
+parseTrigger method param1 param2 = case T.strip method of
+  "EVOLVE_LEVEL" -> EvoLevel (int param1)
+  "EVOLVE_ITEM"  -> EvoItem (T.strip param1)
+  "EVOLVE_TRADE" ->
+    let p = T.strip param1
+    in if isNumeric p then EvoTrade else EvoTradeItem p
+  "EVOLVE_HAPPINESS" -> case T.strip param1 of
+    "TR_ANYTIME" -> EvoHappiness
+    "TR_MORNDAY" -> EvoHappinessDay
+    "TR_NITE"    -> EvoHappinessNight
+    x -> error $ "Unknown happiness time: " ++ T.unpack x
+  "EVOLVE_STAT" -> case T.strip param2 of
+    "ATK_LT_DEF" -> EvoStatLT (int param1)
+    "ATK_GT_DEF" -> EvoStatGT (int param1)
+    "ATK_EQ_DEF" -> EvoStatEQ (int param1)
+    x -> error $ "Unknown stat comparison: " ++ T.unpack x
+  x -> error $ "Unknown evolution method: " ++ T.unpack x

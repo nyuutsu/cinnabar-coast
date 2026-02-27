@@ -121,17 +121,17 @@ parseBaseStats = go [] [] []
 --   [0] DEX, [1] hp, [2] attack, [3] defense, [4] speed, [5] special,
 --   [6] TYPE1, [7] TYPE2, [8] catch_rate, [9] base_exp,
 --   [10..13] starting moves, [14] GROWTH_RATE, [15] padding
-formatGen1Species :: Int -> SpeciesData -> [Text]
-formatGen1Species dex dat =
+formatGen1Species :: Text -> Int -> SpeciesData -> [Text]
+formatGen1Species name dex dat =
   let fields = speciesDbArgs dat
-  in [ "1", T.pack (show dex)
+  in [ "1", T.pack (show dex), name
      , fields !! 1                              -- hp
      , fields !! 2, fields !! 3, fields !! 4    -- attack, defense, speed
      , fields !! 5, fields !! 5, fields !! 5    -- special (all three columns, unified in Gen 1)
      , fields !! 6, fields !! 7                 -- type1, type2
      , fields !! 8, fields !! 9                 -- catch_rate, base_exp
      , fields !! 14                             -- growth_rate
-     , "", "", "", "", "", ""                   -- Gen 2 fields absent
+     , "", "", "", "", "", "", ""               -- Gen 2 fields absent (7 fields)
      ]
 
 -- | Format a Gen 2 species row from parsed data.
@@ -141,14 +141,14 @@ formatGen1Species dex dat =
 --   [7] TYPE1, [8] TYPE2, [9] catch_rate, [10] base_exp,
 --   [11] ITEM1, [12] ITEM2, [13] GENDER,
 --   [14] base_happiness, [15] hatch_cycles, [16] unknown, [17] GROWTH_RATE
-formatGen2Species :: Int -> SpeciesData -> [Text]
-formatGen2Species dex dat =
+formatGen2Species :: Text -> Int -> SpeciesData -> [Text]
+formatGen2Species name dex dat =
   let fields = speciesDbArgs dat
       (eggGroup1, eggGroup2) = case speciesDnArgs dat of
         []       -> ("", "")
         [e1]     -> (e1, "")
         (e1:e2:_) -> (e1, e2)
-  in [ "2", T.pack (show dex)
+  in [ "2", T.pack (show dex), name
      , fields !! 1                              -- hp
      , fields !! 2, fields !! 3, fields !! 4    -- attack, defense, speed
      , fields !! 5, fields !! 5, fields !! 6    -- special = special_attack, special_attack, special_defense
@@ -164,7 +164,7 @@ formatGen2Species dex dat =
 
 speciesHeader :: [Text]
 speciesHeader =
-  [ "gen", "dex"
+  [ "gen", "dex", "name"
   , "hp", "attack", "defense", "speed"
   , "special", "special_attack", "special_defense"
   , "type1", "type2"
