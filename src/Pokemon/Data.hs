@@ -75,14 +75,19 @@ loadGameData gen = do
 
 -- ── CSV reading ─────────────────────────────────────────────────
 
--- | A parsed CSV file: header index map plus data rows.
+-- | One CSV row: column name → value. Self-describing, no positional
+-- indexing. Missing trailing columns produce empty strings.
+type Row = Map.Map T.Text T.Text
+
+-- | A parsed CSV file: column names (for error messages) plus rows.
 data CSV = CSV
-  { csvHeader :: !(Map.Map T.Text Int)
-  , csvRows   :: ![[T.Text]]
+  { csvColumnNames :: ![T.Text]
+  , csvRows        :: ![Row]
   }
 
--- | Read a CSV file, parsing the header row into a column-name-to-index
--- map and returning all data rows. Blank lines are silently skipped.
+-- | Read a CSV file. Each data row becomes a Map from column name to
+-- value. Rows with fewer fields than the header get empty strings for
+-- the missing columns. Blank lines are silently skipped.
 readCSV :: FilePath -> IO CSV
 readCSV path = do
   content <- T.readFile path
@@ -90,20 +95,23 @@ readCSV path = do
   case allLines of
     [] -> error $ "Empty CSV file: " ++ path
     (headerLine:dataLines) ->
-      let headers   = map T.strip (T.splitOn "," headerLine)
-          headerMap = Map.fromList (zip headers [0..])
-          rows = [ map T.strip (T.splitOn "," line) | line <- dataLines ]
-      in pure CSV { csvHeader = headerMap, csvRows = rows }
+      let headers = map T.strip (T.splitOn "," headerLine)
+          toRow line =
+            let values = map T.strip (T.splitOn "," line)
+            in Map.fromList (zip headers (values ++ repeat ""))
+          rows = map toRow dataLines
+      in pure CSV { csvColumnNames = headers, csvRows = rows }
 
--- | Look up a column name in the CSV header, returning a row accessor.
--- The map lookup happens once; the returned function does only list
--- indexing per row. Crashes immediately if the column doesn't exist.
-col :: CSV -> T.Text -> ([T.Text] -> T.Text)
-col csv name =
-  case Map.lookup name (csvHeader csv) of
-    Nothing -> error $ "CSV column not found: " ++ T.unpack name
-                    ++ " (have: " ++ T.unpack (T.intercalate ", " (Map.keys (csvHeader csv))) ++ ")"
-    Just i  -> \row -> row !! i
+-- | Build a row accessor for a named column. Validates that the column
+-- exists upfront (crashes immediately on typo), then returns a function
+-- that extracts the value from any row via Map lookup.
+col :: CSV -> T.Text -> (Row -> T.Text)
+col csv name
+  | name `elem` csvColumnNames csv =
+      \row -> Map.findWithDefault "" name row
+  | otherwise =
+      error $ "CSV column not found: " ++ T.unpack name
+           ++ " (have: " ++ T.unpack (T.intercalate ", " (csvColumnNames csv)) ++ ")"
 
 
 -- ── Field parsers ───────────────────────────────────────────────
@@ -126,7 +134,7 @@ maybeInt t
       _         -> Nothing
 
 -- | Filter CSV rows where the "gen" column matches a gen number.
-forGen :: Gen -> CSV -> [[T.Text]]
+forGen :: Gen -> CSV -> [Row]
 forGen gen csv = filter match (csvRows csv)
   where
     genN = fromEnum gen + 1
@@ -183,6 +191,41 @@ growthFromName "GROWTH_FAST"        = Fast
 growthFromName "GROWTH_SLOW"        = Slow
 growthFromName n = error $ "Unknown growth rate: " ++ T.unpack n
 
+-- | Map pret ASM gender ratio constant name → threshold byte value.
+-- The byte is the DV comparison threshold for gender determination.
+-- Empty string (Gen 1, no gender) → Nothing.
+genderFromName :: T.Text -> Maybe Int
+genderFromName ""               = Nothing
+genderFromName "GENDER_F0"      = Just 0     -- 0% female (all male)
+genderFromName "GENDER_F12_5"   = Just 31    -- 12.5% female
+genderFromName "GENDER_F25"     = Just 63    -- 25% female
+genderFromName "GENDER_F50"     = Just 127   -- 50% female
+genderFromName "GENDER_F75"     = Just 191   -- 75% female
+genderFromName "GENDER_F100"    = Just 254   -- 100% female (all female)
+genderFromName "GENDER_UNKNOWN" = Just 255   -- genderless
+genderFromName n = error $ "Unknown gender ratio: " ++ T.unpack n
+
+-- | Map pret ASM egg group constant name → egg group ID.
+-- Empty string (Gen 1, no egg groups) → Nothing.
+eggGroupFromName :: T.Text -> Maybe Int
+eggGroupFromName ""                  = Nothing
+eggGroupFromName "EGG_MONSTER"       = Just 1
+eggGroupFromName "EGG_WATER_1"      = Just 2
+eggGroupFromName "EGG_BUG"          = Just 3
+eggGroupFromName "EGG_FLYING"       = Just 4
+eggGroupFromName "EGG_GROUND"       = Just 5
+eggGroupFromName "EGG_FAIRY"        = Just 6
+eggGroupFromName "EGG_PLANT"        = Just 7
+eggGroupFromName "EGG_HUMANSHAPE"   = Just 8
+eggGroupFromName "EGG_WATER_3"      = Just 9
+eggGroupFromName "EGG_MINERAL"      = Just 10
+eggGroupFromName "EGG_INDETERMINATE" = Just 11
+eggGroupFromName "EGG_WATER_2"      = Just 12
+eggGroupFromName "EGG_DITTO"        = Just 13
+eggGroupFromName "EGG_DRAGON"       = Just 14
+eggGroupFromName "EGG_NONE"         = Just 15
+eggGroupFromName n = error $ "Unknown egg group: " ++ T.unpack n
+
 
 -- ── Loaders ─────────────────────────────────────────────────────
 
@@ -227,12 +270,8 @@ loadSpecies gen path = do
             , speciesTypes         = (typeFromName (type1 row), typeFromName (type2 row))
             , speciesCatchRate     = int (catchRate row)
             , speciesGrowthRate    = growthFromName (growthRate row)
-            -- TODO: gender_ratio and egg_group columns now contain
-            -- constant names (GENDER_F50, EGG_MONSTER, etc.) rather
-            -- than numeric IDs. maybeInt returns Nothing for these.
-            -- Parse them properly when domain logic needs them.
-            , speciesGenderRatio   = maybeInt (genderRatio row)
-            , speciesEggGroups     = case (maybeInt (eggGroup1 row), maybeInt (eggGroup2 row)) of
+            , speciesGenderRatio   = genderFromName (genderRatio row)
+            , speciesEggGroups     = case (eggGroupFromName (eggGroup1 row), eggGroupFromName (eggGroup2 row)) of
                 (Just a, Just b) -> Just (a, b)
                 _                -> Nothing
             , speciesBaseHappiness = maybeInt (baseHappiness row)
