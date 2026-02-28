@@ -17,6 +17,7 @@ module Extract.Species
   , parseBaseStatsIncludes
   , formatGen1Species
   , formatGen2Species
+  , gen1StartingMoves
   , speciesHeader
   , tmhmCompatHeader
   ) where
@@ -165,6 +166,17 @@ formatGen2Species name dex dat =
       , hatchCycles, baseHappiness
       ]
     _ -> error $ "Gen 2 species " ++ T.unpack name ++ ": unexpected field count"
+
+-- | Extract Gen 1 starting moves from the base_stats db args.
+-- Returns move constant names, filtering out NO_MOVE (empty slots).
+-- Gen 2 has these inline in evos_attacks.asm; Gen 1 stores them separately.
+gen1StartingMoves :: SpeciesData -> [Text]
+gen1StartingMoves dat = case speciesDbArgs dat of
+  (_dex : _hp : _atk : _def : _spd : _spc
+    : _type1 : _type2 : _catchRate : _baseExp
+    : move1 : move2 : move3 : move4 : _) ->
+    filter (/= "NO_MOVE") [move1, move2, move3, move4]
+  _ -> []
 
 speciesHeader :: [Text]
 speciesHeader =

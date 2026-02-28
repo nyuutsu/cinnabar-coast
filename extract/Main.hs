@@ -28,6 +28,7 @@ import Extract.EvosAttacks (parseEvosAttacksFile, formatLearnsetRows,
                             evolutionHeader)
 import Extract.Species (extractSpeciesFile, parseBaseStatsIncludes,
                         formatGen1Species, formatGen2Species,
+                        gen1StartingMoves,
                         speciesHeader, tmhmCompatHeader, SpeciesData(..))
 
 
@@ -118,7 +119,15 @@ extractAll pokered pokecrystal outDir = do
     (pokecrystal </> "data/pokemon/evos_attacks.asm")
   let gen2EvosAttacksJoined = zip [1 :: Int ..] (map snd gen2EvosAttacks)
 
-  let learnsetRows = formatLearnsetRows "1" gen1EvosAttacksJoined
+  -- Gen 1 starting moves live in base_stats, not evos_moves.
+  -- Gen 2 has them inline in evos_attacks.asm (as level 1 entries).
+  let gen1StartingRows =
+        [ ["1", T.pack (show dex), "1", move]
+        | (dex, _name, dat) <- gen1SpeciesData
+        , move <- gen1StartingMoves dat
+        ]
+  let learnsetRows = gen1StartingRows
+                   ++ formatLearnsetRows "1" gen1EvosAttacksJoined
                    ++ formatLearnsetRows "2" gen2EvosAttacksJoined
   writeCSV (outDir </> "learnsets.csv") learnsetHeader learnsetRows
 
