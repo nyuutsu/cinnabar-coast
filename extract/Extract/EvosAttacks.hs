@@ -19,6 +19,7 @@ module Extract.EvosAttacks
   , evolutionHeader
   ) where
 
+import Data.Char (isDigit)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -126,8 +127,23 @@ formatEvolutionRows gen speciesToDex blocks =
               [p1]      -> (p1, "")
               (p1:p2:_) -> (p1, p2)
             toDex  = Map.findWithDefault 0 target speciesToDex
-        in [g, T.pack (show fromDex), T.pack (show toDex), method, param1, param2]
+            -- pret uses EVOLVE_TRADE for both plain trade and trade-with-item.
+            -- Normalize: numeric/empty param1 = plain trade, item name = trade-with-item.
+            (method', param1') = case method of
+              "EVOLVE_TRADE"
+                | isNumericOrEmpty param1 -> ("EVOLVE_TRADE", "")
+                | otherwise               -> ("EVOLVE_TRADE_ITEM", param1)
+              _ -> (method, param1)
+        in [g, T.pack (show fromDex), T.pack (show toDex), method', param1', param2]
       [] -> error "empty evolution entry"
+
+    -- | Is this text empty, or all digits (possibly with leading minus)?
+    -- Used to distinguish pret's numeric sentinel from item constant names.
+    isNumericOrEmpty :: Text -> Bool
+    isNumericOrEmpty t = case T.uncons (T.strip t) of
+      Nothing       -> True
+      Just ('-', r) -> T.all isDigit r && not (T.null r)
+      Just _        -> T.all isDigit (T.strip t)
 
 learnsetHeader :: [Text]
 learnsetHeader = ["gen", "dex", "level", "move_name"]

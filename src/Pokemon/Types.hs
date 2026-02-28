@@ -14,6 +14,13 @@ module Pokemon.Types
     -- * Growth Rate
   , GrowthRate (..)
 
+    -- * Gender Ratio
+  , GenderRatio (..)
+  , genderThreshold
+
+    -- * Egg Group
+  , EggGroup (..)
+
     -- * Species (static game data)
   , Species (..)
   , BaseStats (..)
@@ -97,6 +104,45 @@ data GrowthRate
   deriving (Eq, Ord, Show)
 
 
+-- ── Gender Ratio ──────────────────────────────────────────────────
+
+-- | Gender ratio as stored in the ROM. The byte value is the threshold
+-- for DV comparison: if Attack DV * 17 > threshold, the Pokémon is male.
+data GenderRatio
+  = AllMale         -- 0% female
+  | Female12_5      -- 12.5% female
+  | Female25        -- 25% female
+  | Female50        -- 50% female
+  | Female75        -- 75% female
+  | AllFemale       -- 100% female
+  | Genderless      -- no gender (Magnemite, legendaries)
+  deriving (Eq, Ord, Show)
+
+-- | The raw byte threshold for gender determination.
+-- Used by stat calculation: Attack DV * 17 > threshold → male.
+genderThreshold :: GenderRatio -> Int
+genderThreshold AllMale    = 0
+genderThreshold Female12_5 = 31
+genderThreshold Female25   = 63
+genderThreshold Female50   = 127
+genderThreshold Female75   = 191
+genderThreshold AllFemale  = 254
+genderThreshold Genderless = 255
+
+
+-- ── Egg Group ─────────────────────────────────────────────────────
+
+-- | Egg compatibility group. Every Gen 2 species has exactly two
+-- egg group slots — legendaries use EggNone. The outer Maybe on
+-- Species distinguishes "Gen 1, no egg groups" from "Gen 2, has slots."
+data EggGroup
+  = EggMonster | EggWater1 | EggBug | EggFlying | EggGround
+  | EggFairy | EggPlant | EggHumanShape | EggWater3
+  | EggMineral | EggIndeterminate | EggWater2
+  | EggDitto | EggDragon | EggNone
+  deriving (Eq, Ord, Show)
+
+
 -- ── Base Stats ──────────────────────────────────────────────────
 
 data BaseStats = BaseStats
@@ -132,8 +178,8 @@ data Species = Species
   , speciesCatchRate     :: !Int
   , speciesGrowthRate    :: !GrowthRate
   -- Gen 2 fields. Nothing for Gen 1 entries.
-  , speciesGenderRatio   :: !(Maybe Int)  -- 0=all♂, 254=all♀, 255=genderless
-  , speciesEggGroups     :: !(Maybe (Int, Int))
+  , speciesGenderRatio   :: !(Maybe GenderRatio)
+  , speciesEggGroups     :: !(Maybe (EggGroup, EggGroup))
   , speciesBaseHappiness :: !(Maybe Int)
   } deriving (Eq, Show)
 

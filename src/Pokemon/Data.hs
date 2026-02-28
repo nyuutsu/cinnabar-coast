@@ -19,7 +19,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Data.Char (isDigit)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
@@ -141,15 +140,6 @@ forGen gen csv = filter match (csvRows csv)
     genCol = col csv "gen"
     match row = int (genCol row) == genN
 
--- | Check if a Text value looks like a number (digits, optionally
--- preceded by a minus sign). Used to distinguish numeric params
--- from constant names in evolution data.
-isNumeric :: T.Text -> Bool
-isNumeric t = case T.uncons (T.strip t) of
-  Nothing       -> True   -- empty = numeric (treated as 0)
-  Just ('-', r) -> T.all isDigit r && not (T.null r)
-  Just _        -> T.all isDigit (T.strip t)
-
 
 -- ── Name-based mapping ──────────────────────────────────────────
 
@@ -191,39 +181,38 @@ growthFromName "GROWTH_FAST"        = Fast
 growthFromName "GROWTH_SLOW"        = Slow
 growthFromName n = error $ "Unknown growth rate: " ++ T.unpack n
 
--- | Map pret ASM gender ratio constant name → threshold byte value.
--- The byte is the DV comparison threshold for gender determination.
+-- | Map pret ASM gender ratio constant name → GenderRatio.
 -- Empty string (Gen 1, no gender) → Nothing.
-genderFromName :: T.Text -> Maybe Int
+genderFromName :: T.Text -> Maybe GenderRatio
 genderFromName ""               = Nothing
-genderFromName "GENDER_F0"      = Just 0     -- 0% female (all male)
-genderFromName "GENDER_F12_5"   = Just 31    -- 12.5% female
-genderFromName "GENDER_F25"     = Just 63    -- 25% female
-genderFromName "GENDER_F50"     = Just 127   -- 50% female
-genderFromName "GENDER_F75"     = Just 191   -- 75% female
-genderFromName "GENDER_F100"    = Just 254   -- 100% female (all female)
-genderFromName "GENDER_UNKNOWN" = Just 255   -- genderless
+genderFromName "GENDER_F0"      = Just AllMale
+genderFromName "GENDER_F12_5"   = Just Female12_5
+genderFromName "GENDER_F25"     = Just Female25
+genderFromName "GENDER_F50"     = Just Female50
+genderFromName "GENDER_F75"     = Just Female75
+genderFromName "GENDER_F100"    = Just AllFemale
+genderFromName "GENDER_UNKNOWN" = Just Genderless
 genderFromName n = error $ "Unknown gender ratio: " ++ T.unpack n
 
--- | Map pret ASM egg group constant name → egg group ID.
+-- | Map pret ASM egg group constant name → EggGroup.
 -- Empty string (Gen 1, no egg groups) → Nothing.
-eggGroupFromName :: T.Text -> Maybe Int
+eggGroupFromName :: T.Text -> Maybe EggGroup
 eggGroupFromName ""                  = Nothing
-eggGroupFromName "EGG_MONSTER"       = Just 1
-eggGroupFromName "EGG_WATER_1"      = Just 2
-eggGroupFromName "EGG_BUG"          = Just 3
-eggGroupFromName "EGG_FLYING"       = Just 4
-eggGroupFromName "EGG_GROUND"       = Just 5
-eggGroupFromName "EGG_FAIRY"        = Just 6
-eggGroupFromName "EGG_PLANT"        = Just 7
-eggGroupFromName "EGG_HUMANSHAPE"   = Just 8
-eggGroupFromName "EGG_WATER_3"      = Just 9
-eggGroupFromName "EGG_MINERAL"      = Just 10
-eggGroupFromName "EGG_INDETERMINATE" = Just 11
-eggGroupFromName "EGG_WATER_2"      = Just 12
-eggGroupFromName "EGG_DITTO"        = Just 13
-eggGroupFromName "EGG_DRAGON"       = Just 14
-eggGroupFromName "EGG_NONE"         = Just 15
+eggGroupFromName "EGG_MONSTER"       = Just EggMonster
+eggGroupFromName "EGG_WATER_1"      = Just EggWater1
+eggGroupFromName "EGG_BUG"          = Just EggBug
+eggGroupFromName "EGG_FLYING"       = Just EggFlying
+eggGroupFromName "EGG_GROUND"       = Just EggGround
+eggGroupFromName "EGG_FAIRY"        = Just EggFairy
+eggGroupFromName "EGG_PLANT"        = Just EggPlant
+eggGroupFromName "EGG_HUMANSHAPE"   = Just EggHumanShape
+eggGroupFromName "EGG_WATER_3"      = Just EggWater3
+eggGroupFromName "EGG_MINERAL"      = Just EggMineral
+eggGroupFromName "EGG_INDETERMINATE" = Just EggIndeterminate
+eggGroupFromName "EGG_WATER_2"      = Just EggWater2
+eggGroupFromName "EGG_DITTO"        = Just EggDitto
+eggGroupFromName "EGG_DRAGON"       = Just EggDragon
+eggGroupFromName "EGG_NONE"         = Just EggNone
 eggGroupFromName n = error $ "Unknown egg group: " ++ T.unpack n
 
 
@@ -421,14 +410,15 @@ loadEvolutions gen path = do
        ]
 
 -- | Parse an evolution trigger from ASM constant names.
+-- EVOLVE_TRADE and EVOLVE_TRADE_ITEM are distinct in the CSV
+-- (normalized at extraction time), so no heuristic is needed.
 parseTrigger :: T.Text -> T.Text -> T.Text -> EvoTrigger
 parseTrigger method param1 param2 = case T.strip method of
-  "EVOLVE_LEVEL" -> EvoLevel (int param1)
-  "EVOLVE_ITEM"  -> EvoItem (T.strip param1)
-  "EVOLVE_TRADE" ->
-    let p = T.strip param1
-    in if isNumeric p then EvoTrade else EvoTradeItem p
-  "EVOLVE_HAPPINESS" -> case T.strip param1 of
+  "EVOLVE_LEVEL"      -> EvoLevel (int param1)
+  "EVOLVE_ITEM"       -> EvoItem (T.strip param1)
+  "EVOLVE_TRADE"      -> EvoTrade
+  "EVOLVE_TRADE_ITEM" -> EvoTradeItem (T.strip param1)
+  "EVOLVE_HAPPINESS"  -> case T.strip param1 of
     "TR_ANYTIME" -> EvoHappiness
     "TR_MORNDAY" -> EvoHappinessDay
     "TR_NITE"    -> EvoHappinessNight

@@ -118,49 +118,53 @@ parseBaseStats = go [] [] []
 
 -- | Format a Gen 1 species row from parsed data.
 -- Gen 1 db args order (positional):
---   [0] DEX, [1] hp, [2] attack, [3] defense, [4] speed, [5] special,
---   [6] TYPE1, [7] TYPE2, [8] catch_rate, [9] base_exp,
---   [10..13] starting moves, [14] GROWTH_RATE, [15] padding
+--   DEX, hp, attack, defense, speed, special,
+--   TYPE1, TYPE2, catch_rate, base_exp,
+--   4× starting moves, GROWTH_RATE, padding
 formatGen1Species :: Text -> Int -> SpeciesData -> [Text]
-formatGen1Species name dex dat =
-  let fields = speciesDbArgs dat
-  in [ "1", T.pack (show dex), name
-     , fields !! 1                              -- hp
-     , fields !! 2, fields !! 3, fields !! 4    -- attack, defense, speed
-     , fields !! 5, fields !! 5, fields !! 5    -- special (all three columns, unified in Gen 1)
-     , fields !! 6, fields !! 7                 -- type1, type2
-     , fields !! 8, fields !! 9                 -- catch_rate, base_exp
-     , fields !! 14                             -- growth_rate
-     , "", "", "", "", "", "", ""               -- Gen 2 fields absent (7 fields)
-     ]
+formatGen1Species name dex dat = case speciesDbArgs dat of
+  (_dex : hp : attack : defense : speed : special
+    : type1 : type2 : catchRate : baseExp
+    : _move1 : _move2 : _move3 : _move4
+    : growthRate : _padding : _) ->
+    [ "1", T.pack (show dex), name
+    , hp, attack, defense, speed
+    , special, special, special     -- unified in Gen 1
+    , type1, type2
+    , catchRate, baseExp, growthRate
+    , "", "", "", "", "", "", ""    -- Gen 2 fields absent
+    ]
+  _ -> error $ "Gen 1 species " ++ T.unpack name ++ ": unexpected field count"
 
 -- | Format a Gen 2 species row from parsed data.
 -- Gen 2 db args order (positional):
---   [0] SPECIES, [1] hp, [2] attack, [3] defense, [4] speed,
---   [5] special_attack, [6] special_defense,
---   [7] TYPE1, [8] TYPE2, [9] catch_rate, [10] base_exp,
---   [11] ITEM1, [12] ITEM2, [13] GENDER,
---   [14] base_happiness, [15] hatch_cycles, [16] unknown, [17] GROWTH_RATE
+--   SPECIES, hp, attack, defense, speed,
+--   special_attack, special_defense,
+--   TYPE1, TYPE2, catch_rate, base_exp,
+--   ITEM1, ITEM2, GENDER,
+--   base_happiness, hatch_cycles, unknown, GROWTH_RATE
 formatGen2Species :: Text -> Int -> SpeciesData -> [Text]
 formatGen2Species name dex dat =
-  let fields = speciesDbArgs dat
-      (eggGroup1, eggGroup2) = case speciesDnArgs dat of
-        []       -> ("", "")
-        [e1]     -> (e1, "")
-        (e1:e2:_) -> (e1, e2)
-  in [ "2", T.pack (show dex), name
-     , fields !! 1                              -- hp
-     , fields !! 2, fields !! 3, fields !! 4    -- attack, defense, speed
-     , fields !! 5, fields !! 5, fields !! 6    -- special = special_attack, special_attack, special_defense
-     , fields !! 7, fields !! 8                 -- type1, type2
-     , fields !! 9, fields !! 10                -- catch_rate, base_exp
-     , fields !! 17                             -- growth_rate
-     , fields !! 13                             -- gender_ratio
-     , eggGroup1, eggGroup2                     -- egg groups (from dn directive)
-     , fields !! 11, fields !! 12               -- item1, item2
-     , fields !! 15                             -- hatch_cycles
-     , fields !! 14                             -- base_happiness
-     ]
+  let (eggGroup1, eggGroup2) = case speciesDnArgs dat of
+        []         -> ("", "")
+        [e1]       -> (e1, "")
+        (e1:e2:_)  -> (e1, e2)
+  in case speciesDbArgs dat of
+    (_species : hp : attack : defense : speed : specialAttack : specialDefense
+      : type1 : type2 : catchRate : baseExp
+      : item1 : item2 : gender
+      : baseHappiness : hatchCycles : _unknown : growthRate : _) ->
+      [ "2", T.pack (show dex), name
+      , hp, attack, defense, speed
+      , specialAttack, specialAttack, specialDefense
+      , type1, type2
+      , catchRate, baseExp, growthRate
+      , gender
+      , eggGroup1, eggGroup2
+      , item1, item2
+      , hatchCycles, baseHappiness
+      ]
+    _ -> error $ "Gen 2 species " ++ T.unpack name ++ ": unexpected field count"
 
 speciesHeader :: [Text]
 speciesHeader =
