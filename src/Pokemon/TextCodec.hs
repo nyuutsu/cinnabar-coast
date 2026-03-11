@@ -40,7 +40,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Char (toUpper)
 import Data.Word (Word8)
-import Numeric (showHex)
+import Numeric (readHex, showHex)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
@@ -251,14 +251,9 @@ parseCharEntry = Aeson.withObject "CharEntry" $ \obj -> do
 
 
 -- | Parse "0x7F" style hex strings to Word8.
+-- Crashes on malformed input so bad charset data is caught at load time.
 parseHexByte :: T.Text -> Word8
 parseHexByte t =
-  let s = T.unpack (T.drop 2 t)  -- drop "0x"
-      hexVal []     = 0
-      hexVal (c:cs) = fromIntegral (digitToInt c) * 16 ^ length cs + hexVal cs
-      digitToInt c
-        | c >= '0' && c <= '9' = fromEnum c - fromEnum '0'
-        | c >= 'a' && c <= 'f' = fromEnum c - fromEnum 'a' + 10
-        | c >= 'A' && c <= 'F' = fromEnum c - fromEnum 'A' + 10
-        | otherwise             = 0
-  in hexVal s
+  case readHex (T.unpack (T.drop 2 t)) of
+    [(n, "")] -> n
+    _         -> error $ "Invalid hex byte: " ++ T.unpack t
