@@ -12,32 +12,17 @@ The eventual goal is a CLI tool for reading and editing save files,
 with the library doing the work and the CLI as the interface (like
 git or ffmpeg — no UI baked in, a GUI would be a separate program).
 
-## Project values
+## Project constraints
 
 - **Types are the design.** If the types are right, functions write
-  themselves. If the types are wrong, no code fixes it. Get the types
-  right before writing logic.
-- **Go slow, talk it through.** The user is learning Haskell alongside
-  building this. Every new concept, module, or abstraction should be
-  explained and discussed before being committed. No bulk code drops.
-- **Don't gold-plate.** Don't add features, config, or error handling
-  that wasn't asked for. But DO make good abstractions when a pattern
-  emerges — that's not complexity, that's Haskell working as intended.
-- **The user's understanding matters more than progress.** If they
-  don't understand something, stop and explain it. Never steamroll
-  past confusion for the sake of getting code written.
-- **Respect prior decisions.** Types and patterns already in the
-  codebase (like Special using Unified|Split) are settled design
-  decisions. Don't offer alternatives that contradict them without
-  explicitly flagging: "this differs from the existing pattern X,
-  here's why." Never silently regress to a flatter/simpler design
-  (e.g. offering a 6-tuple or bare Int fields) when a more precise
-  type already exists. When presenting options, the option that's
-  consistent with existing types should be the default recommendation.
-- **No UI layer yet.** The project is deliberately CLI-only for now.
-  Don't import brick, don't think about TUI layout, don't design
-  for a specific display framework. The domain logic must be
-  beautiful and correct before presentation enters the picture.
+  themselves. Get the types right before writing logic.
+- **Respect settled patterns.** Types already in the codebase (like
+  `Special` using `Unified|Split`) are design decisions. Don't
+  propose alternatives without explicitly flagging the departure.
+  Never silently regress to a flatter design when a more precise
+  type exists.
+- **No UI layer yet.** CLI-only for now. Domain logic must be
+  correct before presentation enters the picture.
 
 ## Architecture
 
@@ -186,42 +171,69 @@ language group: en, frde, ites, jp.
   checksum location, known byte patterns). Getting this wrong means
   mangling text. Derive detection logic from pret disassembly sources.
 
-## Style guide
+## Haskell style
 
-- GHC2021 language edition (modern defaults, no extension soup)
-- OverloadedStrings where Text literals are needed
-- Strict fields (`!`) on data types by default
-- Qualified imports for containers (`Map`, `Set`, `T` for Text)
-- Pattern matching over if-chains where it reads better
-- Comments explain WHY, not WHAT
-- No orphan instances
-- `-Wall` clean (zero warnings)
-- **Naming: be expressive.** Record field prefixes are full words, not
-  initials: `baseAttack` not `bsAtk`, `speciesName` not `specName`,
-  `gameSpecies` not `gdSpecies`. Stat names are spelled out (Attack,
-  Defense, Speed, Special). Domain abbreviations that ARE the standard
-  term stay abbreviated: DV, HP, PP, OT, TM, HM. When in doubt,
-  spell it out — verbosity is cheap, confusion is expensive.
-- Derive what's natural for the type. Closed enumerations (`Gen`,
-  `PokemonType`, `Language`, etc.) should have `Enum, Bounded`.
+GHC2024 language edition. `OverloadedStrings` where Text literals
+are needed. Strict fields on data types by default. `-Wall` clean,
+zero warnings. No orphan instances.
 
-## Haskell notes
+**Be idiomatic.** Use the right combinator when it fits (`fromMaybe`,
+`mapMaybe`, `concatMap`, `guard`, `groupBy`, `partition`, `on`).
+Don't reimplement what the standard library provides.
 
-This is a Haskell teaching project. The user is learning Haskell
-by building this. Teaching IS the primary job — the library is the
-vehicle, not the goal.
+**Descriptive names.** Record field prefixes are full words:
+`baseAttack` not `bsAtk`, `speciesName` not `specName`,
+`gameSpecies` not `gdSpecies`. Stat names spelled out (Attack,
+Defense, Speed, Special). Domain abbreviations that ARE the standard
+term stay abbreviated: DV, HP, PP, OT, TM, HM. When in doubt,
+spell it out.
 
+**No shadowing, no prime-naming.** Don't reuse a binding name in
+an inner scope. Don't use `x'` or `xs''` — if two things need
+names, find two real names.
+
+**Pattern matching** over if-chains. Guards over nested cases.
+
+**Sugar is good when it's free.** `where` clauses, operator
+sections, `<$>`, `<*>` — use them when they make code read better
+without hiding meaning.
+
+**Composability.** Small functions that combine well. When a real
+pattern emerges, make a clean abstraction — three duplicated blocks
+are worse than one clear function.
+
+**Qualified imports** for containers (`Map`, `Set`, `T` for Text).
+
+**Comments explain WHY, not WHAT.** If a comment restates the code,
+delete it.
+
+**Proposals should be elegant** — but we discuss fit with the
+project's direction before committing.
+
+**Upgrade existing code** when touching it. Better names, better
+combinators, clearer structure.
+
+**Heavy IO goes to Rust** when needed — Rust via FFI for
+performance-critical work, pure domain logic stays in Haskell.
+This project doesn't use Rust currently but the preference applies
+if it ever needs systems-level work.
+
+Derive what's natural for the type. Closed enumerations (`Gen`,
+`PokemonType`, `Language`, etc.) should have `Enum, Bounded`.
+
+## Working together
+
+The user is learning Haskell alongside building. Teaching is part
+of the work — not separate from it.
+
+- Explain new concepts before using them — combinators, type
+  signatures, patterns. Say what they mean and why they work.
+  Lecture freely.
 - Teach the user to write Haskell, not just watch it appear.
-  Explain what to write and why, then have THEM write it. Don't
-  just produce finished code. Guide, don't do.
-- Explain everything. New functions, new combinators, new patterns,
-  new type signatures — explain what they mean, why they work, how
-  they connect to things the user already knows. Lecture freely.
-- Write idiomatic Haskell. Use the right combinator when it's the
-  right tool (`fromMaybe`, `mapMaybe`, `concatMap`, `guard`, etc.).
-  Dumbed-down code teaches bad habits.
-- Actively upgrade existing code. When touching beginner patterns,
-  show both versions, explain why the idiomatic one is better, and
-  walk the user through the change.
-- No point-free cleverness or deep composition chains. Clean and
-  readable, not clever. Never use `!!`.
+  Explain what to write and why, then have them write it.
+- Go slow on structural changes and new abstractions. Discuss
+  before committing. No bulk code drops.
+- When upgrading code to better patterns, show before and after,
+  explain what improved.
+- If something isn't clear, stop and explain. Understanding
+  matters more than progress.

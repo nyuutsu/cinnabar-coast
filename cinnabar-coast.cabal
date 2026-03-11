@@ -17,7 +17,7 @@ common warnings
 library
   import:           warnings
   hs-source-dirs:   src
-  default-language: GHC2021
+  default-language: GHC2024
   autogen-modules:  Paths_cinnabar_coast
   other-modules:    Paths_cinnabar_coast
   exposed-modules:
@@ -38,7 +38,7 @@ executable cinnabar
   import:           warnings
   hs-source-dirs:   app
   main-is:          Main.hs
-  default-language: GHC2021
+  default-language: GHC2024
   build-depends:
     base >= 4.18 && < 5,
     bytestring >= 0.11,
@@ -57,7 +57,7 @@ executable extract
                     Extract.EggMoves
                     Extract.EvosAttacks
                     Extract.Species
-  default-language: GHC2021
+  default-language: GHC2024
   build-depends:
     base       >= 4.18 && < 5,
     containers >= 0.6,
@@ -71,7 +71,7 @@ test-suite cinnabar-test
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Spec.hs
-  default-language: GHC2021
+  default-language: GHC2024
   build-depends:
     base >= 4.18 && < 5,
     cinnabar-coast,
