@@ -272,12 +272,12 @@ loadSpecies gen path = do
                         Gen2 -> Split   (fieldInt (specialAttackOfRow row)) (fieldInt (specialDefenseOfRow row))
                     }
                 , speciesTypes         = let name = nameOfRow row
-                                         in (requireType name (type1OfRow row), requireType name (type2OfRow row))
+                                         in TypePair (requireType name (type1OfRow row)) (requireType name (type2OfRow row))
                 , speciesCatchRate     = fieldInt (catchRateOfRow row)
                 , speciesGrowthRate    = growthFromName (growthRateOfRow row)
                 , speciesGenderRatio   = genderFromName (genderRatioOfRow row)
                 , speciesEggGroups     = case (eggGroupFromName (eggGroup1OfRow row), eggGroupFromName (eggGroup2OfRow row)) of
-                    (Just group1, Just group2) -> Just (group1, group2)
+                    (Just group1, Just group2) -> Just (EggGroupPair group1 group2)
                     _                          -> Nothing
                 , speciesBaseHappiness = maybeInt (baseHappinessOfRow row)
                 }
@@ -359,22 +359,23 @@ numToMachine number
   | otherwise = HM (number - 50)
 
 
--- | learnsets.csv → Map dex [(level, moveId)]
+-- | learnsets.csv → Map dex [LevelUpEntry]
 -- New schema: gen,dex,level,move_name (name resolved via lookup map)
-loadLearnsets :: Gen -> Map.Map T.Text MoveId -> FilePath -> IO (Map.Map DexNumber [(Int, MoveId)])
+loadLearnsets :: Gen -> Map.Map T.Text MoveId -> FilePath -> IO (Map.Map DexNumber [LevelUpEntry])
 loadLearnsets gen moveNameToId path = do
   csv <- readCSV path
   let dexOfRow      = column csv "dex"
       levelOfRow    = column csv "level"
       moveNameOfRow = column csv "move_name"
       matching = forGen gen csv
-      triples  = [ (DexNumber (fieldInt (dexOfRow row)), (fieldInt (levelOfRow row), matchedMoveId))
+      pairs    = [ (DexNumber (fieldInt (dexOfRow row)),
+                    LevelUpEntry (Level (fieldInt (levelOfRow row))) matchedMoveId)
                  | row <- matching
                  , Just matchedMoveId <- [Map.lookup (moveNameOfRow row) moveNameToId]
                  ]
   pure $ Map.fromListWith (++)
     [ (dexNumber, [entry])
-    | (dexNumber, entry) <- triples
+    | (dexNumber, entry) <- pairs
     ]
 
 

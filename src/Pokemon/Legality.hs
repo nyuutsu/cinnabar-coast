@@ -72,10 +72,10 @@ checkLevelUp gameData dex moveId level =
   case Map.lookup dex (gameLevelUp gameData) of
     Nothing      -> []
     Just entries ->
-      [ LearnSource LevelUp (T.pack $ "L" ++ show rawLevel) []
-      | (rawLevel, entryMoveId) <- entries
+      [ LearnSource LevelUp (T.pack $ "L" ++ show (unLevel entryLevel)) []
+      | LevelUpEntry entryLevel entryMoveId <- entries
       , entryMoveId == moveId
-      , Level rawLevel <= level
+      , entryLevel <= level
       ]
 
 

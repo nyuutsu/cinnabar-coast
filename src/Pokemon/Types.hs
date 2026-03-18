@@ -28,6 +28,15 @@ module Pokemon.Types
     -- * Egg Group
   , EggGroup (..)
 
+    -- * Type pair
+  , TypePair (..)
+
+    -- * Egg group pair
+  , EggGroupPair (..)
+
+    -- * Level-up entry
+  , LevelUpEntry (..)
+
     -- * Species (static game data)
   , Species (..)
   , BaseStats (..)
@@ -159,6 +168,30 @@ data EggGroup
   deriving (Eq, Ord, Show)
 
 
+-- ── Type Pair ───────────────────────────────────────────────────
+
+data TypePair = TypePair
+  { primaryType   :: !PokemonType
+  , secondaryType :: !PokemonType
+  } deriving (Eq, Show)
+
+
+-- ── Egg Group Pair ──────────────────────────────────────────────
+
+data EggGroupPair = EggGroupPair
+  { primaryEggGroup   :: !EggGroup
+  , secondaryEggGroup :: !EggGroup
+  } deriving (Eq, Show)
+
+
+-- ── Level-Up Entry ──────────────────────────────────────────────
+
+data LevelUpEntry = LevelUpEntry
+  { learnLevel :: !Level
+  , learnMove  :: !MoveId
+  } deriving (Eq, Show)
+
+
 -- ── Base Stats ──────────────────────────────────────────────────
 
 data BaseStats = BaseStats
@@ -190,12 +223,12 @@ data Species = Species
   { speciesDex           :: !DexNumber
   , speciesName          :: !Text
   , speciesBaseStats     :: !BaseStats
-  , speciesTypes         :: !(PokemonType, PokemonType)
+  , speciesTypes         :: !TypePair
   , speciesCatchRate     :: !Int
   , speciesGrowthRate    :: !GrowthRate
   -- Gen 2 fields. Nothing for Gen 1 entries.
   , speciesGenderRatio   :: !(Maybe GenderRatio)
-  , speciesEggGroups     :: !(Maybe (EggGroup, EggGroup))
+  , speciesEggGroups     :: !(Maybe EggGroupPair)
   , speciesBaseHappiness :: !(Maybe Int)
   } deriving (Eq, Show)
 
@@ -392,7 +425,7 @@ data GameData = GameData
   , gameMoveByName    :: !(Map Text MoveId)             -- name → move ID
   , gameMachines      :: !(Map Machine MoveId)          -- machine → move ID
   , gameMachineCompat :: !(Map DexNumber (Set Machine)) -- dex → compatible machines
-  , gameLevelUp       :: !(Map DexNumber [(Int, MoveId)]) -- dex → [(level, move_id)]
+  , gameLevelUp       :: !(Map DexNumber [LevelUpEntry])  -- dex → level-up learnset
   , gameEggMoves      :: !(Map DexNumber (Set MoveId))
   , gameTutorMoves    :: !(Map DexNumber (Set MoveId))
   , gameItems         :: !(Map ItemId Text)
