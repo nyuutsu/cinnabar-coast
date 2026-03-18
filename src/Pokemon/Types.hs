@@ -148,7 +148,7 @@ data GenderRatio
   | Female75        -- 75% female
   | AllFemale       -- 100% female
   | Genderless      -- no gender (Magnemite, legendaries)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | The raw byte threshold for gender determination.
 -- Used by stat calculation: Attack DV * 17 > threshold → male.
@@ -172,7 +172,7 @@ data EggGroup
   | EggFairy | EggPlant | EggHumanShape | EggWater3
   | EggMineral | EggIndeterminate | EggWater2
   | EggDitto | EggDragon | EggNone
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 
 -- ── Type Pair ───────────────────────────────────────────────────
