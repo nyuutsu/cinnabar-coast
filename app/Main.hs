@@ -21,14 +21,14 @@ main :: IO ()
 main = do
   putStrLn "Loading game data..."
   (gen1Data, gen2Data) <- loadAllGameData
-  putStrLn $ "  Gen 1: " ++ show (Map.size (gameSpecies gen1Data)) ++ " species, "
-           ++ show (Map.size (gameMoves gen1Data)) ++ " moves, "
-           ++ show (Map.size (gameMachines gen1Data)) ++ " TM/HMs"
-  putStrLn $ "  Gen 2: " ++ show (Map.size (gameSpecies gen2Data)) ++ " species, "
-           ++ show (Map.size (gameMoves gen2Data)) ++ " moves, "
-           ++ show (Map.size (gameMachines gen2Data)) ++ " TM/HMs"
-  putStrLn $ "         " ++ show (Map.size (gameEggMoves gen2Data)) ++ " species w/ egg moves, "
-           ++ show (Map.size (gameTutorMoves gen2Data)) ++ " species w/ tutor moves"
+  putStrLn $ "  Gen 1: " ++ show (Map.size (gameSpecies (gameSpeciesGraph gen1Data))) ++ " species, "
+           ++ show (Map.size (gameMoves (gameLookupTables gen1Data))) ++ " moves, "
+           ++ show (Map.size (gameMachines (gameMachineData gen1Data))) ++ " TM/HMs"
+  putStrLn $ "  Gen 2: " ++ show (Map.size (gameSpecies (gameSpeciesGraph gen2Data))) ++ " species, "
+           ++ show (Map.size (gameMoves (gameLookupTables gen2Data))) ++ " moves, "
+           ++ show (Map.size (gameMachines (gameMachineData gen2Data))) ++ " TM/HMs"
+  putStrLn $ "         " ++ show (Map.size (gameEggMoves (gameLearnsetData gen2Data))) ++ " species w/ egg moves, "
+           ++ show (Map.size (gameTutorMoves (gameLearnsetData gen2Data))) ++ " species w/ tutor moves"
 
   section "Stat Calculation"
   demoStats gen1Data gen2Data
@@ -49,15 +49,15 @@ section title = putStrLn $
 -- | Find a species by name in a GameData.
 findSpecies :: GameData -> T.Text -> Maybe (DexNumber, Species)
 findSpecies gameData name = do
-  dex <- Map.lookup name (gameSpeciesByName gameData)
-  species <- Map.lookup dex (gameSpecies gameData)
+  dex <- Map.lookup name (gameSpeciesByName (gameSpeciesGraph gameData))
+  species <- Map.lookup dex (gameSpecies (gameSpeciesGraph gameData))
   pure (dex, species)
 
 -- | Find a move by name in a GameData.
 findMove :: GameData -> T.Text -> Maybe (MoveId, Move)
 findMove gameData name = do
-  matchedMoveId <- Map.lookup name (gameMoveByName gameData)
-  move <- Map.lookup matchedMoveId (gameMoves gameData)
+  matchedMoveId <- Map.lookup name (gameMoveByName (gameLookupTables gameData))
+  move <- Map.lookup matchedMoveId (gameMoves (gameLookupTables gameData))
   pure (matchedMoveId, move)
 
 
@@ -65,7 +65,7 @@ findMove gameData name = do
 
 demoStats :: GameData -> GameData -> IO ()
 demoStats gen1Data gen2Data = do
-  case Map.lookup (DexNumber 25) (gameSpecies gen1Data) of
+  case Map.lookup (DexNumber 25) (gameSpecies (gameSpeciesGraph gen1Data)) of
     Nothing -> putStrLn "  Pikachu not found in Gen 1!"
     Just pikachu -> do
       let statsNoExp  = calcAllStats pikachu maxDVs zeroStatExp (Level 50)
@@ -77,7 +77,7 @@ demoStats gen1Data gen2Data = do
       putStrLn $ "    Growth rate: " ++ show growthRate
                ++ " (" ++ show (expForLevel growthRate (Level 100)) ++ " exp to L100)"
 
-  case Map.lookup (DexNumber 25) (gameSpecies gen2Data) of
+  case Map.lookup (DexNumber 25) (gameSpecies (gameSpeciesGraph gen2Data)) of
     Nothing -> pure ()
     Just pikachu -> do
       let statsNoExp  = calcAllStats pikachu maxDVs zeroStatExp (Level 50)

@@ -76,6 +76,10 @@ module Pokemon.Types
   , LearnSource (..)
 
     -- * Game data (loaded per generation)
+  , MachineData (..)
+  , LearnsetData (..)
+  , SpeciesGraph (..)
+  , LookupTables (..)
   , GameData (..)
 
     -- * Text codec
@@ -443,22 +447,47 @@ data LearnSource = LearnSource
 
 -- ── Game Data ───────────────────────────────────────────────────
 
--- | All static data for one generation, loaded from CSVs.
--- Immutable. Pass to pure functions as an argument.
-data GameData = GameData
-  { gameGen           :: !Gen
-  , gameSpecies       :: !(Map DexNumber Species)
-  , gameSpeciesByName :: !(Map Text DexNumber)          -- name → dex number
-  , gameMoves         :: !(Map MoveId Move)
-  , gameMoveByName    :: !(Map Text MoveId)             -- name → move ID
-  , gameMachines      :: !(Map Machine MoveId)          -- machine → move ID
+-- | TM/HM machine data: which moves machines teach and which
+-- species are compatible. Always used as a pair.
+data MachineData = MachineData
+  { gameMachines      :: !(Map Machine MoveId)          -- machine → move ID
   , gameMachineCompat :: !(Map DexNumber (Set Machine)) -- dex → compatible machines
-  , gameLevelUp       :: !(Map DexNumber [LevelUpEntry])  -- dex → level-up learnset
-  , gameEggMoves      :: !(Map DexNumber (Set MoveId))
-  , gameTutorMoves    :: !(Map DexNumber (Set MoveId))
-  , gameItems         :: !(Map ItemId Text)
+  } deriving (Show)
+
+-- | Direct-learn sources: level-up learnsets, egg moves, tutor moves.
+-- Checked as a group when classifying moves.
+data LearnsetData = LearnsetData
+  { gameLevelUp    :: !(Map DexNumber [LevelUpEntry])
+  , gameEggMoves   :: !(Map DexNumber (Set MoveId))
+  , gameTutorMoves :: !(Map DexNumber (Set MoveId))
+  } deriving (Show)
+
+-- | Species existence and evolution relationships.
+-- Used by pre-evolution walking and species name lookup.
+data SpeciesGraph = SpeciesGraph
+  { gameSpecies       :: !(Map DexNumber Species)
+  , gameSpeciesByName :: !(Map Text DexNumber)            -- name → dex number
   , gameEvolvesInto   :: !(Map DexNumber [EvolutionStep]) -- dex → what it evolves into
   , gameEvolvesFrom   :: !(Map DexNumber [EvolutionStep]) -- dex → what evolves into it
+  } deriving (Show)
+
+-- | Name-to-ID lookup tables for the app layer.
+-- Not used by the legality engine.
+data LookupTables = LookupTables
+  { gameMoves      :: !(Map MoveId Move)
+  , gameMoveByName :: !(Map Text MoveId)   -- name → move ID
+  , gameItems      :: !(Map ItemId Text)
+  } deriving (Show)
+
+-- | All static data for one generation, loaded from CSVs.
+-- Immutable. Fields are grouped into subrecords by usage pattern
+-- so function signatures can declare which data they actually need.
+data GameData = GameData
+  { gameGen          :: !Gen
+  , gameMachineData  :: !MachineData
+  , gameLearnsetData :: !LearnsetData
+  , gameSpeciesGraph :: !SpeciesGraph
+  , gameLookupTables :: !LookupTables
   } deriving (Show)
 
 

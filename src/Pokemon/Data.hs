@@ -76,19 +76,27 @@ loadAllGameData = do
             evolvesFrom = Map.fromListWith (++)
               [ (stepTo step, [step]) | step <- evolutions ]
         in GameData
-          { gameGen           = gen
-          , gameSpecies       = species
-          , gameSpeciesByName = speciesNameToId
-          , gameMoves         = moves
-          , gameMoveByName    = moveNameToId
-          , gameMachines      = machines
-          , gameMachineCompat = compat
-          , gameLevelUp       = levelUp
-          , gameEggMoves      = eggMoves
-          , gameTutorMoves    = tutors
-          , gameItems         = items
-          , gameEvolvesInto   = evolvesInto
-          , gameEvolvesFrom   = evolvesFrom
+          { gameGen          = gen
+          , gameMachineData  = MachineData
+              { gameMachines      = machines
+              , gameMachineCompat = compat
+              }
+          , gameLearnsetData = LearnsetData
+              { gameLevelUp    = levelUp
+              , gameEggMoves   = eggMoves
+              , gameTutorMoves = tutors
+              }
+          , gameSpeciesGraph = SpeciesGraph
+              { gameSpecies       = species
+              , gameSpeciesByName = speciesNameToId
+              , gameEvolvesInto   = evolvesInto
+              , gameEvolvesFrom   = evolvesFrom
+              }
+          , gameLookupTables = LookupTables
+              { gameMoves      = moves
+              , gameMoveByName = moveNameToId
+              , gameItems      = items
+              }
           }
 
   pure (buildForGen Gen1, buildForGen Gen2)

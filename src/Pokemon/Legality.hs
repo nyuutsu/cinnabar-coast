@@ -69,7 +69,7 @@ classifyMoveNoTradeback gameData dex moveId level =
 -- below the given level.
 checkLevelUp :: GameData -> DexNumber -> MoveId -> Level -> [LearnSource]
 checkLevelUp gameData dex moveId level =
-  case Map.lookup dex (gameLevelUp gameData) of
+  case Map.lookup dex (gameLevelUp (gameLearnsetData gameData)) of
     Nothing      -> []
     Just entries ->
       [ LearnSource LevelUp (T.pack $ "L" ++ show (unLevel entryLevel)) []
@@ -83,11 +83,11 @@ checkLevelUp gameData dex moveId level =
 -- species is compatible with it.
 checkMachine :: GameData -> DexNumber -> MoveId -> [LearnSource]
 checkMachine gameData dex moveId =
-  case Map.lookup dex (gameMachineCompat gameData) of
+  case Map.lookup dex (gameMachineCompat (gameMachineData gameData)) of
     Nothing               -> []
     Just compatibleMachines ->
       [ LearnSource method (T.pack label) []
-      | (machine, machineMoveId) <- Map.toList (gameMachines gameData)
+      | (machine, machineMoveId) <- Map.toList (gameMachines (gameMachineData gameData))
       , machineMoveId == moveId
       , Set.member machine compatibleMachines
       , let (method, label) = case machine of
@@ -99,7 +99,7 @@ checkMachine gameData dex moveId =
 -- | Check if this is an egg move for the species (Gen 2 only).
 checkEggMove :: GameData -> DexNumber -> MoveId -> [LearnSource]
 checkEggMove gameData dex moveId =
-  case Map.lookup dex (gameEggMoves gameData) of
+  case Map.lookup dex (gameEggMoves (gameLearnsetData gameData)) of
     Nothing   -> []
     Just moves
       | Set.member moveId moves -> [LearnSource EggMove "Egg" []]
@@ -109,7 +109,7 @@ checkEggMove gameData dex moveId =
 -- | Check if this is a tutor move for the species (Crystal only).
 checkTutorMove :: GameData -> DexNumber -> MoveId -> [LearnSource]
 checkTutorMove gameData dex moveId =
-  case Map.lookup dex (gameTutorMoves gameData) of
+  case Map.lookup dex (gameTutorMoves (gameLearnsetData gameData)) of
     Nothing   -> []
     Just moves
       | Set.member moveId moves -> [LearnSource TutorMove "Tutor" []]
@@ -182,7 +182,7 @@ allPreEvolutions :: GameData -> DexNumber -> [DexNumber]
 allPreEvolutions gameData dex = collectAncestors (Set.singleton dex) dex []
   where
     collectAncestors visited current ancestors =
-      case Map.lookup current (gameEvolvesFrom gameData) of
+      case Map.lookup current (gameEvolvesFrom (gameSpeciesGraph gameData)) of
         Nothing    -> ancestors
         Just steps ->
           let parents = map stepFrom steps
@@ -206,6 +206,6 @@ padNum number
 -- | Look up a species name for display, falling back to dex number.
 speciesLabel :: GameData -> DexNumber -> T.Text
 speciesLabel gameData dex =
-  case Map.lookup dex (gameSpecies gameData) of
+  case Map.lookup dex (gameSpecies (gameSpeciesGraph gameData)) of
     Just species -> speciesName species <> " (#" <> T.pack (show (unDex dex)) <> ")"
     Nothing      -> "#" <> T.pack (show (unDex dex))

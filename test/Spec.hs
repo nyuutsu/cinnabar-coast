@@ -75,7 +75,7 @@ main = hspec $ do
 
   describe "Pikachu Gen 1" $ do
     (gameData, _) <- runIO loadAllGameData
-    let pikachu = case Map.lookup (DexNumber 25) (gameSpecies gameData) of
+    let pikachu = case Map.lookup (DexNumber 25) (gameSpecies (gameSpeciesGraph gameData)) of
           Just species -> species
           Nothing      -> error "Pikachu (dex 25) not found in Gen 1 data"
 

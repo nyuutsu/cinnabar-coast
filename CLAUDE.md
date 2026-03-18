@@ -74,8 +74,12 @@ cinnabar-coast/
 - `EvoTrigger` — Sum type of evolution conditions (level, item, trade, trade-with-item,
   happiness, stat comparison)
 - `EvolutionStep` — Edge: species A → species B when trigger fires
-- `GameData` — All static data for one gen. Immutable. Pass to functions.
-  Includes bidirectional evolution maps (`gameEvolvesInto`, `gameEvolvesFrom`).
+- `MachineData` — TM/HM teaching data: machine-to-move mapping + species compatibility.
+- `LearnsetData` — Direct-learn sources: level-up learnsets, egg moves, tutor moves.
+- `SpeciesGraph` — Species data + bidirectional evolution maps.
+- `LookupTables` — Name-to-ID lookup tables (moves, items). App layer, not legality.
+- `GameData` — All static data for one gen. Contains gameGen + four subrecords
+  (MachineData, LearnsetData, SpeciesGraph, LookupTables).
 - `Language` — English | French | German | Italian | Spanish | Japanese
 - `GameChar` — Literal Char | Ligature Text | UnknownByte Word8
 - `GameText` — Newtype over [GameChar]. Lossless decoded Game Boy text.
@@ -119,6 +123,10 @@ cinnabar-coast/
   pure name→type mapping with no heuristics.
 - Trade evolutions are normalized at extraction: EVOLVE_TRADE (plain)
   and EVOLVE_TRADE_ITEM (with held item) are distinct CSV methods.
+- GameData groups its fields into four subrecords (MachineData,
+  LearnsetData, SpeciesGraph, LookupTables) by usage pattern. This
+  makes function dependencies explicit in type signatures and avoids
+  requiring all fields for testing individual checks.
 
 ## Data provenance
 
