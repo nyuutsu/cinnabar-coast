@@ -10,7 +10,7 @@ import qualified Data.Map.Strict as Map
 
 import Pokemon.Types
 import Pokemon.Stats
-import Pokemon.Data (loadGameData)
+import Pokemon.Data (loadAllGameData)
 import Pokemon.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
 
 
@@ -74,7 +74,7 @@ main = hspec $ do
   -- ── Golden tests ────────────────────────────────────────────
 
   describe "Pikachu Gen 1" $ do
-    gameData <- runIO $ loadGameData Gen1
+    (gameData, _) <- runIO loadAllGameData
     let pikachu = case Map.lookup (DexNumber 25) (gameSpecies gameData) of
           Just species -> species
           Nothing      -> error "Pikachu (dex 25) not found in Gen 1 data"
