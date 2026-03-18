@@ -5,8 +5,15 @@
 -- binary save format — the parser layer handles translation.
 
 module Pokemon.Types
-  ( -- * Generation
-    Gen (..)
+  ( -- * Domain IDs
+    DexNumber (..)
+  , MoveId (..)
+  , Level (..)
+  , ItemId (..)
+  , TrainerId (..)
+
+    -- * Generation
+  , Gen (..)
 
     -- * Pokemon Types
   , PokemonType (..)
@@ -75,6 +82,15 @@ import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Word (Word8, Word16)
+
+
+-- ── Domain IDs ─────────────────────────────────────────────────
+
+newtype DexNumber  = DexNumber  { unDex       :: Int } deriving (Eq, Ord, Show)
+newtype MoveId     = MoveId     { unMoveId    :: Int } deriving (Eq, Ord, Show)
+newtype Level      = Level      { unLevel     :: Int } deriving (Eq, Ord, Show)
+newtype ItemId     = ItemId     { unItemId    :: Int } deriving (Eq, Ord, Show)
+newtype TrainerId  = TrainerId  { unTrainerId :: Int } deriving (Eq, Ord, Show)
 
 
 -- ── Generation ──────────────────────────────────────────────────
@@ -171,7 +187,7 @@ specialDefense (Split _ spDefense) = spDefense
 -- ── Species ─────────────────────────────────────────────────────
 
 data Species = Species
-  { speciesDex           :: !Int
+  { speciesDex           :: !DexNumber
   , speciesName          :: !Text
   , speciesBaseStats     :: !BaseStats
   , speciesTypes         :: !(PokemonType, PokemonType)
@@ -197,7 +213,7 @@ data MoveType
   deriving (Eq, Show)
 
 data Move = Move
-  { moveId       :: !Int
+  { moveId       :: !MoveId
   , moveName     :: !Text
   , moveType     :: !MoveType
   , movePower    :: !Int    -- 0 for status moves
@@ -220,20 +236,20 @@ data DVs = DVs
 
 -- | HP DV: derived from the low bits of the other four.
 dvHP :: DVs -> Int
-dvHP dv =
-      (dvAttack dv  .&. 1) `shiftL` 3
-  .|. (dvDefense dv .&. 1) `shiftL` 2
-  .|. (dvSpeed dv   .&. 1) `shiftL` 1
-  .|. (dvSpecial dv .&. 1)
+dvHP dvs =
+      (dvAttack dvs  .&. 1) `shiftL` 3
+  .|. (dvDefense dvs .&. 1) `shiftL` 2
+  .|. (dvSpeed dvs   .&. 1) `shiftL` 1
+  .|. (dvSpecial dvs .&. 1)
 
 maxDVs :: DVs
 maxDVs = DVs 15 15 15 15
 
 -- | Shiny (Gen 2): Def=10, Spd=10, Spc=10, Atk bit 1 set.
 isShiny :: DVs -> Bool
-isShiny dv =
-  dvDefense dv == 10 && dvSpeed dv == 10 && dvSpecial dv == 10
-  && (dvAttack dv .&. 2) /= 0
+isShiny dvs =
+  dvDefense dvs == 10 && dvSpeed dvs == 10 && dvSpecial dvs == 10
+  && (dvAttack dvs .&. 2) /= 0
 
 
 -- ── Stat Exp ────────────────────────────────────────────────────
@@ -261,7 +277,7 @@ maxStatExp = StatExp 65535 65535 65535 65535 65535
 -- slotCurrentPP is remaining uses (numerator). Max PP is derived:
 --   max_pp = base_pp + (base_pp * slotPPUps / 5)
 data MoveSlot = MoveSlot
-  { slotMoveId   :: !Int    -- move ID
+  { slotMoveId   :: !MoveId -- move ID
   , slotPPUps    :: !Int    -- 0–3
   , slotCurrentPP :: !Int   -- 0–63, remaining uses
   } deriving (Eq, Show)
@@ -272,11 +288,11 @@ type MoveSlots = (Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot
 -- ── Pokemon ─────────────────────────────────────────────────────
 
 data Pokemon = Pokemon
-  { pokemonDex      :: !Int
+  { pokemonDex      :: !DexNumber
   , pokemonNickname :: !Text
   , pokemonOTName   :: !Text
-  , pokemonOTID     :: !Int       -- 0–65535
-  , pokemonLevel    :: !Int       -- 1–100
+  , pokemonOTID     :: !TrainerId -- 0–65535
+  , pokemonLevel    :: !Level     -- 1–100
   , pokemonExp      :: !Int       -- 0–16,777,215
   , pokemonMoves    :: !MoveSlots
   , pokemonDVs      :: !DVs
@@ -306,23 +322,23 @@ data GenData
 
 -- | What triggers an evolution.
 data EvoTrigger
-  = EvoLevel !Int           -- reach this level
+  = EvoLevel !Level         -- reach this level
   | EvoItem !Text           -- use item (constant name, e.g. "MOON_STONE")
   | EvoTrade                -- trade (no held item required)
   | EvoTradeItem !Text      -- trade holding item (Gen 2, e.g. "KINGS_ROCK")
   | EvoHappiness            -- friendship ≥ 220, any time
   | EvoHappinessDay         -- friendship + daytime (Gen 2)
   | EvoHappinessNight       -- friendship + nighttime (Gen 2)
-  | EvoStatLT !Int          -- level + Atk < Def (Tyrogue → Hitmonchan)
-  | EvoStatGT !Int          -- level + Atk > Def (Tyrogue → Hitmonlee)
-  | EvoStatEQ !Int          -- level + Atk = Def (Tyrogue → Hitmontop)
+  | EvoStatLT !Level        -- level + Atk < Def (Tyrogue → Hitmonchan)
+  | EvoStatGT !Level        -- level + Atk > Def (Tyrogue → Hitmonlee)
+  | EvoStatEQ !Level        -- level + Atk = Def (Tyrogue → Hitmontop)
   deriving (Eq, Show)
 
 -- | One evolution step: species A evolves into species B when
 -- a trigger condition is met.
 data EvolutionStep = EvolutionStep
-  { stepFrom    :: !Int          -- dex number of the source
-  , stepTo      :: !Int          -- dex number of the result
+  { stepFrom    :: !DexNumber    -- dex number of the source
+  , stepTo      :: !DexNumber    -- dex number of the result
   , stepTrigger :: !EvoTrigger
   } deriving (Eq, Show)
 
@@ -370,18 +386,18 @@ data LearnSource = LearnSource
 -- Immutable. Pass to pure functions as an argument.
 data GameData = GameData
   { gameGen           :: !Gen
-  , gameSpecies       :: !(Map Int Species)
-  , gameSpeciesByName :: !(Map Text Int)            -- name → dex number
-  , gameMoves         :: !(Map Int Move)
-  , gameMoveByName    :: !(Map Text Int)            -- name → move ID
-  , gameMachines      :: !(Map Machine Int)         -- machine → move ID
-  , gameMachineCompat :: !(Map Int (Set Machine))   -- dex → compatible machines
-  , gameLevelUp       :: !(Map Int [(Int, Int)])     -- dex → [(level, move_id)]
-  , gameEggMoves      :: !(Map Int (Set Int))
-  , gameTutorMoves    :: !(Map Int (Set Int))
-  , gameItems         :: !(Map Int Text)
-  , gameEvolvesInto   :: !(Map Int [EvolutionStep])  -- dex → what it evolves into
-  , gameEvolvesFrom   :: !(Map Int [EvolutionStep])  -- dex → what evolves into it
+  , gameSpecies       :: !(Map DexNumber Species)
+  , gameSpeciesByName :: !(Map Text DexNumber)          -- name → dex number
+  , gameMoves         :: !(Map MoveId Move)
+  , gameMoveByName    :: !(Map Text MoveId)             -- name → move ID
+  , gameMachines      :: !(Map Machine MoveId)          -- machine → move ID
+  , gameMachineCompat :: !(Map DexNumber (Set Machine)) -- dex → compatible machines
+  , gameLevelUp       :: !(Map DexNumber [(Int, MoveId)]) -- dex → [(level, move_id)]
+  , gameEggMoves      :: !(Map DexNumber (Set MoveId))
+  , gameTutorMoves    :: !(Map DexNumber (Set MoveId))
+  , gameItems         :: !(Map ItemId Text)
+  , gameEvolvesInto   :: !(Map DexNumber [EvolutionStep]) -- dex → what it evolves into
+  , gameEvolvesFrom   :: !(Map DexNumber [EvolutionStep]) -- dex → what evolves into it
   } deriving (Show)
 
 
@@ -417,13 +433,13 @@ newtype GameText = GameText { gameTextChars :: [GameChar] }
 -- Nothing = "any value is valid" (unknown / random / hatcher's).
 data EventConstraint = EventConstraint
   { eventName     :: !Text
-  , eventDex      :: !Int
+  , eventDex      :: !DexNumber
   , eventGen      :: !Gen
-  , eventLevel    :: !(Maybe Int)
-  , eventMoves    :: ![Maybe Int]
+  , eventLevel    :: !(Maybe Level)
+  , eventMoves    :: ![Maybe MoveId]
   , eventOTName   :: !(Maybe Text)
-  , eventOTID     :: !(Maybe Int)
-  , eventHeldItem :: !(Maybe Int)
+  , eventOTID     :: !(Maybe TrainerId)
+  , eventHeldItem :: !(Maybe ItemId)
   , eventDVs      :: !DVConstraint
   , eventShiny    :: !ShinyStatus
   , eventGender   :: !GenderStatus
