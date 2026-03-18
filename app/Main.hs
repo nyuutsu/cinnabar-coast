@@ -47,19 +47,17 @@ section title = putStrLn $
 
 -- | Find a species by name in a GameData.
 findSpecies :: GameData -> T.Text -> Maybe (DexNumber, Species)
-findSpecies gameData name =
-  case [ (dex, species) | (dex, species) <- Map.toList (gameSpecies gameData)
-                        , speciesName species == name ] of
-    (match:_) -> Just match
-    []        -> Nothing
+findSpecies gameData name = do
+  dex <- Map.lookup name (gameSpeciesByName gameData)
+  species <- Map.lookup dex (gameSpecies gameData)
+  pure (dex, species)
 
 -- | Find a move by name in a GameData.
 findMove :: GameData -> T.Text -> Maybe (MoveId, Move)
-findMove gameData name =
-  case [ (entryMoveId, move) | (entryMoveId, move) <- Map.toList (gameMoves gameData)
-                             , moveName move == name ] of
-    (match:_) -> Just match
-    []        -> Nothing
+findMove gameData name = do
+  matchedMoveId <- Map.lookup name (gameMoveByName gameData)
+  move <- Map.lookup matchedMoveId (gameMoves gameData)
+  pure (matchedMoveId, move)
 
 
 -- ── Stat Calculation Demo ───────────────────────────────────────
