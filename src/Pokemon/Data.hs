@@ -387,6 +387,13 @@ loadItems gen path = do
     ]
 
 
+-- | Raw CSV fields for one evolution row, before parsing into an EvoTrigger.
+data RawEvolution = RawEvolution
+  { rawMethod :: !T.Text
+  , rawParam1 :: !T.Text
+  , rawParam2 :: !T.Text
+  }
+
 -- | evolutions.csv → [EvolutionStep]
 -- New schema: gen,from_dex,to_dex,method,param1,param2
 -- Methods and params use pret ASM constant names.
@@ -402,7 +409,11 @@ loadEvolutions gen path = do
   pure [ EvolutionStep
            { stepFrom    = fieldInt (fromDexOfRow row)
            , stepTo      = fieldInt (toDexOfRow row)
-           , stepTrigger = parseTrigger (methodOfRow row) (param1OfRow row) (param2OfRow row)
+           , stepTrigger = parseTrigger RawEvolution
+               { rawMethod = methodOfRow row
+               , rawParam1 = param1OfRow row
+               , rawParam2 = param2OfRow row
+               }
            }
        | row <- matching
        ]
@@ -410,20 +421,21 @@ loadEvolutions gen path = do
 -- | Parse an evolution trigger from ASM constant names.
 -- EVOLVE_TRADE and EVOLVE_TRADE_ITEM are distinct in the CSV
 -- (normalized at extraction time), so no heuristic is needed.
-parseTrigger :: T.Text -> T.Text -> T.Text -> EvoTrigger
-parseTrigger method param1 param2 = case T.strip method of
-  "EVOLVE_LEVEL"      -> EvoLevel (fieldInt param1)
-  "EVOLVE_ITEM"       -> EvoItem (T.strip param1)
-  "EVOLVE_TRADE"      -> EvoTrade
-  "EVOLVE_TRADE_ITEM" -> EvoTradeItem (T.strip param1)
-  "EVOLVE_HAPPINESS"  -> case T.strip param1 of
-    "TR_ANYTIME" -> EvoHappiness
-    "TR_MORNDAY" -> EvoHappinessDay
-    "TR_NITE"    -> EvoHappinessNight
-    unrecognized -> error $ "Unknown happiness time: " ++ T.unpack unrecognized
-  "EVOLVE_STAT" -> case T.strip param2 of
-    "ATK_LT_DEF" -> EvoStatLT (fieldInt param1)
-    "ATK_GT_DEF" -> EvoStatGT (fieldInt param1)
-    "ATK_EQ_DEF" -> EvoStatEQ (fieldInt param1)
-    unrecognized -> error $ "Unknown stat comparison: " ++ T.unpack unrecognized
-  unrecognized -> error $ "Unknown evolution method: " ++ T.unpack unrecognized
+parseTrigger :: RawEvolution -> EvoTrigger
+parseTrigger RawEvolution{rawMethod, rawParam1, rawParam2} =
+  case T.strip rawMethod of
+    "EVOLVE_LEVEL"      -> EvoLevel (fieldInt rawParam1)
+    "EVOLVE_ITEM"       -> EvoItem (T.strip rawParam1)
+    "EVOLVE_TRADE"      -> EvoTrade
+    "EVOLVE_TRADE_ITEM" -> EvoTradeItem (T.strip rawParam1)
+    "EVOLVE_HAPPINESS"  -> case T.strip rawParam1 of
+      "TR_ANYTIME" -> EvoHappiness
+      "TR_MORNDAY" -> EvoHappinessDay
+      "TR_NITE"    -> EvoHappinessNight
+      unrecognized -> error $ "Unknown happiness time: " ++ T.unpack unrecognized
+    "EVOLVE_STAT" -> case T.strip rawParam2 of
+      "ATK_LT_DEF" -> EvoStatLT (fieldInt rawParam1)
+      "ATK_GT_DEF" -> EvoStatGT (fieldInt rawParam1)
+      "ATK_EQ_DEF" -> EvoStatEQ (fieldInt rawParam1)
+      unrecognized -> error $ "Unknown stat comparison: " ++ T.unpack unrecognized
+    unrecognized -> error $ "Unknown evolution method: " ++ T.unpack unrecognized
