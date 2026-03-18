@@ -212,6 +212,7 @@ applies equally to new code, refactors, and helpers introduced during
 changes. If a rename pass cleaned something up, the same patterns
 shouldn't come back in through new helpers or variables. `buildRow`
 not `mkRow`, `species` not `s`, `collectResults` not `go`.
+This includes test code.
 
 **Qualified imports** for containers (`Map`, `Set`, `T` for Text).
 
