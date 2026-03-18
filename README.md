@@ -1,13 +1,36 @@
 # cinnabar-coast
 
-A Haskell library for working with Pokemon Gen 1 and Gen 2 game data.
+A 👶 nascent 👶 Pokémon Gen 1 & 2 save editor.
 
-Loads species, moves, learnsets, evolutions, text encoding, and event
-distribution records from CSV and JSON extracted from the
-[pret](https://github.com/pret) disassemblies. Answers structural
-questions about the data: what moves can this species learn, how, and
-in which gen? Is this moveset legal? Could this Pokemon be from a
-known event distribution?
+Libraryesque: ask structural questions about gen 1 data & get an answer.
+
+* What moves can this species learn, how, and in which gen?
+
+* Is this moveset legal?
+
+* Could this Pokemon be from a known event distribution?
+
+Example move-legality searches are below. We *surface the answer to **why** a move is learnable*.
+
+```md
+BLISSEY + SEISMIC_TOSS (Gen 2, L100):                   
+    └── Pre-evo (CHANSEY #113))                                                                                     
+        └── Tradeback (Gen 1)                                                                                        
+            └── TM (TM19)
+
+RAICHU + THUNDER_WAVE (Gen 2, L100):
+    ├── Tradeback (Gen 1)
+    │   ├── Level-up (L1)
+    │   └── TM (TM45)
+    ├── Pre-evo (PICHU (#172))
+    │   └── Level-up (L8)
+    └── Pre-evo (PIKACHU (#25))
+        ├── Level-up (L8)
+        └── Tradeback (Gen 1)
+            ├── Level-up (L9)
+            └── TM (TM45)
+```
+
 
 Save file parsing and editing is next.
 
@@ -21,42 +44,13 @@ cabal build
 
 ## Data
 
-Game data lives in `data/` as CSV and JSON, extracted from the pret
-disassemblies (pokered, pokecrystal) by `cabal run extract`.
+What we track: species, moves, learnsets, evolutions, TM/HM mappings, TM/HM compatibility, egg m oves, tutor moves, items, event distribution profiles, text encoding tables for each gen+language pair
 
-```
-data/
-├── csv/               9 CSVs (species, moves, learnsets, evolutions,
-│                      TM/HM mappings, TM/HM compatibility, egg moves,
-│                      tutor moves, items)
-├── charsets/           Text encoding tables per (gen, language) pair
-│                      (en, frde, ites, jp × gen1, gen2)
-└── event-pokemon/     Event distribution profiles
-                       (Japanese, European, PCNY, game-based × gen1, gen2)
-```
+Relevant game data is stored as CSV.
 
-CSVs use pret ASM constant names throughout. The library maps these to
-domain types — no heuristics, no normalization.
+Provided, but, can be generated anew: `cabal run extract -- path/to/pokered path/to/pokecrystal`
 
-## Library modules
-
-| Module | What it does |
-|--------|-------------|
-| Pokemon.Types | Core domain types (Species, Move, DVs, GameText, LearnSource, ...) |
-| Pokemon.Data | CSV/JSON loader → GameData |
-| Pokemon.Stats | Exp curves, stat calculation |
-| Pokemon.Legality | Move classification — how can a species learn a move? |
-| Pokemon.TextCodec | Game Boy text encoding/decoding (lossless round-trip) |
-
-## Re-extracting data
-
-If you have local copies of pokered and pokecrystal:
-
-```
-cabal run extract -- path/to/pokered path/to/pokecrystal
-```
-
-This parses the ASM source with Megaparsec and writes all 9 CSVs.
+CSVs use pret ASM constant names throughout. We map these to domain types.
 
 ## License
 
