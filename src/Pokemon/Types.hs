@@ -132,7 +132,7 @@ data GrowthRate
   | MediumSlow    -- ⁶⁄₅n³ − 15n² + 100n − 140
   | Fast          -- ⅘n³
   | Slow          -- ⁵⁄₄n³
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 
 -- ── Gender Ratio ──────────────────────────────────────────────────

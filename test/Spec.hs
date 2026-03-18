@@ -25,6 +25,9 @@ instance Arbitrary StatExp where
                       <*> choose (0, 65535) <*> choose (0, 65535)
                       <*> choose (0, 65535)
 
+instance Arbitrary GrowthRate where
+  arbitrary = elements [minBound .. maxBound]
+
 instance Arbitrary Level where
   arbitrary = Level <$> choose (1, 100)
 
@@ -42,8 +45,7 @@ main = hspec $ do
       in derivedHP >= 0 && derivedHP <= 15
 
   describe "expForLevel" $
-    prop "is monotonically increasing for levels 2-99" $
-      forAll (elements [MediumFast, MediumSlow, Fast, Slow]) $ \rate ->
+    prop "is monotonically increasing for levels 2-99" $ \rate ->
         all (\level -> expForLevel rate (Level level) < expForLevel rate (Level (level + 1))) [2..99]
 
   describe "calcStat" $
