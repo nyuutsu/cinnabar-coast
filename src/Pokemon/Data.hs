@@ -378,14 +378,12 @@ loadNamePairMap moveNameToId path = do
 loadItems :: Gen -> FilePath -> IO (Map.Map Int T.Text)
 loadItems gen path = do
   csv <- readCSV path
-  let genNumber = fromEnum gen + 1
-      genOfRow = column csv "gen"
-      itemIdOfRow  = column csv "id"
-      nameOfRow = column csv "name"
+  let itemIdOfRow = column csv "id"
+      nameOfRow   = column csv "name"
+      matching    = forGen gen csv
   pure $ Map.fromList
     [ (fieldInt (itemIdOfRow row), T.strip (nameOfRow row))
-    | row <- csvRows csv
-    , fieldInt (genOfRow row) == genNumber
+    | row <- matching
     ]
 
 
