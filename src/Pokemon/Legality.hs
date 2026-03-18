@@ -179,14 +179,20 @@ classifyMoveNoPreEvo thisGen otherGen dex moveId level =
 -- pre-evolutions of a species (not just the immediate one).
 -- Pichu → Pikachu → Raichu: allPreEvolutions for Raichu = [Pikachu, Pichu]
 allPreEvolutions :: GameData -> DexNumber -> [DexNumber]
-allPreEvolutions gameData dex = collectAncestors dex []
+allPreEvolutions gameData dex = collectAncestors (Set.singleton dex) dex []
   where
-    collectAncestors current ancestors =
+    collectAncestors visited current ancestors =
       case Map.lookup current (gameEvolvesFrom gameData) of
         Nothing    -> ancestors
         Just steps ->
           let parents = map stepFrom steps
-          in foldl (\ancestorsSoFar parent -> collectAncestors parent (parent : ancestorsSoFar)) ancestors parents
+          in foldl (visitParent visited) ancestors parents
+
+    visitParent visited ancestorsSoFar parent
+      | Set.member parent visited =
+          error $ "allPreEvolutions: cycle detected at dex #" ++ show (unDex parent)
+      | otherwise =
+          collectAncestors (Set.insert parent visited) parent (parent : ancestorsSoFar)
 
 
 -- ── Helpers ────────────────────────────────────────────────────
