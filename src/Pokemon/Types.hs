@@ -41,6 +41,7 @@ module Pokemon.Types
 
     -- * Species (static game data)
   , Species (..)
+  , SpeciesGenFields (..)
   , BaseStats (..)
   , Special (..)
   , specialAttack, specialDefense
@@ -167,8 +168,8 @@ genderThreshold Genderless = 255
 -- ── Egg Group ─────────────────────────────────────────────────────
 
 -- | Egg compatibility group. Every Gen 2 species has exactly two
--- egg group slots — legendaries use EggNone. The outer Maybe on
--- Species distinguishes "Gen 1, no egg groups" from "Gen 2, has slots."
+-- egg group slots — legendaries use EggNone. Gen1SpeciesFields
+-- has no egg groups; Gen2SpeciesFields always has them.
 data EggGroup
   = EggMonster | EggWater1 | EggBug | EggFlying | EggGround
   | EggFairy | EggPlant | EggHumanShape | EggWater3
@@ -235,12 +236,20 @@ data Species = Species
   , speciesTypes         :: !TypePair
   , speciesCatchRate     :: !Int
   , speciesGrowthRate    :: !GrowthRate
-  -- Gen 2 fields. Nothing for Gen 1 entries.
-  , speciesGenderRatio   :: !(Maybe GenderRatio)
-  , speciesEggGroups     :: !(Maybe EggGroupPair)
-  , speciesBaseHappiness :: !(Maybe Int)
+  , speciesGenFields     :: !SpeciesGenFields
   } deriving (Eq, Show)
 
+-- | Gen-specific species fields. Pattern match to handle each gen.
+-- Gen 1 has no gender, egg groups, or base happiness — those are
+-- Gen 2 additions. Mirrors the Special (Unified | Split) pattern.
+data SpeciesGenFields
+  = Gen1SpeciesFields
+  | Gen2SpeciesFields
+      { speciesGenderRatio   :: !GenderRatio
+      , speciesEggGroups     :: !EggGroupPair
+      , speciesBaseHappiness :: !Int
+      }
+  deriving (Eq, Show)
 
 -- ── Move ────────────────────────────────────────────────────────
 

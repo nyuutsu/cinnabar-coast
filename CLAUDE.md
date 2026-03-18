@@ -56,7 +56,8 @@ cinnabar-coast/
 ### Key types (in Pokemon.Types)
 
 - `Gen` — Gen1 | Gen2
-- `Species` — Pokedex entry with base stats, types, growth rate, gender ratio, egg groups
+- `Species` — Pokedex entry with base stats, types, growth rate, and SpeciesGenFields
+- `SpeciesGenFields` — Gen1SpeciesFields | Gen2SpeciesFields (gender ratio, egg groups, base happiness)
 - `BaseStats` — HP, Attack, Defense, Speed, Special (with gen-aware split)
 - `Special` — Unified Int (Gen 1) | Split Int Int (Gen 2)
 - `GenderRatio` — AllMale | Female12_5 | Female25 | Female50 | Female75 | AllFemale | Genderless
@@ -89,9 +90,11 @@ cinnabar-coast/
 - The Special stat split (Gen 1→Gen 2) is modeled as a sum type
   in Special, not as conditional fields
 - Empty Maps represent absent GameData features (e.g. no egg moves
-  in Gen 1). Species-level fields that are absent in Gen 1 use Maybe
-  (e.g. speciesGenderRatio). Both patterns are intentional — use
-  whichever fits the data.
+  in Gen 1). Species-level fields that are absent in Gen 1 use a sum
+  type (SpeciesGenFields: Gen1SpeciesFields | Gen2SpeciesFields),
+  matching the pattern established by Special (Unified | Split) and
+  GenData (Gen1Data | Gen2Data). Pattern-match on the gen variant
+  rather than handling Maybe.
 - LearnMethod/Tradeback is always relative to the gen you're asking about
 - Event profiles are predicates (constraints), not Pokemon instances
 - GameText is the lossless intermediate representation for Game Boy text.
@@ -109,8 +112,8 @@ cinnabar-coast/
 - GenderRatio is a sum type (not a raw byte). `genderThreshold` converts
   back to the byte value for stat calculation (not yet integrated).
 - EggGroup has EggNone in the enum (not as a Maybe layer) because the ROM
-  always stores two slots — the outer Maybe distinguishes Gen 1 (absent)
-  from Gen 2 (present).
+  always stores two slots — SpeciesGenFields distinguishes Gen 1 (absent,
+  Gen1SpeciesFields) from Gen 2 (present, Gen2SpeciesFields).
 - CSVs use pret ASM constant names throughout. The extraction layer
   (extract/) handles all format knowledge; the library (Data.hs) does
   pure name→type mapping with no heuristics.

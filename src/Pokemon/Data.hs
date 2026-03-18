@@ -126,14 +126,6 @@ fieldInt fieldText
       [(value, "")] -> value
       _         -> error $ "Unparseable integer: " ++ T.unpack fieldText
 
--- | Parse a Text field as Maybe Int. Empty → Nothing.
-maybeInt :: T.Text -> Maybe Int
-maybeInt fieldText
-  | T.null (T.strip fieldText) = Nothing
-  | otherwise = case reads (T.unpack fieldText) of
-      [(value, "")] -> Just value
-      _             -> Nothing
-
 -- | Filter CSV rows where the "gen" column matches a gen number.
 forGen :: Gen -> CSV -> [Row]
 forGen gen csv = filter matchesGen (csvRows csv)
@@ -187,37 +179,35 @@ growthFromName "GROWTH_SLOW"        = Slow
 growthFromName unrecognized = error $ "Unknown growth rate: " ++ T.unpack unrecognized
 
 -- | Map pret ASM gender ratio constant name → GenderRatio.
--- Empty string (Gen 1, no gender) → Nothing.
-genderFromName :: T.Text -> Maybe GenderRatio
-genderFromName ""               = Nothing
-genderFromName "GENDER_F0"      = Just AllMale
-genderFromName "GENDER_F12_5"   = Just Female12_5
-genderFromName "GENDER_F25"     = Just Female25
-genderFromName "GENDER_F50"     = Just Female50
-genderFromName "GENDER_F75"     = Just Female75
-genderFromName "GENDER_F100"    = Just AllFemale
-genderFromName "GENDER_UNKNOWN" = Just Genderless
+-- Only called for Gen 2 rows where the field is always present.
+genderFromName :: T.Text -> GenderRatio
+genderFromName "GENDER_F0"      = AllMale
+genderFromName "GENDER_F12_5"   = Female12_5
+genderFromName "GENDER_F25"     = Female25
+genderFromName "GENDER_F50"     = Female50
+genderFromName "GENDER_F75"     = Female75
+genderFromName "GENDER_F100"    = AllFemale
+genderFromName "GENDER_UNKNOWN" = Genderless
 genderFromName unrecognized = error $ "Unknown gender ratio: " ++ T.unpack unrecognized
 
 -- | Map pret ASM egg group constant name → EggGroup.
--- Empty string (Gen 1, no egg groups) → Nothing.
-eggGroupFromName :: T.Text -> Maybe EggGroup
-eggGroupFromName ""                  = Nothing
-eggGroupFromName "EGG_MONSTER"       = Just EggMonster
-eggGroupFromName "EGG_WATER_1"      = Just EggWater1
-eggGroupFromName "EGG_BUG"          = Just EggBug
-eggGroupFromName "EGG_FLYING"       = Just EggFlying
-eggGroupFromName "EGG_GROUND"       = Just EggGround
-eggGroupFromName "EGG_FAIRY"        = Just EggFairy
-eggGroupFromName "EGG_PLANT"        = Just EggPlant
-eggGroupFromName "EGG_HUMANSHAPE"   = Just EggHumanShape
-eggGroupFromName "EGG_WATER_3"      = Just EggWater3
-eggGroupFromName "EGG_MINERAL"      = Just EggMineral
-eggGroupFromName "EGG_INDETERMINATE" = Just EggIndeterminate
-eggGroupFromName "EGG_WATER_2"      = Just EggWater2
-eggGroupFromName "EGG_DITTO"        = Just EggDitto
-eggGroupFromName "EGG_DRAGON"       = Just EggDragon
-eggGroupFromName "EGG_NONE"         = Just EggNone
+-- Only called for Gen 2 rows where the field is always present.
+eggGroupFromName :: T.Text -> EggGroup
+eggGroupFromName "EGG_MONSTER"       = EggMonster
+eggGroupFromName "EGG_WATER_1"      = EggWater1
+eggGroupFromName "EGG_BUG"          = EggBug
+eggGroupFromName "EGG_FLYING"       = EggFlying
+eggGroupFromName "EGG_GROUND"       = EggGround
+eggGroupFromName "EGG_FAIRY"        = EggFairy
+eggGroupFromName "EGG_PLANT"        = EggPlant
+eggGroupFromName "EGG_HUMANSHAPE"   = EggHumanShape
+eggGroupFromName "EGG_WATER_3"      = EggWater3
+eggGroupFromName "EGG_MINERAL"      = EggMineral
+eggGroupFromName "EGG_INDETERMINATE" = EggIndeterminate
+eggGroupFromName "EGG_WATER_2"      = EggWater2
+eggGroupFromName "EGG_DITTO"        = EggDitto
+eggGroupFromName "EGG_DRAGON"       = EggDragon
+eggGroupFromName "EGG_NONE"         = EggNone
 eggGroupFromName unrecognized = error $ "Unknown egg group: " ++ T.unpack unrecognized
 
 
@@ -275,11 +265,14 @@ loadSpecies gen path = do
                                          in TypePair (requireType name (type1OfRow row)) (requireType name (type2OfRow row))
                 , speciesCatchRate     = fieldInt (catchRateOfRow row)
                 , speciesGrowthRate    = growthFromName (growthRateOfRow row)
-                , speciesGenderRatio   = genderFromName (genderRatioOfRow row)
-                , speciesEggGroups     = case (eggGroupFromName (eggGroup1OfRow row), eggGroupFromName (eggGroup2OfRow row)) of
-                    (Just group1, Just group2) -> Just (EggGroupPair group1 group2)
-                    _                          -> Nothing
-                , speciesBaseHappiness = maybeInt (baseHappinessOfRow row)
+                , speciesGenFields     = case gen of
+                    Gen1 -> Gen1SpeciesFields
+                    Gen2 -> Gen2SpeciesFields
+                      { speciesGenderRatio   = genderFromName (genderRatioOfRow row)
+                      , speciesEggGroups     = EggGroupPair (eggGroupFromName (eggGroup1OfRow row))
+                                                            (eggGroupFromName (eggGroup2OfRow row))
+                      , speciesBaseHappiness = fieldInt (baseHappinessOfRow row)
+                      }
                 }
         ]
       speciesMap = Map.fromList [(speciesDex species, species) | species <- speciesList]
