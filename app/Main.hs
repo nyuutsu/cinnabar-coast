@@ -46,7 +46,7 @@ section title = putStrLn $
   "\x2500\x2500 " ++ title ++ " " ++ replicate (50 - 4 - length title) '\x2500'
 
 -- | Find a species by name in a GameData.
-findSpecies :: GameData -> T.Text -> Maybe (Int, Species)
+findSpecies :: GameData -> T.Text -> Maybe (DexNumber, Species)
 findSpecies gameData name =
   case [ (dex, species) | (dex, species) <- Map.toList (gameSpecies gameData)
                         , speciesName species == name ] of
@@ -54,7 +54,7 @@ findSpecies gameData name =
     []        -> Nothing
 
 -- | Find a move by name in a GameData.
-findMove :: GameData -> T.Text -> Maybe (Int, Move)
+findMove :: GameData -> T.Text -> Maybe (MoveId, Move)
 findMove gameData name =
   case [ (entryMoveId, move) | (entryMoveId, move) <- Map.toList (gameMoves gameData)
                              , moveName move == name ] of
@@ -66,23 +66,23 @@ findMove gameData name =
 
 demoStats :: GameData -> GameData -> IO ()
 demoStats gen1Data gen2Data = do
-  case Map.lookup 25 (gameSpecies gen1Data) of
+  case Map.lookup (DexNumber 25) (gameSpecies gen1Data) of
     Nothing -> putStrLn "  Pikachu not found in Gen 1!"
     Just pikachu -> do
-      let statsNoExp  = calcAllStats pikachu maxDVs zeroStatExp 50
-          statsMaxExp = calcAllStats pikachu maxDVs maxStatExp 50
+      let statsNoExp  = calcAllStats pikachu maxDVs zeroStatExp (Level 50)
+          statsMaxExp = calcAllStats pikachu maxDVs maxStatExp (Level 50)
           growthRate  = speciesGrowthRate pikachu
       putStrLn "  Pikachu (Gen 1), level 50, max DVs:"
       putStrLn $ "    No stat exp:  " ++ showStats statsNoExp
       putStrLn $ "    Max stat exp: " ++ showStats statsMaxExp
       putStrLn $ "    Growth rate: " ++ show growthRate
-               ++ " (" ++ show (expForLevel growthRate 100) ++ " exp to L100)"
+               ++ " (" ++ show (expForLevel growthRate (Level 100)) ++ " exp to L100)"
 
-  case Map.lookup 25 (gameSpecies gen2Data) of
+  case Map.lookup (DexNumber 25) (gameSpecies gen2Data) of
     Nothing -> pure ()
     Just pikachu -> do
-      let statsNoExp  = calcAllStats pikachu maxDVs zeroStatExp 50
-          statsMaxExp = calcAllStats pikachu maxDVs maxStatExp 50
+      let statsNoExp  = calcAllStats pikachu maxDVs zeroStatExp (Level 50)
+          statsMaxExp = calcAllStats pikachu maxDVs maxStatExp (Level 50)
       putStrLn "  Pikachu (Gen 2), level 50, max DVs:"
       putStrLn $ "    No stat exp:  " ++ showStats statsNoExp
       putStrLn $ "    Max stat exp: " ++ showStats statsMaxExp
@@ -116,25 +116,25 @@ showDVs dvs = "{Atk=" ++ show (dvAttack dvs) ++ " Def=" ++ show (dvDefense dvs)
 demoLegality :: GameData -> GameData -> IO ()
 demoLegality gen1Data gen2Data = do
   -- Simple: direct level-up + TM in same gen
-  classify gen2Data (Just gen1Data) "PIKACHU"  "THUNDERBOLT"  100
+  classify gen2Data (Just gen1Data) "PIKACHU"  "THUNDERBOLT"  (Level 100)
 
   -- PreEvo: Raichu can't learn Thunder Wave in Gen 2, but Pikachu can
-  classify gen2Data (Just gen1Data) "RAICHU"   "THUNDER_WAVE" 100
+  classify gen2Data (Just gen1Data) "RAICHU"   "THUNDER_WAVE" (Level 100)
 
   -- Tradeback: Mega Punch is TM01 in Gen 1, gone in Gen 2
-  classify gen2Data (Just gen1Data) "CHANSEY"  "MEGA_PUNCH"   100
+  classify gen2Data (Just gen1Data) "CHANSEY"  "MEGA_PUNCH"   (Level 100)
 
   -- Tradeback + tutor: Body Slam is TM08 in Gen 1, tutor in Crystal
-  classify gen2Data (Just gen1Data) "SNORLAX"  "BODY_SLAM"    100
+  classify gen2Data (Just gen1Data) "SNORLAX"  "BODY_SLAM"    (Level 100)
 
   -- Reverse tradeback: Eevee learns Bite in Gen 2 but not Gen 1
-  classify gen1Data (Just gen2Data) "EEVEE"    "BITE"         100
+  classify gen1Data (Just gen2Data) "EEVEE"    "BITE"         (Level 100)
 
   -- Level-restricted: Pikachu at level 10 can't have Thunderbolt yet
-  classify gen2Data (Just gen1Data) "PIKACHU"  "THUNDERBOLT"  10
+  classify gen2Data (Just gen1Data) "PIKACHU"  "THUNDERBOLT"  (Level 10)
 
 
-classify :: GameData -> Maybe GameData -> T.Text -> T.Text -> Int -> IO ()
+classify :: GameData -> Maybe GameData -> T.Text -> T.Text -> Level -> IO ()
 classify gameData otherGameData targetSpecies targetMove level =
   case (findSpecies gameData targetSpecies, findMove gameData targetMove) of
     (Nothing, _) -> TIO.putStrLn $ "  " <> targetSpecies <> ": species not found"
@@ -143,7 +143,7 @@ classify gameData otherGameData targetSpecies targetMove level =
       let genLabel = case gameGen gameData of Gen1 -> "Gen 1"; Gen2 -> "Gen 2"
           sources = classifyMove gameData otherGameData dex targetMoveId level
       TIO.putStrLn $ "  " <> targetSpecies <> " + " <> targetMove
-                   <> " (" <> genLabel <> ", L" <> T.pack (show level) <> "):"
+                   <> " (" <> genLabel <> ", L" <> T.pack (show (unLevel level)) <> "):"
       if null sources
         then putStrLn "    (not learnable)"
         else putStr $ renderSources "    " sources

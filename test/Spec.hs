@@ -25,6 +25,9 @@ instance Arbitrary StatExp where
                       <*> choose (0, 65535) <*> choose (0, 65535)
                       <*> choose (0, 65535)
 
+instance Arbitrary Level where
+  arbitrary = Level <$> choose (1, 100)
+
 
 -- ── Main ────────────────────────────────────────────────────────
 
@@ -41,18 +44,18 @@ main = hspec $ do
   describe "expForLevel" $
     prop "is monotonically increasing for levels 2-99" $
       forAll (elements [MediumFast, MediumSlow, Fast, Slow]) $ \rate ->
-        all (\level -> expForLevel rate level < expForLevel rate (level + 1)) [2..99]
+        all (\level -> expForLevel rate (Level level) < expForLevel rate (Level (level + 1))) [2..99]
 
   describe "calcStat" $
     prop "returns positive values" $ \(dvs :: DVs) (statExp :: StatExp) ->
       forAll (choose (1, 255)) $ \base ->
-      forAll (choose (1, 100)) $ \level ->
+      forAll (Level <$> choose (1, 100)) $ \level ->
         calcStat base (dvAttack dvs) (expAttack statExp) level > 0
 
   describe "calcHP" $
     prop "returns positive values" $ \(dvs :: DVs) (statExp :: StatExp) ->
       forAll (choose (1, 255)) $ \base ->
-      forAll (choose (1, 100)) $ \level ->
+      forAll (Level <$> choose (1, 100)) $ \level ->
         calcHP base (dvHP dvs) (expHP statExp) level > 0
 
   describe "Text codec round-trip" $ do
@@ -70,7 +73,7 @@ main = hspec $ do
 
   describe "Pikachu Gen 1" $ do
     gameData <- runIO $ loadGameData Gen1
-    let pikachu = case Map.lookup 25 (gameSpecies gameData) of
+    let pikachu = case Map.lookup (DexNumber 25) (gameSpecies gameData) of
           Just species -> species
           Nothing      -> error "Pikachu (dex 25) not found in Gen 1 data"
 
@@ -83,7 +86,7 @@ main = hspec $ do
       baseSpecial baseStats `shouldBe` Unified 50
 
     it "at level 50, max DVs, zero stat exp gives correct stats" $ do
-      let stats = calcAllStats pikachu maxDVs zeroStatExp 50
+      let stats = calcAllStats pikachu maxDVs zeroStatExp (Level 50)
       statHP stats `shouldBe` 110
       statAttack stats `shouldBe` 75
       statDefense stats `shouldBe` 50
@@ -92,7 +95,7 @@ main = hspec $ do
 
   describe "expForLevel golden" $
     it "MediumFast level 100 equals 1000000" $
-      expForLevel MediumFast 100 `shouldBe` 1000000
+      expForLevel MediumFast (Level 100) `shouldBe` 1000000
 
   describe "isShiny" $ do
     it "DVs 10 10 10 10 is shiny" $

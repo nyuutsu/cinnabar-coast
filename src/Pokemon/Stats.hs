@@ -28,13 +28,13 @@ import Pokemon.Types
 -- | Total experience needed to reach a given level.
 -- Level 1 is always 0. MediumSlow goes negative at low levels;
 -- the games clamp to 0.
-expForLevel :: GrowthRate -> Int -> Int
-expForLevel _          1 = 0
-expForLevel MediumFast level = level * level * level
-expForLevel MediumSlow level = max 0 $
+expForLevel :: GrowthRate -> Level -> Int
+expForLevel _          (Level 1) = 0
+expForLevel MediumFast (Level level) = level * level * level
+expForLevel MediumSlow (Level level) = max 0 $
   6 * level * level * level `div` 5 - 15 * level * level + 100 * level - 140
-expForLevel Fast       level = 4 * level * level * level `div` 5
-expForLevel Slow       level = 5 * level * level * level `div` 4
+expForLevel Fast       (Level level) = 4 * level * level * level `div` 5
+expForLevel Slow       (Level level) = 5 * level * level * level `div` 4
 
 
 -- ── Stat calculation ─────────────────────────────────────────
@@ -45,8 +45,8 @@ expForLevel Slow       level = 5 * level * level * level `div` 4
 --
 -- >>> calcStat 65 15 65535 100
 -- 238
-calcStat :: Int -> Int -> Int -> Int -> Int
-calcStat base dv statExp level =
+calcStat :: Int -> Int -> Int -> Level -> Int
+calcStat base dv statExp (Level level) =
   ((base + dv) * 2 + statExpBonus statExp) * level `div` 100 + 5
 
 -- | Calculate HP. Same formula but +level+10 instead of +5.
@@ -55,8 +55,8 @@ calcStat base dv statExp level =
 --
 -- >>> calcHP 45 15 65535 100
 -- 198
-calcHP :: Int -> Int -> Int -> Int -> Int
-calcHP base dv statExp level =
+calcHP :: Int -> Int -> Int -> Level -> Int
+calcHP base dv statExp (Level level) =
   ((base + dv) * 2 + statExpBonus statExp) * level `div` 100 + level + 10
 
 -- | Stat exp contribution: floor(sqrt(statExp)) / 4.
@@ -83,7 +83,7 @@ data CalcStats = CalcStats
 
 -- | Calculate all stats from species data, DVs, stat exp, and level.
 -- Pattern matches on Special to decide Gen 1 vs Gen 2 handling.
-calcAllStats :: Species -> DVs -> StatExp -> Int -> CalcStats
+calcAllStats :: Species -> DVs -> StatExp -> Level -> CalcStats
 calcAllStats species dvs statExp level = CalcStats
   { statHP      = calcHP   (baseHP baseStats)      (dvHP dvs)      (expHP statExp)      level
   , statAttack  = calcStat (baseAttack baseStats)  (dvAttack dvs)  (expAttack statExp)  level
