@@ -144,34 +144,37 @@ forGen gen csv = filter matchesGen (csvRows csv)
 -- ── Name-based mapping ──────────────────────────────────────────
 
 -- | Map pret ASM type constant name → PokemonType.
--- Used for species types (which are always real element types).
-typeFromName :: T.Text -> PokemonType
-typeFromName "NORMAL"   = Normal
-typeFromName "FIGHTING" = Fighting
-typeFromName "FLYING"   = Flying
-typeFromName "POISON"   = Poison
-typeFromName "GROUND"   = Ground
-typeFromName "ROCK"     = Rock
-typeFromName "BUG"      = Bug
-typeFromName "GHOST"    = Ghost
-typeFromName "STEEL"    = Steel
-typeFromName "FIRE"     = Fire
-typeFromName "WATER"    = Water
-typeFromName "GRASS"    = Grass
-typeFromName "ELECTRIC" = Electric
-typeFromName "PSYCHIC"      = Psychic
-typeFromName "PSYCHIC_TYPE" = Psychic  -- pret alias (avoids collision with move name)
-typeFromName "ICE"      = Ice
-typeFromName "DRAGON"   = Dragon
-typeFromName "DARK"     = Dark
-typeFromName unrecognized = error $ "Unknown type name: " ++ T.unpack unrecognized
+-- Returns Nothing for unrecognized names so callers can provide
+-- context-specific error messages.
+typeFromName :: T.Text -> Maybe PokemonType
+typeFromName "NORMAL"       = Just Normal
+typeFromName "FIGHTING"     = Just Fighting
+typeFromName "FLYING"       = Just Flying
+typeFromName "POISON"       = Just Poison
+typeFromName "GROUND"       = Just Ground
+typeFromName "ROCK"         = Just Rock
+typeFromName "BUG"          = Just Bug
+typeFromName "GHOST"        = Just Ghost
+typeFromName "STEEL"        = Just Steel
+typeFromName "FIRE"         = Just Fire
+typeFromName "WATER"        = Just Water
+typeFromName "GRASS"        = Just Grass
+typeFromName "ELECTRIC"     = Just Electric
+typeFromName "PSYCHIC"      = Just Psychic
+typeFromName "PSYCHIC_TYPE" = Just Psychic  -- pret alias (avoids collision with move name)
+typeFromName "ICE"          = Just Ice
+typeFromName "DRAGON"       = Just Dragon
+typeFromName "DARK"         = Just Dark
+typeFromName _              = Nothing
 
 -- | Map pret ASM type constant name → MoveType.
 -- Handles CURSE_TYPE (the ??? type used only by Curse) and delegates
 -- to typeFromName for all standard element types.
 moveTypeFromName :: T.Text -> MoveType
 moveTypeFromName "CURSE_TYPE" = CurseType
-moveTypeFromName unrecognized = StandardType (typeFromName unrecognized)
+moveTypeFromName name = case typeFromName name of
+  Just pokemonType -> StandardType pokemonType
+  Nothing          -> error $ "Unknown move type: " ++ T.unpack name
 
 -- | Map pret ASM growth rate constant name → GrowthRate.
 growthFromName :: T.Text -> GrowthRate
@@ -216,6 +219,15 @@ eggGroupFromName "EGG_NONE"         = Just EggNone
 eggGroupFromName unrecognized = error $ "Unknown egg group: " ++ T.unpack unrecognized
 
 
+-- | Unwrap a type name or crash with the species name and bad value
+-- for context. Used by loadSpecies for type1 and type2.
+requireType :: T.Text -> T.Text -> PokemonType
+requireType speciesName raw = case typeFromName raw of
+  Just pokemonType -> pokemonType
+  Nothing          -> error $ "Species " ++ T.unpack speciesName
+                           ++ ": unknown type " ++ T.unpack raw
+
+
 -- ── Loaders ─────────────────────────────────────────────────────
 
 -- | species.csv → Map dex Species
@@ -256,7 +268,8 @@ loadSpecies gen path = do
                     Gen1 -> Unified (fieldInt (specialOfRow row))
                     Gen2 -> Split   (fieldInt (specialAttackOfRow row)) (fieldInt (specialDefenseOfRow row))
                 }
-            , speciesTypes         = (typeFromName (type1OfRow row), typeFromName (type2OfRow row))
+            , speciesTypes         = let name = nameOfRow row
+                                     in (requireType name (type1OfRow row), requireType name (type2OfRow row))
             , speciesCatchRate     = fieldInt (catchRateOfRow row)
             , speciesGrowthRate    = growthFromName (growthRateOfRow row)
             , speciesGenderRatio   = genderFromName (genderRatioOfRow row)

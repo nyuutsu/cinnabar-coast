@@ -118,7 +118,7 @@ formatEvolutionRows gen speciesToDex blocks =
   where
     formatEvoRow :: Text -> Int -> [Text] -> [Text]
     formatEvoRow genLabel fromDex args =
-        let mkRow target method param1 param2 =
+        let buildRow target method param1 param2 =
               let toDex = Map.findWithDefault 0 target speciesToDex
                   -- pret uses EVOLVE_TRADE for both plain trade and trade-with-item.
                   -- Normalize: numeric/empty param1 = plain trade, item name = trade-with-item.
@@ -129,9 +129,9 @@ formatEvolutionRows gen speciesToDex blocks =
                     _ -> (method, param1)
               in [genLabel, T.pack (show fromDex), T.pack (show toDex), normalizedMethod, normalizedParam1, param2]
         in case args of
-          [method, target]                       -> mkRow target method "" ""
-          [method, firstParam, target]           -> mkRow target method firstParam ""
-          [method, firstParam, secondParam, target] -> mkRow target method firstParam secondParam
+          [method, target]                       -> buildRow target method "" ""
+          [method, firstParam, target]           -> buildRow target method firstParam ""
+          [method, firstParam, secondParam, target] -> buildRow target method firstParam secondParam
           _ -> error $ "unexpected evolution entry: " ++ show args
 
     -- | Is this text empty, or all digits (possibly with leading minus)?
