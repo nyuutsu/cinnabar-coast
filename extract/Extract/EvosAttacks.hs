@@ -95,7 +95,6 @@ parseEvosAttacksFile = scanBlocks []
             ]
 
     parseDb = keyword "db" *> commaSeparated
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 
 -- | Format learnset data into CSV rows.

@@ -35,6 +35,10 @@ module Extract.ASM
   , TMHM(..)
   , parseTMHMBlock
 
+    -- * Line scanning
+  , restOfLine
+  , scanLines
+
     -- * Common data line parsers
   , dbArgs
   , commaSeparated
@@ -287,15 +291,39 @@ parseTMHMBlock = do
             [ try (parseAddTm >>= \name -> collectEntries (name : tms) hms tutors)
             , try (parseAddHm >>= \name -> collectEntries tms (name : hms) tutors)
             , try (parseAddMt >>= \name -> collectEntries tms hms (name : tutors))
-            , skipLine >> collectEntries tms hms tutors
+            , restOfLine >> collectEntries tms hms tutors
             ]
 
     parseAddTm = keyword "add_tm" *> identifier <* restOfLine
     parseAddHm = keyword "add_hm" *> identifier <* restOfLine
     parseAddMt = keyword "add_mt" *> identifier <* restOfLine
 
-    skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
+
+-- ── Line scanning ────────────────────────────────────────────
+
+-- | Consume the rest of a line (everything up to newline) and the
+-- newline itself, or succeed at end of input.
+restOfLine :: Parser ()
+restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
+
+-- | Try a parser on each line of the input; collect successes, skip
+-- failures.  Consumes leading horizontal whitespace before each
+-- attempt.
+--
+-- The parser passed in must consume through end-of-line on success.
+scanLines :: Parser a -> Parser [a]
+scanLines lineParser = reverse <$> collectResults []
+  where
+    collectResults results = do
+      done <- option False (True <$ eof)
+      if done
+        then pure results
+        else do
+          horizontalSpace
+          choice
+            [ try (lineParser >>= \result -> collectResults (result : results))
+            , restOfLine >> collectResults results
+            ]
 
 
 -- ── Common data line parsers ───────────────────────────────────

@@ -18,8 +18,6 @@ module Extract.Moves (extractMoves, movesHeader) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Text.Megaparsec
-
 import Extract.ASM
 
 
@@ -31,26 +29,9 @@ extractMoves gen path = do
   moves <- parseFile parseMoveTable path
   pure [formatRow gen moveId fields | (moveId, fields) <- zip [1..] moves]
 
--- | Scan the file for `move` macro lines, skipping everything else
--- (MACRO definitions, comments, labels, assert lines, etc.).
--- Same robust pattern as parseTMHMBlock — try to match, otherwise
--- skip the entire line.
+-- | Scan the file for `move` macro lines, skipping everything else.
 parseMoveTable :: Parser [[Text]]
-parseMoveTable = collectMoves []
-  where
-    collectMoves moves = do
-      done <- option False (True <$ eof)
-      if done
-        then pure (reverse moves)
-        else do
-          horizontalSpace
-          choice
-            [ try (parseMoveLine >>= \fields -> collectMoves (fields : moves))
-            , restOfLine >> collectMoves moves
-            ]
-
-    parseMoveLine = keyword "move" *> commaSeparated
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
+parseMoveTable = scanLines (keyword "move" *> commaSeparated)
 
 -- | Format a parsed move line into a CSV row.
 -- Handles both 6-arg (Gen 1) and 7-arg (Gen 2) lines.

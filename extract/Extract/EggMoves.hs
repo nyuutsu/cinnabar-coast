@@ -36,21 +36,7 @@ extractEggMoves pointersPath eggMovesPath = do
 -- | Parse the pointer table: a sequence of `dw LabelName` lines.
 -- Returns label names in order (position = dex number).
 parsePointerTable :: Parser [Text]
-parsePointerTable = collectPointers []
-  where
-    collectPointers pointers = do
-      done <- option False (True <$ eof)
-      if done
-        then pure (reverse pointers)
-        else do
-          horizontalSpace
-          choice
-            [ try (parseDw >>= \name -> collectPointers (name : pointers))
-            , restOfLine >> collectPointers pointers
-            ]
-
-    parseDw = keyword "dw" *> identifier <* restOfLine
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
+parsePointerTable = scanLines (keyword "dw" *> identifier <* restOfLine)
 
 -- | Parse egg move blocks: labeled sections of db MOVE_NAME entries.
 -- Returns (label, [move_name]) pairs.
@@ -87,8 +73,6 @@ parseEggMoveBlocks = collectBlocks []
       move <- identifier
       restOfLine
       pure move
-
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 eggMovesHeader :: [Text]
 eggMovesHeader = ["dex", "move_name"]

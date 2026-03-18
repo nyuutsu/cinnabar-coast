@@ -192,27 +192,14 @@ parseDexOrder pokedexConstsPath dexOrderPath = do
 
 -- | Parse dex_order.asm: a table of `db DEX_NAME` or `db 0` lines.
 parseDexOrderFile :: Parser [Text]
-parseDexOrderFile = collectEntries []
+parseDexOrderFile = scanLines parseDbEntry
   where
-    collectEntries entries = do
-      done <- option False (True <$ eof)
-      if done
-        then pure (reverse entries)
-        else do
-          horizontalSpace
-          choice
-            [ try (parseDbEntry >>= \name -> collectEntries (name : entries))
-            , restOfLine >> collectEntries entries
-            ]
-
     parseDbEntry = do
       _ <- keyword "db"
       arg <- takeWhile1P (Just "argument") (\char -> char /= '\n' && char /= ';' && char /= ' ' && char /= '\t')
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
       pure (T.strip arg)
-
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 -- | Build species constant name → dex number for Gen 1.
 -- Composes: name → internal index → dex number.

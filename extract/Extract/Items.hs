@@ -23,19 +23,8 @@ extractItems gen path = do
 
 -- | Scan for `li "NAME"` lines, skipping everything else.
 parseItemNames :: Parser [Text]
-parseItemNames = collectNames []
+parseItemNames = scanLines parseLi
   where
-    collectNames names = do
-      done <- option False (True <$ eof)
-      if done
-        then pure (reverse names)
-        else do
-          horizontalSpace
-          choice
-            [ try (parseLi >>= \name -> collectNames (name : names))
-            , restOfLine >> collectNames names
-            ]
-
     parseLi = do
       _ <- keyword "li"
       _ <- single '"'
@@ -43,8 +32,6 @@ parseItemNames = collectNames []
       _ <- single '"'
       restOfLine
       pure name
-
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
 formatRow :: Text -> Int -> Text -> [Text]
 formatRow gen itemId name = [gen, T.pack (show itemId), name]

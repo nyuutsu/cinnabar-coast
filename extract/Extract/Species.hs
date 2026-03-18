@@ -39,28 +39,15 @@ data SpeciesData = SpeciesData
 -- | Parse the master base_stats.asm to get the INCLUDE filenames in order.
 -- Returns filenames like "data/pokemon/base_stats/bulbasaur.asm".
 parseBaseStatsIncludes :: Parser [Text]
-parseBaseStatsIncludes = scanIncludes []
+parseBaseStatsIncludes = scanLines parseInclude
   where
-    scanIncludes includes = do
-      done <- option False (True <$ eof)
-      if done
-        then pure (reverse includes)
-        else do
-          horizontalSpace
-          choice
-            [ try (parseInclude >>= \path -> scanIncludes (path : includes))
-            , restOfLine >> scanIncludes includes
-            ]
-
     parseInclude = do
       _ <- keyword "INCLUDE"
       _ <- single '"'
-      path <- takeWhileP (Just "path") (/= '"')
+      includePath <- takeWhileP (Just "path") (/= '"')
       _ <- single '"'
       restOfLine
-      pure path
-
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
+      pure includePath
 
 -- | Parse one species base_stats file.
 extractSpeciesFile :: FilePath -> IO SpeciesData
@@ -86,8 +73,6 @@ parseBaseStats = scanArguments [] [] []
             , try (parseTmhmLine >>= \args -> scanArguments dbArgSets dnArgSets (args : tmhmArgSets))
             , restOfLine >> scanArguments dbArgSets dnArgSets tmhmArgSets
             ]
-
-    restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
 
     parseDbLine = keyword "db" *> commaSeparated
     parseDnLine = keyword "dn" *> commaSeparated
