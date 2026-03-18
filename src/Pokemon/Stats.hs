@@ -33,9 +33,9 @@ expForLevel :: GrowthRate -> Level -> Int
 expForLevel _          (Level 1) = 0
 expForLevel MediumFast (Level level) = level * level * level
 expForLevel MediumSlow (Level level) = max 0 $
-  6 * level * level * level `div` 5 - 15 * level * level + 100 * level - 140
-expForLevel Fast       (Level level) = 4 * level * level * level `div` 5
-expForLevel Slow       (Level level) = 5 * level * level * level `div` 4
+  (6 * level * level * level) `div` 5 - 15 * level * level + 100 * level - 140
+expForLevel Fast       (Level level) = (4 * level * level * level) `div` 5
+expForLevel Slow       (Level level) = (5 * level * level * level) `div` 4
 
 
 -- ── Stat calculation ─────────────────────────────────────────
