@@ -49,7 +49,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.Text.IO as TIO
 import Data.Void (Void)
 import Text.Megaparsec hiding (parseError)
 import Text.Megaparsec.Char hiding (hspace, eol, char)  -- we define our own horizontalSpace and endOfLine
@@ -68,7 +68,7 @@ type Parser = Parsec Void Text
 -- pret sources under our control, not user input.
 parseFile :: Parser a -> FilePath -> IO a
 parseFile parser path = do
-  content <- T.readFile path
+  content <- TIO.readFile path
   case parse parser path content of
     Left parseError -> error (errorBundlePretty parseError)
     Right result    -> pure result

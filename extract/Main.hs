@@ -14,7 +14,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.Text.IO as TIO
 import System.Directory (doesFileExist)
 import System.Environment (getArgs)
 import System.FilePath ((</>), takeBaseName)
@@ -263,5 +263,5 @@ writeCSV :: FilePath -> [Text] -> [[Text]] -> IO ()
 writeCSV path header rows = do
   let headerLine = T.intercalate "," header
       dataLines  = map (T.intercalate ",") rows
-  T.writeFile path (T.unlines (headerLine : dataLines))
+  TIO.writeFile path (T.unlines (headerLine : dataLines))
   putStrLn $ "  Wrote " ++ path ++ " (" ++ show (length rows) ++ " rows)"

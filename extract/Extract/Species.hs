@@ -157,7 +157,7 @@ formatGen2Species name dex speciesData =
 -- Gen 2 has these inline in evos_attacks.asm; Gen 1 stores them separately.
 gen1StartingMoves :: SpeciesData -> [Text]
 gen1StartingMoves speciesData = case speciesDbArgs speciesData of
-  (_dex : _hp : _atk : _def : _spd : _spc
+  (_dex : _hp : _attack : _defense : _speed : _special
     : _type1 : _type2 : _catchRate : _baseExp
     : move1 : move2 : move3 : move4 : _) ->
     filter (/= "NO_MOVE") [move1, move2, move3, move4]

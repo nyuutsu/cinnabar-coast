@@ -41,7 +41,7 @@ main = hspec $ do
   describe "expForLevel" $
     prop "is monotonically increasing for levels 2-99" $
       forAll (elements [MediumFast, MediumSlow, Fast, Slow]) $ \rate ->
-        all (\n -> expForLevel rate n < expForLevel rate (n + 1)) [2..99]
+        all (\level -> expForLevel rate level < expForLevel rate (level + 1)) [2..99]
 
   describe "calcStat" $
     prop "returns positive values" $ \(dvs :: DVs) (statExp :: StatExp) ->
@@ -57,7 +57,7 @@ main = hspec $ do
 
   describe "Text codec round-trip" $ do
     codec <- runIO $ fst <$> loadCodec Gen1 English
-    let safeChars = [ gc | (gc, byte) <- Map.toList (codecEncode codec)
+    let safeChars = [ gameChar | (gameChar, byte) <- Map.toList (codecEncode codec)
                          , byte /= terminator ]
     prop "preserves all characters in the encode map" $
       forAll (GameText <$> listOf (elements safeChars)) $ \gameText ->
