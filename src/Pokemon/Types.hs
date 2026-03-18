@@ -85,6 +85,7 @@ module Pokemon.Types
     -- * Event constraints
   , EventConstraint (..)
   , DVConstraint (..)
+  , PartialDVFields (..)
   , ShinyStatus (..)
   , GenderStatus (..)
   , EventMatch (..)
@@ -497,8 +498,15 @@ data EventConstraint = EventConstraint
 data DVConstraint
   = AnyDVs
   | ExactDVs DVs
-  | PartialDVs (Maybe Int) (Maybe Int) (Maybe Int) (Maybe Int)
+  | PartialDVs PartialDVFields
   deriving (Eq, Show)
+
+data PartialDVFields = PartialDVFields
+  { partialAttack  :: !(Maybe Int)
+  , partialDefense :: !(Maybe Int)
+  , partialSpeed   :: !(Maybe Int)
+  , partialSpecial :: !(Maybe Int)
+  } deriving (Eq, Show)
 
 data ShinyStatus
   = ShinyAlways | ShinyPossible | ShinyNever | ShinyUnknown
