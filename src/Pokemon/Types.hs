@@ -60,6 +60,8 @@ module Pokemon.Types
     -- * Pokemon (save file instance)
   , Pokemon (..)
   , GenData (..)
+  , Gen1Fields (..)
+  , Gen2Fields (..)
 
     -- * Evolution
   , EvoTrigger (..)
@@ -345,19 +347,23 @@ data Pokemon = Pokemon
 
 -- | Gen-specific fields. Pattern match to handle each gen.
 data GenData
-  = Gen1Data
-      { gen1SpeciesIndex :: !Word8
-      , gen1Type1        :: !PokemonType
-      , gen1Type2        :: !PokemonType
-      , gen1CatchRate    :: !Word8
-      }
-  | Gen2Data
-      { gen2HeldItem   :: !Word8
-      , gen2Friendship :: !Word8
-      , gen2Pokerus    :: !Word8
-      , gen2CaughtData :: !Word16
-      }
+  = Gen1Data !Gen1Fields
+  | Gen2Data !Gen2Fields
   deriving (Eq, Show)
+
+data Gen1Fields = Gen1Fields
+  { gen1SpeciesIndex :: !Word8
+  , gen1Type1        :: !PokemonType
+  , gen1Type2        :: !PokemonType
+  , gen1CatchRate    :: !Word8
+  } deriving (Eq, Show)
+
+data Gen2Fields = Gen2Fields
+  { gen2HeldItem   :: !Word8
+  , gen2Friendship :: !Word8
+  , gen2Pokerus    :: !Word8
+  , gen2CaughtData :: !Word16
+  } deriving (Eq, Show)
 
 
 -- ── Evolution ─────────────────────────────────────────────────
