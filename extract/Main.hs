@@ -7,6 +7,8 @@
 
 module Main where
 
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IntMap
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -53,14 +55,14 @@ extractAll pokered pokecrystal outDir = do
       gen2MoveToNumber = buildMoveNumberMap gen2TMHM
 
   -- ── Gen 1 internal index → dex number mapping ───────────────
-  gen1DexOrder <- parseDexOrder
+  (gen1DexOrder, gen1InternalToDex) <- parseDexOrder
     (pokered </> "constants/pokedex_constants.asm")
     (pokered </> "data/pokemon/dex_order.asm")
   gen1PokemonConsts <- parseFile parseConstBlock
     (pokered </> "constants/pokemon_constants.asm")
 
   -- Species constant name → dex number (for Gen 1 evolution targets)
-  let gen1NameToDex = buildGen1NameToDex gen1PokemonConsts gen1DexOrder
+  let gen1NameToDex = buildGen1NameToDex gen1PokemonConsts gen1InternalToDex
 
   -- ── Gen 2 species constants ──────────────────────────────────
   gen2PokemonConsts <- parseFile parseConstBlock
@@ -178,17 +180,23 @@ extractAllSpecies repoPath = do
 -- ── Gen 1 dex mapping ──────────────────────────────────────────
 
 -- | Parse dex_order.asm to get internal index → dex number mapping.
--- Returns a list indexed by internal index (1-based):
--- Just dexNumber for real species, Nothing for MissingNo.
-parseDexOrder :: FilePath -> FilePath -> IO [Maybe Int]
+-- Returns both forms: a list (for joinGen1Blocks, which zips it with
+-- blocks in internal index order) and an IntMap (for buildGen1NameToDex,
+-- which needs safe lookup by internal index).
+parseDexOrder :: FilePath -> FilePath -> IO ([Maybe Int], IntMap Int)
 parseDexOrder pokedexConstsPath dexOrderPath = do
   pokedexConsts <- parseFile parseConstBlock pokedexConstsPath
   dexNames <- parseFile parseDexOrderFile dexOrderPath
-  pure [ if name == "0"
-         then Nothing
-         else Map.lookup name pokedexConsts
-       | name <- dexNames
-       ]
+  let dexOrder = [ if name == "0"
+                   then Nothing
+                   else Map.lookup name pokedexConsts
+                 | name <- dexNames
+                 ]
+      internalToDex = IntMap.fromList
+        [ (idx, dex)
+        | (idx, Just dex) <- zip [1..] dexOrder
+        ]
+  pure (dexOrder, internalToDex)
 
 -- | Parse dex_order.asm: a table of `db DEX_NAME` or `db 0` lines.
 parseDexOrderFile :: Parser [Text]
@@ -203,14 +211,9 @@ parseDexOrderFile = scanLines parseDbEntry
 
 -- | Build species constant name → dex number for Gen 1.
 -- Composes: name → internal index → dex number.
-buildGen1NameToDex :: Map Text Int -> [Maybe Int] -> Map Text Int
-buildGen1NameToDex pokemonConsts dexOrder =
-  Map.mapMaybe lookupDex pokemonConsts
-  where
-    lookupDex internalIdx
-      | internalIdx >= 1 && internalIdx <= length dexOrder =
-          dexOrder !! (internalIdx - 1)
-      | otherwise = Nothing
+buildGen1NameToDex :: Map Text Int -> IntMap Int -> Map Text Int
+buildGen1NameToDex pokemonConsts internalToDex =
+  Map.mapMaybe (\internalIdx -> IntMap.lookup internalIdx internalToDex) pokemonConsts
 
 -- | Join Gen 1 evos/attacks blocks with dex numbers.
 -- Blocks are in internal index order; we use the dex mapping to
