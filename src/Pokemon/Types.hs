@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | Core domain types for cinnabar-coast.
 --
 -- Pure data definitions: no IO, no parsing, no formatting.
@@ -47,7 +49,7 @@ module Pokemon.Types
   , MoveType (..)
   , Move (..)
   , MoveSlot (..)
-  , MoveSlots
+  , mkMoveSlots
 
     -- * DVs and Stat Exp
   , DVs (..)
@@ -87,6 +89,8 @@ module Pokemon.Types
   ) where
 
 import Data.Bits ((.&.), (.|.), shiftL)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Text (Text)
@@ -315,7 +319,12 @@ data MoveSlot = MoveSlot
   , slotCurrentPP :: !Int   -- 0–63, remaining uses
   } deriving (Eq, Show)
 
-type MoveSlots = (Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot, Maybe MoveSlot)
+-- | Smart constructor: validates 1–4 moves.
+mkMoveSlots :: [MoveSlot] -> Either Text (NonEmpty MoveSlot)
+mkMoveSlots [] = Left "Pokemon must have at least one move"
+mkMoveSlots moves
+  | length moves > 4 = Left "Pokemon cannot have more than four moves"
+  | otherwise = Right (NE.fromList moves)
 
 
 -- ── Pokemon ─────────────────────────────────────────────────────
@@ -327,7 +336,7 @@ data Pokemon = Pokemon
   , pokemonOTID     :: !TrainerId -- 0–65535
   , pokemonLevel    :: !Level     -- 1–100
   , pokemonExp      :: !Int       -- 0–16,777,215
-  , pokemonMoves    :: !MoveSlots
+  , pokemonMoves    :: !(NonEmpty MoveSlot)
   , pokemonDVs      :: !DVs
   , pokemonStatExp  :: !StatExp
   , pokemonStatus   :: !Word8
