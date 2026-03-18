@@ -18,7 +18,7 @@ module Pokemon.Data
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.Text.IO as TIO
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
@@ -89,7 +89,7 @@ data CSV = CSV
 -- the missing columns. Blank lines are silently skipped.
 readCSV :: FilePath -> IO CSV
 readCSV path = do
-  content <- T.readFile path
+  content <- TIO.readFile path
   let allLines = filter (not . T.null . T.strip) (T.lines content)
   case allLines of
     [] -> error $ "Empty CSV file: " ++ path
