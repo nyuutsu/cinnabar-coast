@@ -117,24 +117,22 @@ formatEvolutionRows gen speciesToDex blocks =
   ]
   where
     formatEvoRow :: Text -> Int -> [Text] -> [Text]
-    formatEvoRow genLabel fromDex args = case args of
-      (method : rest) ->
-        let target = last rest
-            middle = init rest   -- arguments between method and target
-            (param1, param2) = case middle of
-              []                         -> ("", "")
-              [firstParam]               -> (firstParam, "")
-              (firstParam:secondParam:_) -> (firstParam, secondParam)
-            toDex  = Map.findWithDefault 0 target speciesToDex
-            -- pret uses EVOLVE_TRADE for both plain trade and trade-with-item.
-            -- Normalize: numeric/empty param1 = plain trade, item name = trade-with-item.
-            (normalizedMethod, normalizedParam1) = case method of
-              "EVOLVE_TRADE"
-                | isNumericOrEmpty param1 -> ("EVOLVE_TRADE", "")
-                | otherwise               -> ("EVOLVE_TRADE_ITEM", param1)
-              _ -> (method, param1)
-        in [genLabel, T.pack (show fromDex), T.pack (show toDex), normalizedMethod, normalizedParam1, param2]
-      [] -> error "empty evolution entry"
+    formatEvoRow genLabel fromDex args =
+        let mkRow target method param1 param2 =
+              let toDex = Map.findWithDefault 0 target speciesToDex
+                  -- pret uses EVOLVE_TRADE for both plain trade and trade-with-item.
+                  -- Normalize: numeric/empty param1 = plain trade, item name = trade-with-item.
+                  (normalizedMethod, normalizedParam1) = case method of
+                    "EVOLVE_TRADE"
+                      | isNumericOrEmpty param1 -> ("EVOLVE_TRADE", "")
+                      | otherwise               -> ("EVOLVE_TRADE_ITEM", param1)
+                    _ -> (method, param1)
+              in [genLabel, T.pack (show fromDex), T.pack (show toDex), normalizedMethod, normalizedParam1, param2]
+        in case args of
+          [method, target]                       -> mkRow target method "" ""
+          [method, firstParam, target]           -> mkRow target method firstParam ""
+          [method, firstParam, secondParam, target] -> mkRow target method firstParam secondParam
+          _ -> error $ "unexpected evolution entry: " ++ show args
 
     -- | Is this text empty, or all digits (possibly with leading minus)?
     -- Used to distinguish pret's numeric sentinel from item constant names.

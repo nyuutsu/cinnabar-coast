@@ -239,8 +239,8 @@ parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
         Just isChoosable -> isChoosable
         Nothing          -> True
 
-  let gameChar = case T.length glyph of
-        1 -> Literal (T.head glyph)
+  let gameChar = case T.uncons glyph of
+        Just (char, rest) | T.null rest -> Literal char
         _ -> Ligature glyph
 
   pure CharEntry
