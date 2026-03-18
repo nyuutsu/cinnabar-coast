@@ -10,6 +10,7 @@ module Pokemon.Stats
     expForLevel
 
     -- * Stat calculation (building blocks)
+  , StatInput (..)
   , calcHP
   , calcStat
   , statExpBonus
@@ -39,25 +40,31 @@ expForLevel Slow       (Level level) = 5 * level * level * level `div` 4
 
 -- ── Stat calculation ─────────────────────────────────────────
 
+-- | Inputs for a single stat calculation: the base stat value,
+-- the DV (0-15), and the stat experience (0-65535).
+data StatInput = StatInput
+  { statBase    :: !Int
+  , statDV      :: !Int
+  , statStatExp :: !Int
+  } deriving (Eq, Show)
+
 -- | Calculate a non-HP stat.
 --
--- @calcStat base dv statExp level@
---
--- >>> calcStat 65 15 65535 100
+-- >>> calcStat (StatInput 65 15 65535) (Level 100)
 -- 238
-calcStat :: Int -> Int -> Int -> Level -> Int
-calcStat base dv statExp (Level level) =
-  ((base + dv) * 2 + statExpBonus statExp) * level `div` 100 + 5
+calcStat :: StatInput -> Level -> Int
+calcStat StatInput{statBase, statDV, statStatExp} (Level level) =
+  ((statBase + statDV) * 2 + statExpBonus statStatExp) * level `div` 100 + 5
 
 -- | Calculate HP. Same formula but +level+10 instead of +5.
 --
 -- Pass the derived HP DV (from 'dvHP'), not a raw DV field.
 --
--- >>> calcHP 45 15 65535 100
+-- >>> calcHP (StatInput 45 15 65535) (Level 100)
 -- 198
-calcHP :: Int -> Int -> Int -> Level -> Int
-calcHP base dv statExp (Level level) =
-  ((base + dv) * 2 + statExpBonus statExp) * level `div` 100 + level + 10
+calcHP :: StatInput -> Level -> Int
+calcHP StatInput{statBase, statDV, statStatExp} (Level level) =
+  ((statBase + statDV) * 2 + statExpBonus statStatExp) * level `div` 100 + level + 10
 
 -- | Stat exp contribution: floor(sqrt(statExp)) / 4.
 -- Ranges from 0 (at 0 stat exp) to 63 (at 65535).
@@ -85,14 +92,16 @@ data CalcStats = CalcStats
 -- Pattern matches on Special to decide Gen 1 vs Gen 2 handling.
 calcAllStats :: Species -> DVs -> StatExp -> Level -> CalcStats
 calcAllStats species dvs statExp level = CalcStats
-  { statHP      = calcHP   (baseHP baseStats)      (dvHP dvs)      (expHP statExp)      level
-  , statAttack  = calcStat (baseAttack baseStats)  (dvAttack dvs)  (expAttack statExp)  level
-  , statDefense = calcStat (baseDefense baseStats) (dvDefense dvs) (expDefense statExp) level
-  , statSpeed   = calcStat (baseSpeed baseStats)   (dvSpeed dvs)   (expSpeed statExp)   level
+  { statHP      = calcHP   (StatInput (baseHP baseStats)      (dvHP dvs)      (expHP statExp))      level
+  , statAttack  = calcStat (StatInput (baseAttack baseStats)  (dvAttack dvs)  (expAttack statExp))  level
+  , statDefense = calcStat (StatInput (baseDefense baseStats) (dvDefense dvs) (expDefense statExp)) level
+  , statSpeed   = calcStat (StatInput (baseSpeed baseStats)   (dvSpeed dvs)   (expSpeed statExp))   level
   , statSpecial = case baseSpecial baseStats of
-      Unified spcBase       -> Unified (calcStat spcBase   (dvSpecial dvs) (expSpecial statExp) level)
-      Split spAtkBase spDefBase -> Split   (calcStat spAtkBase (dvSpecial dvs) (expSpecial statExp) level)
-                                           (calcStat spDefBase (dvSpecial dvs) (expSpecial statExp) level)
+      Unified spcBase       -> Unified (calcStat (StatInput spcBase   specialDV specialExp) level)
+      Split spAtkBase spDefBase -> Split   (calcStat (StatInput spAtkBase specialDV specialExp) level)
+                                           (calcStat (StatInput spDefBase specialDV specialExp) level)
   }
   where
-    baseStats = speciesBaseStats species
+    baseStats  = speciesBaseStats species
+    specialDV  = dvSpecial dvs
+    specialExp = expSpecial statExp

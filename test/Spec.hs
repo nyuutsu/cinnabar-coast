@@ -50,13 +50,13 @@ main = hspec $ do
     prop "returns positive values" $ \(dvs :: DVs) (statExp :: StatExp) ->
       forAll (choose (1, 255)) $ \base ->
       forAll (Level <$> choose (1, 100)) $ \level ->
-        calcStat base (dvAttack dvs) (expAttack statExp) level > 0
+        calcStat (StatInput base (dvAttack dvs) (expAttack statExp)) level > 0
 
   describe "calcHP" $
     prop "returns positive values" $ \(dvs :: DVs) (statExp :: StatExp) ->
       forAll (choose (1, 255)) $ \base ->
       forAll (Level <$> choose (1, 100)) $ \level ->
-        calcHP base (dvHP dvs) (expHP statExp) level > 0
+        calcHP (StatInput base (dvHP dvs) (expHP statExp)) level > 0
 
   describe "Text codec round-trip" $ do
     codec <- runIO $ fst <$> loadCodec Gen1 English
