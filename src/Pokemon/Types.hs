@@ -79,7 +79,8 @@ module Pokemon.Types
 
     -- * Text codec
   , Language (..)
-  , GameChar (..)
+  , GameChar     -- opaque: no constructors, see Pokemon.Types.Internal
+  , charByte
   , GameText (..)
 
     -- * Event constraints
@@ -99,6 +100,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Word (Word8, Word16)
 
+import Pokemon.Types.Internal (GameChar, charByte)
 
 -- ── Domain IDs ─────────────────────────────────────────────────
 
@@ -461,15 +463,6 @@ data Language = English | French | German | Italian | Spanish | Japanese
 
 
 -- ── Game Text ─────────────────────────────────────────────────────
-
--- | One character decoded from Game Boy text. Preserves the
--- distinction between regular characters, multi-char ligatures
--- (PK, MN, contractions), and unrecognized bytes.
-data GameChar
-  = Literal !Char         -- ^ Single Unicode character
-  | Ligature !Text        -- ^ Multi-char glyph: "PK", "MN", "'d", etc.
-  | UnknownByte !Word8    -- ^ Unrecognized byte, preserved for round-tripping
-  deriving (Eq, Ord, Show)
 
 -- | A decoded Game Boy text string. Lossless representation —
 -- use displayText to convert to human-readable Text.

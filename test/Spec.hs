@@ -62,11 +62,11 @@ main = hspec $ do
 
   describe "Text codec round-trip" $ do
     codec <- runIO $ fst <$> loadCodec Gen1 English
-    let safeChars = [ gameChar | (gameChar, byte) <- Map.toList (codecEncode codec)
+    let safeChars = [ gameChar | (byte, gameChar) <- Map.toList (codecDecode codec)
                          , byte /= terminator ]
-    prop "preserves all characters in the encode map" $
+    prop "preserves all characters in the decode map" $
       forAll (GameText <$> listOf (elements safeChars)) $ \gameText ->
-        let encoded = encodeText codec 11 gameText
+        let encoded = encodeText 11 gameText
             decoded = decodeText codec encoded
             expected = GameText (take 10 $ gameTextChars gameText)
         in decoded === expected

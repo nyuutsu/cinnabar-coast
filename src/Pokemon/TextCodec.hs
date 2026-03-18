@@ -24,6 +24,10 @@ module Pokemon.TextCodec
   , decodeText
   , encodeText
 
+    -- * Lookup
+  , lookupChar
+  , lookupLigature
+
     -- * Display
   , displayText
   , showHexByte
@@ -45,17 +49,17 @@ import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
 import Pokemon.Types
+import Pokemon.Types.Internal (GameChar (Literal, Ligature, UnknownByte))
 
 
 -- ── Types ─────────────────────────────────────────────────────────
 
 -- | A loaded character encoding for one (Gen, Language) pair.
--- The decode and encode maps are inverses for all known characters.
+-- Encoding doesn't need a map — the byte is embedded in each GameChar.
 data TextCodec = TextCodec
   { codecGen      :: !Gen
   , codecLanguage :: !Language
   , codecDecode   :: !(Map.Map Word8 GameChar)
-  , codecEncode   :: !(Map.Map GameChar Word8)
   } deriving (Show)
 
 -- | One game variant's naming screen — the set of characters a
@@ -92,18 +96,11 @@ decodeText codec bytes = GameText (decodeFrom 0)
       where byte = BS.index bytes offset
 
 -- | Encode GameText into a fixed-length ByteString, padded with
--- terminators. Characters not in the encode map are dropped.
--- The output is always exactly @len@ bytes.
-encodeText :: TextCodec -> Int -> GameText -> BS.ByteString
-encodeText codec outputLength (GameText chars) =
-  let encoded = take (outputLength - 1)   -- leave room for at least one terminator
-        [ byte | gameChar <- chars
-               , byte <- case gameChar of
-                   UnknownByte rawByte -> [rawByte]
-                   _ -> case Map.lookup gameChar (codecEncode codec) of
-                          Just encodedByte -> [encodedByte]
-                          Nothing          -> []
-        ]
+-- terminators. The byte is extracted directly from each GameChar —
+-- no lookup needed. The output is always exactly @outputLength@ bytes.
+encodeText :: Int -> GameText -> BS.ByteString
+encodeText outputLength (GameText chars) =
+  let encoded = take (outputLength - 1) (map charByte chars)
       padding = replicate (outputLength - length encoded) terminator
   in BS.pack (encoded ++ padding)
 
@@ -117,15 +114,44 @@ encodeText codec outputLength (GameText chars) =
 displayText :: GameText -> T.Text
 displayText (GameText chars) = T.concat (map renderChar chars)
   where
-    renderChar (Literal char)        = T.singleton char
-    renderChar (Ligature text)       = text
-    renderChar (UnknownByte rawByte) = T.pack ("[0x" ++ showHexByte rawByte ++ "]")
+    renderChar (Literal _sourceByte char)    = T.singleton char
+    renderChar (Ligature _sourceByte text)   = text
+    renderChar (UnknownByte rawByte)         = T.pack ("[0x" ++ showHexByte rawByte ++ "]")
 
 -- | Format a Word8 as a 2-character uppercase hex string.
 showHexByte :: Word8 -> String
 showHexByte byte = case showHex byte "" of
   [hexDigit] -> ['0', toUpper hexDigit]
   hexStr     -> map toUpper hexStr
+
+
+-- ── Lookup ──────────────────────────────────────────────────────────
+
+-- | Find a Literal GameChar in the codec by its display character.
+-- When multiple bytes map to the same display character (e.g. the
+-- two period bytes), returns whichever the Map iteration encounters
+-- first. For user input, prefer the naming screen character set
+-- which gives the correct byte for typeable characters.
+lookupChar :: TextCodec -> Char -> Maybe GameChar
+lookupChar codec target =
+  let matches = [ gameChar
+                | gameChar@(Literal _sourceByte char) <- Map.elems (codecDecode codec)
+                , char == target
+                ]
+  in case matches of
+    (found : _) -> Just found
+    []          -> Nothing
+
+-- | Find a Ligature GameChar in the codec by its display text.
+lookupLigature :: TextCodec -> T.Text -> Maybe GameChar
+lookupLigature codec target =
+  let matches = [ gameChar
+                | gameChar@(Ligature _sourceByte text) <- Map.elems (codecDecode codec)
+                , text == target
+                ]
+  in case matches of
+    (found : _) -> Just found
+    []          -> Nothing
 
 
 -- ── JSON Loading ──────────────────────────────────────────────────
@@ -170,18 +196,15 @@ buildFromJSON gen lang jsonValue =
   case parseCharsets jsonValue of
     Left parseError -> error $ "Charset parse error: " ++ parseError
     Right charsets ->
-      let -- Merge all character entries for the decode/encode maps
+      let -- Merge all character entries for the decode map
           -- (all variants share the same encoding; only choosable differs)
           allEntries = concatMap fst charsets
           decodeMap = Map.fromList
             [ (entryByte entry, entryGameChar entry) | entry <- allEntries ]
-          encodeMap = Map.fromList
-            [ (entryGameChar entry, entryByte entry) | entry <- allEntries ]
           codec = TextCodec
             { codecGen      = gen
             , codecLanguage = lang
             , codecDecode   = decodeMap
-            , codecEncode   = encodeMap
             }
           screens =
             [ NamingScreen label (Set.fromList [entryGameChar entry | entry <- entries, entryChoosable entry])
@@ -240,8 +263,8 @@ parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
         Nothing          -> True
 
   let gameChar = case T.uncons glyph of
-        Just (char, rest) | T.null rest -> Literal char
-        _ -> Ligature glyph
+        Just (char, rest) | T.null rest -> Literal byte char
+        _ -> Ligature byte glyph
 
   pure CharEntry
     { entryByte      = byte

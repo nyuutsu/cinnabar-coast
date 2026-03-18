@@ -13,6 +13,8 @@ import Pokemon.Data (loadGameData)
 import Pokemon.Stats
 import Pokemon.Legality (classifyMove)
 import Pokemon.TextCodec
+  (TextCodec (..), NamingScreen (..), loadCodec, encodeText, decodeText,
+   displayText, showHexByte, lookupChar, lookupLigature)
 
 
 main :: IO ()
@@ -184,16 +186,21 @@ demoTextCodec = do
            ++ show (Map.size (codecDecode codec)) ++ " mapped characters"
 
   -- Encode a name to Game Boy bytes, then decode it back
-  let name = GameText [ Literal 'P', Literal 'I', Literal 'K', Literal 'A'
-                       , Literal 'C', Literal 'H', Literal 'U' ]
-      encoded = encodeText codec 11 name
+  let encodeChar char = case lookupChar codec char of
+        Just gameChar -> gameChar
+        Nothing       -> error $ "Character not in codec: " ++ [char]
+      name = GameText (map encodeChar "PIKACHU")
+      encoded = encodeText 11 name
       decoded = decodeText codec encoded
   putStrLn $ "  Encode \"PIKACHU\"  \x2192 " ++ showHexBytes encoded
   TIO.putStrLn $ "  Decode back      \x2192 " <> displayText decoded
 
   -- Ligature round-trip (the PK and MN symbols from the games)
-  let ligatureText    = GameText [Ligature "PK", Ligature "MN"]
-      ligatureEncoded = encodeText codec 11 ligatureText
+  let encodeLigature text = case lookupLigature codec text of
+        Just gameChar -> gameChar
+        Nothing       -> error $ "Ligature not in codec: " ++ T.unpack text
+      ligatureText    = GameText [encodeLigature "PK", encodeLigature "MN"]
+      ligatureEncoded = encodeText 11 ligatureText
       ligatureDecoded = decodeText codec ligatureEncoded
   putStrLn $ "  Encode [PK][MN]  \x2192 " ++ showHexBytes ligatureEncoded
   TIO.putStrLn $ "  Decode back      \x2192 " <> displayText ligatureDecoded

@@ -22,6 +22,7 @@ library
   other-modules:    Paths_cinnabar_coast
   exposed-modules:
     Pokemon.Types
+    Pokemon.Types.Internal
     Pokemon.Data
     Pokemon.Stats
     Pokemon.Legality
