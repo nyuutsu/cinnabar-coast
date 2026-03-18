@@ -30,11 +30,11 @@ import Pokemon.Types
 -- the games clamp to 0.
 expForLevel :: GrowthRate -> Int -> Int
 expForLevel _          1 = 0
-expForLevel MediumFast n = n * n * n
-expForLevel MediumSlow n = max 0 $
-  6 * n * n * n `div` 5 - 15 * n * n + 100 * n - 140
-expForLevel Fast       n = 4 * n * n * n `div` 5
-expForLevel Slow       n = 5 * n * n * n `div` 4
+expForLevel MediumFast level = level * level * level
+expForLevel MediumSlow level = max 0 $
+  6 * level * level * level `div` 5 - 15 * level * level + 100 * level - 140
+expForLevel Fast       level = 4 * level * level * level `div` 5
+expForLevel Slow       level = 5 * level * level * level `div` 4
 
 
 -- ── Stat calculation ─────────────────────────────────────────
@@ -46,8 +46,8 @@ expForLevel Slow       n = 5 * n * n * n `div` 4
 -- >>> calcStat 65 15 65535 100
 -- 238
 calcStat :: Int -> Int -> Int -> Int -> Int
-calcStat base dv statexp level =
-  ((base + dv) * 2 + statExpBonus statexp) * level `div` 100 + 5
+calcStat base dv statExp level =
+  ((base + dv) * 2 + statExpBonus statExp) * level `div` 100 + 5
 
 -- | Calculate HP. Same formula but +level+10 instead of +5.
 --
@@ -56,17 +56,17 @@ calcStat base dv statexp level =
 -- >>> calcHP 45 15 65535 100
 -- 198
 calcHP :: Int -> Int -> Int -> Int -> Int
-calcHP base dv statexp level =
-  ((base + dv) * 2 + statExpBonus statexp) * level `div` 100 + level + 10
+calcHP base dv statExp level =
+  ((base + dv) * 2 + statExpBonus statExp) * level `div` 100 + level + 10
 
 -- | Stat exp contribution: floor(sqrt(statExp)) / 4.
 -- Ranges from 0 (at 0 stat exp) to 63 (at 65535).
 statExpBonus :: Int -> Int
-statExpBonus statexp = isqrt statexp `div` 4
+statExpBonus statExp = isqrt statExp `div` 4
 
 -- | Integer square root. Accurate for all 16-bit stat exp values.
 isqrt :: Int -> Int
-isqrt n = floor (sqrt (fromIntegral n) :: Double)
+isqrt value = floor (sqrt (fromIntegral value) :: Double)
 
 
 -- ── All stats at once ────────────────────────────────────────
@@ -84,15 +84,15 @@ data CalcStats = CalcStats
 -- | Calculate all stats from species data, DVs, stat exp, and level.
 -- Pattern matches on Special to decide Gen 1 vs Gen 2 handling.
 calcAllStats :: Species -> DVs -> StatExp -> Int -> CalcStats
-calcAllStats species dvs statexp level = CalcStats
-  { statHP      = calcHP   (baseHP bs)      (dvHP dvs)      (expHP statexp)      level
-  , statAttack  = calcStat (baseAttack bs)  (dvAttack dvs)  (expAttack statexp)  level
-  , statDefense = calcStat (baseDefense bs) (dvDefense dvs) (expDefense statexp) level
-  , statSpeed   = calcStat (baseSpeed bs)   (dvSpeed dvs)   (expSpeed statexp)   level
-  , statSpecial = case baseSpecial bs of
-      Unified s   -> Unified (calcStat s  (dvSpecial dvs) (expSpecial statexp) level)
-      Split sa sd -> Split   (calcStat sa (dvSpecial dvs) (expSpecial statexp) level)
-                              (calcStat sd (dvSpecial dvs) (expSpecial statexp) level)
+calcAllStats species dvs statExp level = CalcStats
+  { statHP      = calcHP   (baseHP baseStats)      (dvHP dvs)      (expHP statExp)      level
+  , statAttack  = calcStat (baseAttack baseStats)  (dvAttack dvs)  (expAttack statExp)  level
+  , statDefense = calcStat (baseDefense baseStats) (dvDefense dvs) (expDefense statExp) level
+  , statSpeed   = calcStat (baseSpeed baseStats)   (dvSpeed dvs)   (expSpeed statExp)   level
+  , statSpecial = case baseSpecial baseStats of
+      Unified spcBase       -> Unified (calcStat spcBase   (dvSpecial dvs) (expSpecial statExp) level)
+      Split spAtkBase spDefBase -> Split   (calcStat spAtkBase (dvSpecial dvs) (expSpecial statExp) level)
+                                           (calcStat spDefBase (dvSpecial dvs) (expSpecial statExp) level)
   }
   where
-    bs = speciesBaseStats species
+    baseStats = speciesBaseStats species

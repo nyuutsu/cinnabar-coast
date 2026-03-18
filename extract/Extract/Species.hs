@@ -39,17 +39,17 @@ data SpeciesData = SpeciesData
 -- | Parse the master base_stats.asm to get the INCLUDE filenames in order.
 -- Returns filenames like "data/pokemon/base_stats/bulbasaur.asm".
 parseBaseStatsIncludes :: Parser [Text]
-parseBaseStatsIncludes = go []
+parseBaseStatsIncludes = scanIncludes []
   where
-    go acc = do
+    scanIncludes includes = do
       done <- option False (True <$ eof)
       if done
-        then pure (reverse acc)
+        then pure (reverse includes)
         else do
           horizontalSpace
           choice
-            [ try (parseInclude >>= \path -> go (path : acc))
-            , restOfLine >> go acc
+            [ try (parseInclude >>= \path -> scanIncludes (path : includes))
+            , restOfLine >> scanIncludes includes
             ]
 
     parseInclude = do
@@ -69,22 +69,22 @@ extractSpeciesFile = parseFile parseBaseStats
 -- | Scan a base_stats file, collecting db/dn/tmhm arguments.
 -- Skips INCBIN, dw, comments, blank lines.
 parseBaseStats :: Parser SpeciesData
-parseBaseStats = go [] [] []
+parseBaseStats = scanArguments [] [] []
   where
-    go dbs dns tmhms = do
+    scanArguments dbArgSets dnArgSets tmhmArgSets = do
       done <- option False (True <$ eof)
       if done
         then pure (SpeciesData
-          (concat (reverse dbs))
-          (concat (reverse dns))
-          (concat (reverse tmhms)))
+          (concat (reverse dbArgSets))
+          (concat (reverse dnArgSets))
+          (concat (reverse tmhmArgSets)))
         else do
           horizontalSpace
           choice
-            [ try (parseDbLine >>= \args -> go (args : dbs) dns tmhms)
-            , try (parseDnLine >>= \args -> go dbs (args : dns) tmhms)
-            , try (parseTmhmLine >>= \args -> go dbs dns (args : tmhms))
-            , restOfLine >> go dbs dns tmhms
+            [ try (parseDbLine >>= \args -> scanArguments (args : dbArgSets) dnArgSets tmhmArgSets)
+            , try (parseDnLine >>= \args -> scanArguments dbArgSets (args : dnArgSets) tmhmArgSets)
+            , try (parseTmhmLine >>= \args -> scanArguments dbArgSets dnArgSets (args : tmhmArgSets))
+            , restOfLine >> scanArguments dbArgSets dnArgSets tmhmArgSets
             ]
 
     restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
@@ -101,7 +101,7 @@ parseBaseStats = go [] [] []
     -- Read a logical line, joining backslash-continued lines.
     logicalLine :: Parser Text
     logicalLine = do
-      part <- takeWhileP Nothing (\c -> c /= '\n' && c /= ';' && c /= '\\')
+      part <- takeWhileP Nothing (\char -> char /= '\n' && char /= ';' && char /= '\\')
       choice
         [ try $ do
             _ <- chunk "\\"
@@ -123,7 +123,7 @@ parseBaseStats = go [] [] []
 --   TYPE1, TYPE2, catch_rate, base_exp,
 --   4× starting moves, GROWTH_RATE, padding
 formatGen1Species :: Text -> Int -> SpeciesData -> [Text]
-formatGen1Species name dex dat = case speciesDbArgs dat of
+formatGen1Species name dex speciesData = case speciesDbArgs speciesData of
   (_dex : hp : attack : defense : speed : special
     : type1 : type2 : catchRate : baseExp
     : _move1 : _move2 : _move3 : _move4
@@ -145,12 +145,12 @@ formatGen1Species name dex dat = case speciesDbArgs dat of
 --   ITEM1, ITEM2, GENDER,
 --   base_happiness, hatch_cycles, unknown, GROWTH_RATE
 formatGen2Species :: Text -> Int -> SpeciesData -> [Text]
-formatGen2Species name dex dat =
-  let (eggGroup1, eggGroup2) = case speciesDnArgs dat of
-        []         -> ("", "")
-        [e1]       -> (e1, "")
-        (e1:e2:_)  -> (e1, e2)
-  in case speciesDbArgs dat of
+formatGen2Species name dex speciesData =
+  let (eggGroup1, eggGroup2) = case speciesDnArgs speciesData of
+        []                            -> ("", "")
+        [firstGroup]                  -> (firstGroup, "")
+        (firstGroup:secondGroup:_)    -> (firstGroup, secondGroup)
+  in case speciesDbArgs speciesData of
     (_species : hp : attack : defense : speed : specialAttack : specialDefense
       : type1 : type2 : catchRate : baseExp
       : item1 : item2 : gender
@@ -171,7 +171,7 @@ formatGen2Species name dex dat =
 -- Returns move constant names, filtering out NO_MOVE (empty slots).
 -- Gen 2 has these inline in evos_attacks.asm; Gen 1 stores them separately.
 gen1StartingMoves :: SpeciesData -> [Text]
-gen1StartingMoves dat = case speciesDbArgs dat of
+gen1StartingMoves speciesData = case speciesDbArgs speciesData of
   (_dex : _hp : _atk : _def : _spd : _spc
     : _type1 : _type2 : _catchRate : _baseExp
     : move1 : move2 : move3 : move4 : _) ->

@@ -23,17 +23,17 @@ extractItems gen path = do
 
 -- | Scan for `li "NAME"` lines, skipping everything else.
 parseItemNames :: Parser [Text]
-parseItemNames = go []
+parseItemNames = collectNames []
   where
-    go acc = do
+    collectNames names = do
       done <- option False (True <$ eof)
       if done
-        then pure (reverse acc)
+        then pure (reverse names)
         else do
           horizontalSpace
           choice
-            [ try (parseLi >>= \name -> go (name : acc))
-            , restOfLine >> go acc
+            [ try (parseLi >>= \name -> collectNames (name : names))
+            , restOfLine >> collectNames names
             ]
 
     parseLi = do

@@ -47,8 +47,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Void (Void)
-import Text.Megaparsec
-import Text.Megaparsec.Char hiding (hspace, eol)  -- we define our own horizontalSpace and endOfLine
+import Text.Megaparsec hiding (parseError)
+import Text.Megaparsec.Char hiding (hspace, eol, char)  -- we define our own horizontalSpace and endOfLine
 import qualified Text.Megaparsec.Char.Lexer as L
 
 
@@ -63,18 +63,18 @@ type Parser = Parsec Void Text
 -- | Parse a file from disk. Crashes on parse failure — these are
 -- pret sources under our control, not user input.
 parseFile :: Parser a -> FilePath -> IO a
-parseFile p path = do
+parseFile parser path = do
   content <- T.readFile path
-  case parse p path content of
-    Left err -> error (errorBundlePretty err)
-    Right a  -> pure a
+  case parse parser path content of
+    Left parseError -> error (errorBundlePretty parseError)
+    Right result    -> pure result
 
 
 -- ── Low-level pieces ───────────────────────────────────────────
 
 -- | Consume horizontal whitespace (spaces and tabs, not newlines).
 horizontalSpace :: Parser ()
-horizontalSpace = void $ takeWhileP Nothing (\c -> c == ' ' || c == '\t')
+horizontalSpace = void $ takeWhileP Nothing (\char -> char == ' ' || char == '\t')
 
 -- | Run a parser, then consume trailing horizontal whitespace.
 lexeme :: Parser a -> Parser a
@@ -88,21 +88,21 @@ symbol = L.symbol horizontalSpace
 -- characters.  This prevents "add_tm" from matching the prefix of
 -- "add_tmnum", or "const" from matching "const_def".
 keyword :: Text -> Parser Text
-keyword w = lexeme $ try (chunk w <* notFollowedBy (satisfy isIdentifierChar))
+keyword word = lexeme $ try (chunk word <* notFollowedBy (satisfy isIdentifierChar))
 
 -- | An ASM identifier: a letter or underscore, then any mix of
 -- letters, digits, and underscores.
 identifier :: Parser Text
 identifier = lexeme $ do
-  c <- satisfy (\c -> c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+  firstChar <- satisfy (\char -> char == '_' || (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z'))
   rest <- takeWhileP (Just "identifier") isIdentifierChar
-  pure (T.cons c rest)
+  pure (T.cons firstChar rest)
 
 -- | Character that can appear in an ASM identifier.
 isIdentifierChar :: Char -> Bool
-isIdentifierChar c = c == '_' || (c >= 'A' && c <= 'Z')
-                         || (c >= 'a' && c <= 'z')
-                         || (c >= '0' && c <= '9')
+isIdentifierChar char = char == '_' || (char >= 'A' && char <= 'Z')
+                         || (char >= 'a' && char <= 'z')
+                         || (char >= '0' && char <= '9')
 
 -- | A decimal integer, possibly negative.
 integer :: Parser Int
@@ -146,14 +146,14 @@ skipJunk = skipMany $ try junkLine
         [ void lineComment *> void newline
         , void newline  -- blank line
         , try $ do
-            w <- lookAhead (takeWhile1P Nothing (\c -> c /= ' ' && c /= '\t' && c /= '\n' && c /= ';'))
-            if w `elem` junkKeywords
+            leadingWord <- lookAhead (takeWhile1P Nothing (\char -> char /= ' ' && char /= '\t' && char /= '\n' && char /= ';'))
+            if leadingWord `elem` junkKeywords
               then void (takeWhileP Nothing (/= '\n')) *> void newline
               else empty
         , try $ do
             -- Lines starting with a label (word followed by ::) or
             -- DEF ... EQU, INCLUDE, SECTION, etc.
-            _ <- lookAhead (satisfy (\c -> c >= 'A' && c <= 'Z'))
+            _ <- lookAhead (satisfy (\char -> char >= 'A' && char <= 'Z'))
             void (takeWhileP Nothing (/= '\n')) *> void newline
         ]
     junkKeywords :: [Text]
@@ -186,7 +186,7 @@ data ConstEntry = ConstEntry
 parseConstBlock :: Parser (Map Text Int)
 parseConstBlock = do
   entries <- constLines 0
-  pure $ Map.fromList [(constName e, constValue e) | e <- entries]
+  pure $ Map.fromList [(constName entry, constValue entry) | entry <- entries]
   where
     constLines :: Int -> Parser [ConstEntry]
     constLines counter = do
@@ -196,49 +196,49 @@ parseConstBlock = do
         else do
           result <- constLine counter
           case result of
-            ConstDef n      -> constLines n
-            ConstNext n     -> constLines n
-            ConstSkip       -> constLines (counter + 1)
-            ConstFound e    -> (e :) <$> constLines (counter + 1)
-            ConstIgnored    -> constLines counter
+            ConstDef startValue  -> constLines startValue
+            ConstNext nextValue  -> constLines nextValue
+            ConstSkip            -> constLines (counter + 1)
+            ConstFound entry     -> (entry :) <$> constLines (counter + 1)
+            ConstIgnored         -> constLines counter
 
     -- Parse one line, returning what happened to the counter.
     constLine :: Int -> Parser ConstLineResult
     constLine counter = do
       horizontalSpace
       choice
-        [ try $ pConstDef
-        , try $ pConstNext
-        , try $ pConstSkip
-        , try $ pConst counter
+        [ try $ parseConstDef
+        , try $ parseConstNext
+        , try $ parseConstSkip
+        , try $ parseConstEntry counter
         , ConstIgnored <$ (takeWhileP Nothing (/= '\n') *> endOfLine)
         ]
 
-    pConstDef :: Parser ConstLineResult
-    pConstDef = do
+    parseConstDef :: Parser ConstLineResult
+    parseConstDef = do
       _ <- keyword "const_def"
-      n <- option 0 number
+      startValue <- option 0 number
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
-      pure (ConstDef n)
+      pure (ConstDef startValue)
 
-    pConstNext :: Parser ConstLineResult
-    pConstNext = do
+    parseConstNext :: Parser ConstLineResult
+    parseConstNext = do
       _ <- keyword "const_next"
-      n <- number
+      nextValue <- number
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
-      pure (ConstNext n)
+      pure (ConstNext nextValue)
 
-    pConstSkip :: Parser ConstLineResult
-    pConstSkip = do
+    parseConstSkip :: Parser ConstLineResult
+    parseConstSkip = do
       _ <- keyword "const_skip"
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
       pure ConstSkip
 
-    pConst :: Int -> Parser ConstLineResult
-    pConst counter = do
+    parseConstEntry :: Int -> Parser ConstLineResult
+    parseConstEntry counter = do
       _ <- keyword "const"
       name <- identifier
       _ <- takeWhileP Nothing (/= '\n')
@@ -270,29 +270,29 @@ data TMHM = TMHM
 -- Ignores everything else (item const definitions, DEF lines, etc.).
 parseTMHMBlock :: Parser TMHM
 parseTMHMBlock = do
-  (tms, hms, mts) <- go [] [] []
+  (tms, hms, tutors) <- collectEntries [] [] []
   pure TMHM
     { tmMoves    = reverse tms
     , hmMoves    = reverse hms
-    , tutorMoves = reverse mts
+    , tutorMoves = reverse tutors
     }
   where
-    go tms hms mts = do
+    collectEntries tms hms tutors = do
       done <- option False (True <$ eof)
       if done
-        then pure (tms, hms, mts)
+        then pure (tms, hms, tutors)
         else do
           horizontalSpace
           choice
-            [ try (pAddTm  >>= \name -> go (name : tms) hms mts)
-            , try (pAddHm  >>= \name -> go tms (name : hms) mts)
-            , try (pAddMt  >>= \name -> go tms hms (name : mts))
-            , skipLine >> go tms hms mts
+            [ try (parseAddTm >>= \name -> collectEntries (name : tms) hms tutors)
+            , try (parseAddHm >>= \name -> collectEntries tms (name : hms) tutors)
+            , try (parseAddMt >>= \name -> collectEntries tms hms (name : tutors))
+            , skipLine >> collectEntries tms hms tutors
             ]
 
-    pAddTm = keyword "add_tm" *> identifier <* restOfLine
-    pAddHm = keyword "add_hm" *> identifier <* restOfLine
-    pAddMt = keyword "add_mt" *> identifier <* restOfLine
+    parseAddTm = keyword "add_tm" *> identifier <* restOfLine
+    parseAddHm = keyword "add_hm" *> identifier <* restOfLine
+    parseAddMt = keyword "add_mt" *> identifier <* restOfLine
 
     skipLine = takeWhileP Nothing (/= '\n') *> endOfLine
     restOfLine = takeWhileP Nothing (/= '\n') *> endOfLine
@@ -317,4 +317,4 @@ commaSeparated = do
   endOfLine
   pure args
   where
-    arg = T.strip <$> takeWhile1P (Just "argument") (\c -> c /= ',' && c /= ';' && c /= '\n')
+    arg = T.strip <$> takeWhile1P (Just "argument") (\char -> char /= ',' && char /= ';' && char /= '\n')

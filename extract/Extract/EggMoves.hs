@@ -36,17 +36,17 @@ extractEggMoves pointersPath eggMovesPath = do
 -- | Parse the pointer table: a sequence of `dw LabelName` lines.
 -- Returns label names in order (position = dex number).
 parsePointerTable :: Parser [Text]
-parsePointerTable = go []
+parsePointerTable = collectPointers []
   where
-    go acc = do
+    collectPointers pointers = do
       done <- option False (True <$ eof)
       if done
-        then pure (reverse acc)
+        then pure (reverse pointers)
         else do
           horizontalSpace
           choice
-            [ try (parseDw >>= \name -> go (name : acc))
-            , restOfLine >> go acc
+            [ try (parseDw >>= \name -> collectPointers (name : pointers))
+            , restOfLine >> collectPointers pointers
             ]
 
     parseDw = keyword "dw" *> identifier <* restOfLine
@@ -55,25 +55,25 @@ parsePointerTable = go []
 -- | Parse egg move blocks: labeled sections of db MOVE_NAME entries.
 -- Returns (label, [move_name]) pairs.
 parseEggMoveBlocks :: Parser [(Text, [Text])]
-parseEggMoveBlocks = go []
+parseEggMoveBlocks = collectBlocks []
   where
-    go acc = do
+    collectBlocks blocks = do
       done <- option False (True <$ eof)
       if done
-        then pure (reverse acc)
+        then pure (reverse blocks)
         else do
           horizontalSpace
           choice
             [ try $ do
                 name <- parseLabel
                 moves <- many (try parseDbMove)
-                go ((name, moves) : acc)
-            , restOfLine >> go acc
+                collectBlocks ((name, moves) : blocks)
+            , restOfLine >> collectBlocks blocks
             ]
 
     -- A label: identifier followed by colon at start of line.
     parseLabel = do
-      name <- takeWhile1P (Just "label") (\c -> c /= ':' && c /= '\n' && c /= ' ' && c /= '\t')
+      name <- takeWhile1P (Just "label") (\char -> char /= ':' && char /= '\n' && char /= ' ' && char /= '\t')
       _ <- single ':'
       restOfLine
       pure name

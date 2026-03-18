@@ -85,10 +85,10 @@ extractAll pokered pokecrystal outDir = do
   gen1SpeciesData <- extractAllSpecies pokered
   gen2SpeciesData <- extractAllSpecies pokecrystal
 
-  let gen1SpeciesRows = [formatGen1Species name dex dat
-                           | (dex, name, dat) <- gen1SpeciesData]
-      gen2SpeciesRows = [formatGen2Species name dex dat
-                           | (dex, name, dat) <- gen2SpeciesData]
+  let gen1SpeciesRows = [formatGen1Species name dex parsedSpecies
+                           | (dex, name, parsedSpecies) <- gen1SpeciesData]
+      gen2SpeciesRows = [formatGen2Species name dex parsedSpecies
+                           | (dex, name, parsedSpecies) <- gen2SpeciesData]
   writeCSV (outDir </> "species.csv") speciesHeader
     (gen1SpeciesRows ++ gen2SpeciesRows)
 
@@ -123,8 +123,8 @@ extractAll pokered pokecrystal outDir = do
   -- Gen 2 has them inline in evos_attacks.asm (as level 1 entries).
   let gen1StartingRows =
         [ ["1", T.pack (show dex), "1", move]
-        | (dex, _name, dat) <- gen1SpeciesData
-        , move <- gen1StartingMoves dat
+        | (dex, _name, parsedSpecies) <- gen1SpeciesData
+        , move <- gen1StartingMoves parsedSpecies
         ]
   let learnsetRows = gen1StartingRows
                    ++ formatLearnsetRows "1" gen1EvosAttacksJoined
@@ -159,9 +159,9 @@ extractAllSpecies :: FilePath -> IO [(Int, Text, SpeciesData)]
 extractAllSpecies repoPath = do
   includes <- parseFile parseBaseStatsIncludes
     (repoPath </> "data/pokemon/base_stats.asm")
-  speciesList <- mapM (\inc -> extractSpeciesFile (repoPath </> T.unpack inc))
+  speciesList <- mapM (\includePath -> extractSpeciesFile (repoPath </> T.unpack includePath))
     includes
-  let nameFromInclude inc = T.toUpper . T.pack $ takeBaseName (T.unpack inc)
+  let nameFromInclude includePath = T.toUpper . T.pack $ takeBaseName (T.unpack includePath)
       names = map nameFromInclude includes
       numbered = zip3 [1 :: Int ..] names speciesList
       nextDex = length includes + 1
@@ -192,22 +192,22 @@ parseDexOrder pokedexConstsPath dexOrderPath = do
 
 -- | Parse dex_order.asm: a table of `db DEX_NAME` or `db 0` lines.
 parseDexOrderFile :: Parser [Text]
-parseDexOrderFile = go []
+parseDexOrderFile = collectEntries []
   where
-    go acc = do
+    collectEntries entries = do
       done <- option False (True <$ eof)
       if done
-        then pure (reverse acc)
+        then pure (reverse entries)
         else do
           horizontalSpace
           choice
-            [ try (parseDbEntry >>= \name -> go (name : acc))
-            , restOfLine >> go acc
+            [ try (parseDbEntry >>= \name -> collectEntries (name : entries))
+            , restOfLine >> collectEntries entries
             ]
 
     parseDbEntry = do
       _ <- keyword "db"
-      arg <- takeWhile1P (Just "argument") (\c -> c /= '\n' && c /= ';' && c /= ' ' && c /= '\t')
+      arg <- takeWhile1P (Just "argument") (\char -> char /= '\n' && char /= ';' && char /= ' ' && char /= '\t')
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
       pure (T.strip arg)
@@ -230,8 +230,8 @@ buildGen1NameToDex pokemonConsts dexOrder =
 -- filter out MissingNo and assign correct dex numbers.
 joinGen1Blocks :: [Maybe Int] -> [(Text, a)] -> [(Int, a)]
 joinGen1Blocks dexOrder blocks =
-  [ (dex, dat)
-  | (Just dex, (_, dat)) <- zip dexOrder blocks
+  [ (dex, blockData)
+  | (Just dex, (_, blockData)) <- zip dexOrder blocks
   ]
 
 
@@ -250,8 +250,8 @@ buildMoveNumberMap tmhm =
 buildTMHMCompat :: Text -> Map Text Int -> [(Int, Text, SpeciesData)] -> [[Text]]
 buildTMHMCompat gen moveToNumber speciesData =
   [ [gen, T.pack (show dex), T.pack (show number)]
-  | (dex, _name, dat) <- speciesData
-  , moveName <- speciesTmhm dat
+  | (dex, _name, parsedSpecies) <- speciesData
+  , moveName <- speciesTmhm parsedSpecies
   , Just number <- [Map.lookup moveName moveToNumber]
   ]
 
@@ -261,8 +261,8 @@ buildTutorCompat :: TMHM -> [(Int, Text, SpeciesData)] -> [[Text]]
 buildTutorCompat tmhm speciesData =
   let tutorSet = Set.fromList (tutorMoves tmhm)
   in [ [T.pack (show dex), moveName]
-     | (dex, _name, dat) <- speciesData
-     , moveName <- speciesTmhm dat
+     | (dex, _name, parsedSpecies) <- speciesData
+     , moveName <- speciesTmhm parsedSpecies
      , Set.member moveName tutorSet
      ]
 
@@ -275,5 +275,3 @@ writeCSV path header rows = do
       dataLines  = map (T.intercalate ",") rows
   T.writeFile path (T.unlines (headerLine : dataLines))
   putStrLn $ "  Wrote " ++ path ++ " (" ++ show (length rows) ++ " rows)"
-
-

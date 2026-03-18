@@ -54,12 +54,12 @@ classifyMove thisGen otherGen dex moveId level =
 -- prevent infinite recursion: Tradeback checks the other gen,
 -- PreEvo checks pre-evolutions. Neither should recurse back.
 classifyMoveNoTradeback :: GameData -> Int -> Int -> Int -> [LearnSource]
-classifyMoveNoTradeback gd dex moveId level =
+classifyMoveNoTradeback gameData dex moveId level =
   concat
-    [ checkLevelUp   gd dex moveId level
-    , checkMachine   gd dex moveId
-    , checkEggMove   gd dex moveId
-    , checkTutorMove gd dex moveId
+    [ checkLevelUp   gameData dex moveId level
+    , checkMachine   gameData dex moveId
+    , checkEggMove   gameData dex moveId
+    , checkTutorMove gameData dex moveId
     ]
 
 
@@ -68,38 +68,38 @@ classifyMoveNoTradeback gd dex moveId level =
 -- | Check if the species learns this move by leveling up at or
 -- below the given level.
 checkLevelUp :: GameData -> Int -> Int -> Int -> [LearnSource]
-checkLevelUp gd dex moveId level =
-  case Map.lookup dex (gameLevelUp gd) of
+checkLevelUp gameData dex moveId level =
+  case Map.lookup dex (gameLevelUp gameData) of
     Nothing      -> []
     Just entries ->
-      [ LearnSource LevelUp (T.pack $ "L" ++ show lvl) []
-      | (lvl, mid) <- entries
-      , mid == moveId
-      , lvl <= level
+      [ LearnSource LevelUp (T.pack $ "L" ++ show learnLevel) []
+      | (learnLevel, entryMoveId) <- entries
+      , entryMoveId == moveId
+      , learnLevel <= level
       ]
 
 
 -- | Check if there's a TM or HM that teaches this move and the
 -- species is compatible with it.
 checkMachine :: GameData -> Int -> Int -> [LearnSource]
-checkMachine gd dex moveId =
-  case Map.lookup dex (gameMachineCompat gd) of
-    Nothing      -> []
-    Just compat  ->
+checkMachine gameData dex moveId =
+  case Map.lookup dex (gameMachineCompat gameData) of
+    Nothing               -> []
+    Just compatibleMachines ->
       [ LearnSource method (T.pack label) []
-      | (machine, mid) <- Map.toList (gameMachines gd)
-      , mid == moveId
-      , Set.member machine compat
+      | (machine, machineMoveId) <- Map.toList (gameMachines gameData)
+      , machineMoveId == moveId
+      , Set.member machine compatibleMachines
       , let (method, label) = case machine of
-              TM n -> (TMMachine, "TM" ++ padNum n)
-              HM n -> (HMMachine, "HM" ++ padNum n)
+              TM number -> (TMMachine, "TM" ++ padNum number)
+              HM number -> (HMMachine, "HM" ++ padNum number)
       ]
 
 
 -- | Check if this is an egg move for the species (Gen 2 only).
 checkEggMove :: GameData -> Int -> Int -> [LearnSource]
-checkEggMove gd dex moveId =
-  case Map.lookup dex (gameEggMoves gd) of
+checkEggMove gameData dex moveId =
+  case Map.lookup dex (gameEggMoves gameData) of
     Nothing   -> []
     Just moves
       | Set.member moveId moves -> [LearnSource EggMove "Egg" []]
@@ -108,8 +108,8 @@ checkEggMove gd dex moveId =
 
 -- | Check if this is a tutor move for the species (Crystal only).
 checkTutorMove :: GameData -> Int -> Int -> [LearnSource]
-checkTutorMove gd dex moveId =
-  case Map.lookup dex (gameTutorMoves gd) of
+checkTutorMove gameData dex moveId =
+  case Map.lookup dex (gameTutorMoves gameData) of
     Nothing   -> []
     Just moves
       | Set.member moveId moves -> [LearnSource TutorMove "Tutor" []]
@@ -121,11 +121,11 @@ checkTutorMove gd dex moveId =
 -- the other gen's sources inside it.
 checkTradeback :: Maybe GameData -> Int -> Int -> Int -> [LearnSource]
 checkTradeback Nothing _ _ _ = []
-checkTradeback (Just otherGd) dex moveId level =
-  case classifyMoveNoTradeback otherGd dex moveId level of
+checkTradeback (Just otherGameData) dex moveId level =
+  case classifyMoveNoTradeback otherGameData dex moveId level of
     []      -> []
     sources ->
-      let genLabel = case gameGen otherGd of
+      let genLabel = case gameGen otherGameData of
             Gen1 -> "Gen 1"
             Gen2 -> "Gen 2"
       in [LearnSource Tradeback genLabel sources]
@@ -179,27 +179,27 @@ classifyMoveNoPreEvo thisGen otherGen dex moveId level =
 -- pre-evolutions of a species (not just the immediate one).
 -- Pichu → Pikachu → Raichu: allPreEvolutions for Raichu = [Pikachu, Pichu]
 allPreEvolutions :: GameData -> Int -> [Int]
-allPreEvolutions gd dex = go dex []
+allPreEvolutions gameData dex = collectAncestors dex []
   where
-    go current acc =
-      case Map.lookup current (gameEvolvesFrom gd) of
-        Nothing    -> acc
+    collectAncestors current ancestors =
+      case Map.lookup current (gameEvolvesFrom gameData) of
+        Nothing    -> ancestors
         Just steps ->
           let parents = map stepFrom steps
-          in foldl (\a p -> go p (p : a)) acc parents
+          in foldl (\ancestorsSoFar parent -> collectAncestors parent (parent : ancestorsSoFar)) ancestors parents
 
 
 -- ── Helpers ────────────────────────────────────────────────────
 
 -- | Zero-pad a machine number to 2 digits: 1 → "01", 24 → "24".
 padNum :: Int -> String
-padNum n
-  | n < 10    = "0" ++ show n
-  | otherwise = show n
+padNum number
+  | number < 10    = "0" ++ show number
+  | otherwise = show number
 
 -- | Look up a species name for display, falling back to dex number.
 speciesLabel :: GameData -> Int -> T.Text
-speciesLabel gd dex =
-  case Map.lookup dex (gameSpecies gd) of
-    Just sp -> speciesName sp <> " (#" <> T.pack (show dex) <> ")"
-    Nothing -> "#" <> T.pack (show dex)
+speciesLabel gameData dex =
+  case Map.lookup dex (gameSpecies gameData) of
+    Just species -> speciesName species <> " (#" <> T.pack (show dex) <> ")"
+    Nothing      -> "#" <> T.pack (show dex)

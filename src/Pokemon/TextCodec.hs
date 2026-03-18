@@ -81,30 +81,30 @@ terminator = 0x50
 -- (0x50) or end of input. Unrecognized bytes become UnknownByte
 -- values, preserving round-trip fidelity.
 decodeText :: TextCodec -> BS.ByteString -> GameText
-decodeText codec bs = GameText (go 0)
+decodeText codec bytes = GameText (decodeFrom 0)
   where
-    go i
-      | i >= BS.length bs       = []
-      | byte == terminator      = []
+    decodeFrom offset
+      | offset >= BS.length bytes = []
+      | byte == terminator        = []
       | otherwise = case Map.lookup byte (codecDecode codec) of
-          Just gc -> gc : go (i + 1)
-          Nothing -> UnknownByte byte : go (i + 1)
-      where byte = BS.index bs i
+          Just gameChar -> gameChar : decodeFrom (offset + 1)
+          Nothing       -> UnknownByte byte : decodeFrom (offset + 1)
+      where byte = BS.index bytes offset
 
 -- | Encode GameText into a fixed-length ByteString, padded with
 -- terminators. Characters not in the encode map are dropped.
 -- The output is always exactly @len@ bytes.
 encodeText :: TextCodec -> Int -> GameText -> BS.ByteString
-encodeText codec len (GameText chars) =
-  let encoded = take (len - 1)   -- leave room for at least one terminator
-        [ b | gc <- chars
-            , b <- case gc of
-                UnknownByte w -> [w]
-                _ -> case Map.lookup gc (codecEncode codec) of
-                       Just w  -> [w]
-                       Nothing -> []
+encodeText codec outputLength (GameText chars) =
+  let encoded = take (outputLength - 1)   -- leave room for at least one terminator
+        [ byte | gameChar <- chars
+               , byte <- case gameChar of
+                   UnknownByte rawByte -> [rawByte]
+                   _ -> case Map.lookup gameChar (codecEncode codec) of
+                          Just encodedByte -> [encodedByte]
+                          Nothing          -> []
         ]
-      padding = replicate (len - length encoded) terminator
+      padding = replicate (outputLength - length encoded) terminator
   in BS.pack (encoded ++ padding)
 
 
@@ -117,15 +117,15 @@ encodeText codec len (GameText chars) =
 displayText :: GameText -> T.Text
 displayText (GameText chars) = T.concat (map renderChar chars)
   where
-    renderChar (Literal c)     = T.singleton c
-    renderChar (Ligature t)    = t
-    renderChar (UnknownByte w) = T.pack ("[0x" ++ showHexByte w ++ "]")
+    renderChar (Literal char)        = T.singleton char
+    renderChar (Ligature text)       = text
+    renderChar (UnknownByte rawByte) = T.pack ("[0x" ++ showHexByte rawByte ++ "]")
 
 -- | Format a Word8 as a 2-character uppercase hex string.
 showHexByte :: Word8 -> String
-showHexByte w = case showHex w "" of
-  [c] -> ['0', toUpper c]
-  s   -> map toUpper s
+showHexByte byte = case showHex byte "" of
+  [hexDigit] -> ['0', toUpper hexDigit]
+  hexStr     -> map toUpper hexStr
 
 
 -- ── JSON Loading ──────────────────────────────────────────────────
@@ -134,12 +134,12 @@ showHexByte w = case showHex w "" of
 -- (Gen, Language) pair. Reads the appropriate charset JSON file.
 loadCodec :: Gen -> Language -> IO (TextCodec, [NamingScreen])
 loadCodec gen lang = do
-  dir <- getDataDir
-  let path = dir </> "charsets" </> charsetFilename gen lang
-  raw <- LBS.readFile path
-  case Aeson.eitherDecode raw of
-    Left err  -> error $ "Failed to parse " ++ path ++ ": " ++ err
-    Right val -> pure (buildFromJSON gen lang val)
+  dataDir <- getDataDir
+  let path = dataDir </> "charsets" </> charsetFilename gen lang
+  rawJson <- LBS.readFile path
+  case Aeson.eitherDecode rawJson of
+    Left parseError -> error $ "Failed to parse " ++ path ++ ": " ++ parseError
+    Right jsonValue -> pure (buildFromJSON gen lang jsonValue)
 
 
 -- | Map (Gen, Language) to the charset JSON filename.
@@ -166,25 +166,25 @@ charsetFilename gen lang = prefix ++ "-" ++ suffix ++ ".json"
 -- Handles both flat (characters array) and variant (German Gen 2)
 -- JSON structures.
 buildFromJSON :: Gen -> Language -> Aeson.Value -> (TextCodec, [NamingScreen])
-buildFromJSON gen lang val =
-  case parseCharsets val of
-    Left err -> error $ "Charset parse error: " ++ err
+buildFromJSON gen lang jsonValue =
+  case parseCharsets jsonValue of
+    Left parseError -> error $ "Charset parse error: " ++ parseError
     Right charsets ->
       let -- Merge all character entries for the decode/encode maps
           -- (all variants share the same encoding; only choosable differs)
           allEntries = concatMap fst charsets
-          decMap = Map.fromList
-            [ (entByte e, entGameChar e) | e <- allEntries ]
-          encMap = Map.fromList
-            [ (entGameChar e, entByte e) | e <- allEntries ]
+          decodeMap = Map.fromList
+            [ (entryByte entry, entryGameChar entry) | entry <- allEntries ]
+          encodeMap = Map.fromList
+            [ (entryGameChar entry, entryByte entry) | entry <- allEntries ]
           codec = TextCodec
             { codecGen      = gen
             , codecLanguage = lang
-            , codecDecode   = decMap
-            , codecEncode   = encMap
+            , codecDecode   = decodeMap
+            , codecEncode   = encodeMap
             }
           screens =
-            [ NamingScreen label (Set.fromList [entGameChar e | e <- entries, entChoosable e])
+            [ NamingScreen label (Set.fromList [entryGameChar entry | entry <- entries, entryChoosable entry])
             | (entries, label) <- charsets
             ]
       in (codec, screens)
@@ -192,68 +192,68 @@ buildFromJSON gen lang val =
 
 -- | A parsed character entry from JSON.
 data CharEntry = CharEntry
-  { entByte      :: !Word8
-  , entGameChar  :: !GameChar
-  , entChoosable :: !Bool
+  { entryByte      :: !Word8
+  , entryGameChar  :: !GameChar
+  , entryChoosable :: !Bool
   }
 
 -- | Parse the JSON value into a list of (entries, label) pairs.
 -- Flat JSON → one pair. Variant JSON (gen2-de) → one pair per variant.
 parseCharsets :: Aeson.Value -> Either String [([CharEntry], T.Text)]
-parseCharsets = Aeson.parseEither $ \val -> do
-  obj <- Aeson.parseJSON val
+parseCharsets = Aeson.parseEither $ \jsonValue -> do
+  jsonObject <- Aeson.parseJSON jsonValue
   -- Check for "variants" key (gen2-de.json structure)
-  case Aeson.parseMaybe (Aeson..: "variants") obj of
+  case Aeson.parseMaybe (Aeson..: "variants") jsonObject of
     Just (variants :: Aeson.Object) ->
-      mapM parseVariant [(Key.toText k, v) | (k, v) <- KM.toList variants]
+      mapM parseVariant [(Key.toText key, variantJson) | (key, variantJson) <- KM.toList variants]
     Nothing -> do
       -- Flat structure: single "characters" array
-      chars <- obj Aeson..: "characters"
+      chars <- jsonObject Aeson..: "characters"
       entries <- mapM parseCharEntry chars
       label <- do
-        gen <- obj Aeson..: "generation" :: Aeson.Parser Int
-        region <- obj Aeson..: "region" :: Aeson.Parser T.Text
+        gen <- jsonObject Aeson..: "generation" :: Aeson.Parser Int
+        region <- jsonObject Aeson..: "region" :: Aeson.Parser T.Text
         pure $ "Gen " <> T.pack (show gen) <> " " <> T.toUpper region
       pure [(entries, label)]
   where
-    parseVariant (label, val') = do
-      obj <- Aeson.parseJSON val'
-      chars <- obj Aeson..: "characters"
+    parseVariant (label, variantValue) = do
+      jsonObject <- Aeson.parseJSON variantValue
+      chars <- jsonObject Aeson..: "characters"
       entries <- mapM parseCharEntry chars
       pure (entries, label)
 
 
 -- | Parse one character entry from the JSON characters array.
 parseCharEntry :: Aeson.Value -> Aeson.Parser CharEntry
-parseCharEntry = Aeson.withObject "CharEntry" $ \obj -> do
-  hexStr <- obj Aeson..: "hex" :: Aeson.Parser T.Text
-  glyph  <- obj Aeson..: "glyph" :: Aeson.Parser T.Text
+parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
+  hexStr <- jsonObject Aeson..: "hex" :: Aeson.Parser T.Text
+  glyph  <- jsonObject Aeson..: "glyph" :: Aeson.Parser T.Text
   let byte = parseHexByte hexStr
 
   -- Determine if choosable. Only explicit "choosable": false marks
   -- a character as non-choosable. The "normal" field in the JSON is
   -- ambiguous (PK/MN/♂/♀/× are "not normal" but ARE choosable),
   -- so we ignore it for this purpose.
-  explicitChoosable <- obj Aeson..:? "choosable"
+  explicitChoosable <- jsonObject Aeson..:? "choosable"
   let choosable = case (explicitChoosable :: Maybe Bool) of
-        Just c  -> c
-        Nothing -> True
+        Just isChoosable -> isChoosable
+        Nothing          -> True
 
-  let gc = case T.length glyph of
+  let gameChar = case T.length glyph of
         1 -> Literal (T.head glyph)
         _ -> Ligature glyph
 
   pure CharEntry
-    { entByte      = byte
-    , entGameChar  = gc
-    , entChoosable = choosable
+    { entryByte      = byte
+    , entryGameChar  = gameChar
+    , entryChoosable = choosable
     }
 
 
 -- | Parse "0x7F" style hex strings to Word8.
 -- Crashes on malformed input so bad charset data is caught at load time.
 parseHexByte :: T.Text -> Word8
-parseHexByte t =
-  case readHex (T.unpack (T.drop 2 t)) of
-    [(n, "")] -> n
-    _         -> error $ "Invalid hex byte: " ++ T.unpack t
+parseHexByte hexText =
+  case readHex (T.unpack (T.drop 2 hexText)) of
+    [(byteValue, "")] -> byteValue
+    _                 -> error $ "Invalid hex byte: " ++ T.unpack hexText

@@ -38,12 +38,12 @@ data EvosAttacksData = EvosAttacksData
 -- | Parse an evos_moves/evos_attacks file.
 -- Returns (label, data) pairs for every labeled block.
 parseEvosAttacksFile :: Parser [(Text, EvosAttacksData)]
-parseEvosAttacksFile = go []
+parseEvosAttacksFile = scanBlocks []
   where
-    go acc = do
+    scanBlocks blocks = do
       done <- option False (True <$ eof)
       if done
-        then pure (reverse acc)
+        then pure (reverse blocks)
         else do
           horizontalSpace
           choice
@@ -51,47 +51,47 @@ parseEvosAttacksFile = go []
                 name <- parseLabel
                 evos <- parseSection
                 moves <- parseMoveSection
-                go ((name, EvosAttacksData evos moves) : acc)
-            , restOfLine >> go acc
+                scanBlocks ((name, EvosAttacksData evos moves) : blocks)
+            , restOfLine >> scanBlocks blocks
             ]
 
     -- A label: identifier characters up to ':', then consume rest of line.
     parseLabel = do
       name <- takeWhile1P (Just "label")
-                (\c -> c /= ':' && c /= '\n' && c /= ' ' && c /= '\t')
+                (\char -> char /= ':' && char /= '\n' && char /= ' ' && char /= '\t')
       _ <- single ':'
       restOfLine
       pure name
 
     -- Parse db lines until we see `db 0` (the section terminator).
     -- Returns the arguments of each non-terminator db line.
-    parseSection = go' []
+    parseSection = collectEntries []
       where
-        go' acc = do
+        collectEntries entries = do
           horizontalSpace
           choice
             [ try $ do
                 args <- parseDb
                 if args == ["0"]
-                  then pure (reverse acc)
-                  else go' (args : acc)
-            , restOfLine >> go' acc
+                  then pure (reverse entries)
+                  else collectEntries (args : entries)
+            , restOfLine >> collectEntries entries
             ]
 
     -- Parse the learnset section: db lines of (level, move) pairs
     -- until db 0. Validates each entry has exactly 2 fields.
-    parseMoveSection = go' []
+    parseMoveSection = collectMoves []
       where
-        go' acc = do
+        collectMoves moves = do
           horizontalSpace
           choice
             [ try $ do
                 args <- parseDb
                 case args of
-                  ["0"] -> pure (reverse acc)
-                  [level, move] -> go' ((level, move) : acc)
+                  ["0"] -> pure (reverse moves)
+                  [level, move] -> collectMoves ((level, move) : moves)
                   _ -> error $ "unexpected learnset entry: " ++ show args
-            , restOfLine >> go' acc
+            , restOfLine >> collectMoves moves
             ]
 
     parseDb = keyword "db" *> commaSeparated
@@ -102,8 +102,8 @@ parseEvosAttacksFile = go []
 formatLearnsetRows :: Text -> [(Int, EvosAttacksData)] -> [[Text]]
 formatLearnsetRows gen blocks =
   [ [gen, T.pack (show dex), level, move]
-  | (dex, dat) <- blocks
-  , (level, move) <- evosAttacksLearnset dat
+  | (dex, evosData) <- blocks
+  , (level, move) <- evosAttacksLearnset evosData
   ]
 
 -- | Format evolution data into CSV rows.
@@ -113,37 +113,37 @@ formatLearnsetRows gen blocks =
 formatEvolutionRows :: Text -> Map Text Int -> [(Int, EvosAttacksData)] -> [[Text]]
 formatEvolutionRows gen speciesToDex blocks =
   [ formatEvoRow gen fromDex evoArgs
-  | (fromDex, dat) <- blocks
-  , evoArgs <- evosAttacksEvolutions dat
+  | (fromDex, evosData) <- blocks
+  , evoArgs <- evosAttacksEvolutions evosData
   ]
   where
     formatEvoRow :: Text -> Int -> [Text] -> [Text]
-    formatEvoRow g fromDex args = case args of
+    formatEvoRow genLabel fromDex args = case args of
       (method : rest) ->
         let target = last rest
             middle = init rest   -- arguments between method and target
             (param1, param2) = case middle of
-              []        -> ("", "")
-              [p1]      -> (p1, "")
-              (p1:p2:_) -> (p1, p2)
+              []                         -> ("", "")
+              [firstParam]               -> (firstParam, "")
+              (firstParam:secondParam:_) -> (firstParam, secondParam)
             toDex  = Map.findWithDefault 0 target speciesToDex
             -- pret uses EVOLVE_TRADE for both plain trade and trade-with-item.
             -- Normalize: numeric/empty param1 = plain trade, item name = trade-with-item.
-            (method', param1') = case method of
+            (normalizedMethod, normalizedParam1) = case method of
               "EVOLVE_TRADE"
                 | isNumericOrEmpty param1 -> ("EVOLVE_TRADE", "")
                 | otherwise               -> ("EVOLVE_TRADE_ITEM", param1)
               _ -> (method, param1)
-        in [g, T.pack (show fromDex), T.pack (show toDex), method', param1', param2]
+        in [genLabel, T.pack (show fromDex), T.pack (show toDex), normalizedMethod, normalizedParam1, param2]
       [] -> error "empty evolution entry"
 
     -- | Is this text empty, or all digits (possibly with leading minus)?
     -- Used to distinguish pret's numeric sentinel from item constant names.
     isNumericOrEmpty :: Text -> Bool
-    isNumericOrEmpty t = case T.uncons (T.strip t) of
-      Nothing       -> True
-      Just ('-', r) -> T.all isDigit r && not (T.null r)
-      Just _        -> T.all isDigit (T.strip t)
+    isNumericOrEmpty text = case T.uncons (T.strip text) of
+      Nothing          -> True
+      Just ('-', digits) -> T.all isDigit digits && not (T.null digits)
+      Just _           -> T.all isDigit (T.strip text)
 
 learnsetHeader :: [Text]
 learnsetHeader = ["gen", "dex", "level", "move_name"]

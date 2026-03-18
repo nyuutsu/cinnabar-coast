@@ -12,7 +12,7 @@
 -- bare integers (POWER, ACCURACY, PP, EFFECT_CHANCE).
 --
 -- We extract all fields faithfully — the Haskell loader picks which
--- columns it needs via the col accessor pattern.
+-- columns it needs via the column accessor pattern.
 
 module Extract.Moves (extractMoves, movesHeader) where
 
@@ -36,17 +36,17 @@ extractMoves gen path = do
 -- Same robust pattern as parseTMHMBlock — try to match, otherwise
 -- skip the entire line.
 parseMoveTable :: Parser [[Text]]
-parseMoveTable = go []
+parseMoveTable = collectMoves []
   where
-    go acc = do
+    collectMoves moves = do
       done <- option False (True <$ eof)
       if done
-        then pure (reverse acc)
+        then pure (reverse moves)
         else do
           horizontalSpace
           choice
-            [ try (parseMoveLine >>= \fields -> go (fields : acc))
-            , restOfLine >> go acc
+            [ try (parseMoveLine >>= \fields -> collectMoves (fields : moves))
+            , restOfLine >> collectMoves moves
             ]
 
     parseMoveLine = keyword "move" *> commaSeparated

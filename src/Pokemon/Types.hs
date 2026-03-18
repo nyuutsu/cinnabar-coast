@@ -160,12 +160,12 @@ data Special
   deriving (Eq, Show)
 
 specialAttack :: Special -> Int
-specialAttack (Unified s)  = s
-specialAttack (Split sa _) = sa
+specialAttack (Unified value)  = value
+specialAttack (Split spAttack _) = spAttack
 
 specialDefense :: Special -> Int
-specialDefense (Unified s)  = s
-specialDefense (Split _ sd) = sd
+specialDefense (Unified value)  = value
+specialDefense (Split _ spDefense) = spDefense
 
 
 -- ── Species ─────────────────────────────────────────────────────
