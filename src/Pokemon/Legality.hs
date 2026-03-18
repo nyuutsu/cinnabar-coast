@@ -34,9 +34,9 @@ import Pokemon.Types
 classifyMove
   :: GameData          -- ^ This gen's data
   -> Maybe GameData    -- ^ Other gen's data (for Tradeback)
-  -> Int               -- ^ Dex number
-  -> Int               -- ^ Move ID
-  -> Int               -- ^ Pokemon's level (for level-up cutoff)
+  -> DexNumber         -- ^ Dex number
+  -> MoveId            -- ^ Move ID
+  -> Level             -- ^ Pokemon's level (for level-up cutoff)
   -> [LearnSource]
 classifyMove thisGen otherGen dex moveId level =
   concat
@@ -53,7 +53,7 @@ classifyMove thisGen otherGen dex moveId level =
 -- | Classify without Tradeback or PreEvo. Used internally to
 -- prevent infinite recursion: Tradeback checks the other gen,
 -- PreEvo checks pre-evolutions. Neither should recurse back.
-classifyMoveNoTradeback :: GameData -> Int -> Int -> Int -> [LearnSource]
+classifyMoveNoTradeback :: GameData -> DexNumber -> MoveId -> Level -> [LearnSource]
 classifyMoveNoTradeback gameData dex moveId level =
   concat
     [ checkLevelUp   gameData dex moveId level
@@ -67,21 +67,21 @@ classifyMoveNoTradeback gameData dex moveId level =
 
 -- | Check if the species learns this move by leveling up at or
 -- below the given level.
-checkLevelUp :: GameData -> Int -> Int -> Int -> [LearnSource]
+checkLevelUp :: GameData -> DexNumber -> MoveId -> Level -> [LearnSource]
 checkLevelUp gameData dex moveId level =
   case Map.lookup dex (gameLevelUp gameData) of
     Nothing      -> []
     Just entries ->
-      [ LearnSource LevelUp (T.pack $ "L" ++ show learnLevel) []
-      | (learnLevel, entryMoveId) <- entries
+      [ LearnSource LevelUp (T.pack $ "L" ++ show rawLevel) []
+      | (rawLevel, entryMoveId) <- entries
       , entryMoveId == moveId
-      , learnLevel <= level
+      , Level rawLevel <= level
       ]
 
 
 -- | Check if there's a TM or HM that teaches this move and the
 -- species is compatible with it.
-checkMachine :: GameData -> Int -> Int -> [LearnSource]
+checkMachine :: GameData -> DexNumber -> MoveId -> [LearnSource]
 checkMachine gameData dex moveId =
   case Map.lookup dex (gameMachineCompat gameData) of
     Nothing               -> []
@@ -97,7 +97,7 @@ checkMachine gameData dex moveId =
 
 
 -- | Check if this is an egg move for the species (Gen 2 only).
-checkEggMove :: GameData -> Int -> Int -> [LearnSource]
+checkEggMove :: GameData -> DexNumber -> MoveId -> [LearnSource]
 checkEggMove gameData dex moveId =
   case Map.lookup dex (gameEggMoves gameData) of
     Nothing   -> []
@@ -107,7 +107,7 @@ checkEggMove gameData dex moveId =
 
 
 -- | Check if this is a tutor move for the species (Crystal only).
-checkTutorMove :: GameData -> Int -> Int -> [LearnSource]
+checkTutorMove :: GameData -> DexNumber -> MoveId -> [LearnSource]
 checkTutorMove gameData dex moveId =
   case Map.lookup dex (gameTutorMoves gameData) of
     Nothing   -> []
@@ -119,7 +119,7 @@ checkTutorMove gameData dex moveId =
 -- | Check Tradeback: can this species learn the move in the
 -- other generation? If so, return a Tradeback source that nests
 -- the other gen's sources inside it.
-checkTradeback :: Maybe GameData -> Int -> Int -> Int -> [LearnSource]
+checkTradeback :: Maybe GameData -> DexNumber -> MoveId -> Level -> [LearnSource]
 checkTradeback Nothing _ _ _ = []
 checkTradeback (Just otherGameData) dex moveId level =
   case classifyMoveNoTradeback otherGameData dex moveId level of
@@ -137,7 +137,7 @@ checkTradeback (Just otherGameData) dex moveId level =
 --
 -- Only reports moves the pre-evo can learn that the current
 -- species CANNOT learn directly (otherwise it's redundant).
-checkPreEvo :: GameData -> Maybe GameData -> Int -> Int -> Int -> [LearnSource]
+checkPreEvo :: GameData -> Maybe GameData -> DexNumber -> MoveId -> Level -> [LearnSource]
 checkPreEvo thisGen otherGen dex moveId level =
   let -- Collect direct sources for this species (what it can learn on its own,
       -- including tradeback but not pre-evo)
@@ -164,7 +164,7 @@ checkPreEvo thisGen otherGen dex moveId level =
 
 -- | Classify a move for a species, including Tradeback but NOT
 -- PreEvo. Used by checkPreEvo to avoid infinite recursion.
-classifyMoveNoPreEvo :: GameData -> Maybe GameData -> Int -> Int -> Int -> [LearnSource]
+classifyMoveNoPreEvo :: GameData -> Maybe GameData -> DexNumber -> MoveId -> Level -> [LearnSource]
 classifyMoveNoPreEvo thisGen otherGen dex moveId level =
   concat
     [ checkLevelUp   thisGen dex moveId level
@@ -178,7 +178,7 @@ classifyMoveNoPreEvo thisGen otherGen dex moveId level =
 -- | Walk backward through evolution chains to find ALL
 -- pre-evolutions of a species (not just the immediate one).
 -- Pichu → Pikachu → Raichu: allPreEvolutions for Raichu = [Pikachu, Pichu]
-allPreEvolutions :: GameData -> Int -> [Int]
+allPreEvolutions :: GameData -> DexNumber -> [DexNumber]
 allPreEvolutions gameData dex = collectAncestors dex []
   where
     collectAncestors current ancestors =
@@ -198,8 +198,8 @@ padNum number
   | otherwise = show number
 
 -- | Look up a species name for display, falling back to dex number.
-speciesLabel :: GameData -> Int -> T.Text
+speciesLabel :: GameData -> DexNumber -> T.Text
 speciesLabel gameData dex =
   case Map.lookup dex (gameSpecies gameData) of
-    Just species -> speciesName species <> " (#" <> T.pack (show dex) <> ")"
-    Nothing      -> "#" <> T.pack (show dex)
+    Just species -> speciesName species <> " (#" <> T.pack (show (unDex dex)) <> ")"
+    Nothing      -> "#" <> T.pack (show (unDex dex))
