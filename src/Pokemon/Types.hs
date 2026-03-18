@@ -324,10 +324,11 @@ data MoveSlot = MoveSlot
 
 -- | Smart constructor: validates 1–4 moves.
 mkMoveSlots :: [MoveSlot] -> Either Text (NonEmpty MoveSlot)
-mkMoveSlots [] = Left "Pokemon must have at least one move"
 mkMoveSlots moves
   | length moves > 4 = Left "Pokemon cannot have more than four moves"
-  | otherwise = Right (NE.fromList moves)
+  | otherwise = case NE.nonEmpty moves of
+      Nothing         -> Left "Pokemon must have at least one move"
+      Just validMoves -> Right validMoves
 
 
 -- ── Pokemon ─────────────────────────────────────────────────────
