@@ -137,6 +137,11 @@ language group: en, frde, ites, jp.
 3. **Event matching** — constraint checking against event profiles
 4. **CLI interface** — subcommands (info, edit, classify, etc.)
 5. Tests alongside each module
+6. **Error handling boundary** — extraction and CSV loading use `error`
+   because the inputs are controlled (curated CSVs, pret ASM sources).
+   The save parser will handle untrusted binary input and should use
+   `Either` with a descriptive error type from the start. The `error`
+   pattern shouldn't carry over into that work.
 
 ## Known tricky areas
 
@@ -202,6 +207,12 @@ without hiding meaning.
 pattern emerges, make a clean abstraction — three duplicated blocks
 are worse than one clear function.
 
+**New code follows the same rules.** Every naming convention here
+applies equally to new code, refactors, and helpers introduced during
+changes. If a rename pass cleaned something up, the same patterns
+shouldn't come back in through new helpers or variables. `buildRow`
+not `mkRow`, `species` not `s`, `collectResults` not `go`.
+
 **Qualified imports** for containers (`Map`, `Set`, `T` for Text).
 
 **Comments explain WHY, not WHAT.** If a comment restates the code,
@@ -237,3 +248,7 @@ of the work — not separate from it.
   explain what improved.
 - If something isn't clear, stop and explain. Understanding
   matters more than progress.
+- Commit messages describe what changed and why, in imperative mood
+  ("Add X" rather than "Added X"). Keep subject lines under 72
+  characters and put detail in the body when it's needed. Avoid
+  em dashes in commit messages.
