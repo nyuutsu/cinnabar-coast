@@ -371,10 +371,12 @@ data LearnSource = LearnSource
 data GameData = GameData
   { gameGen           :: !Gen
   , gameSpecies       :: !(Map Int Species)
+  , gameSpeciesByName :: !(Map Text Int)            -- name → dex number
   , gameMoves         :: !(Map Int Move)
-  , gameMachines      :: !(Map Machine Int)        -- machine → move ID
-  , gameMachineCompat :: !(Map Int (Set Machine))  -- dex → compatible machines
-  , gameLevelUp       :: !(Map Int [(Int, Int)])    -- dex → [(level, move_id)]
+  , gameMoveByName    :: !(Map Text Int)            -- name → move ID
+  , gameMachines      :: !(Map Machine Int)         -- machine → move ID
+  , gameMachineCompat :: !(Map Int (Set Machine))   -- dex → compatible machines
+  , gameLevelUp       :: !(Map Int [(Int, Int)])     -- dex → [(level, move_id)]
   , gameEggMoves      :: !(Map Int (Set Int))
   , gameTutorMoves    :: !(Map Int (Set Int))
   , gameItems         :: !(Map Int Text)

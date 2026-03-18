@@ -39,7 +39,7 @@ loadGameData gen = do
   (moves, moveNameToId) <- loadMoves gen (csvPath "moves.csv")
 
   -- Step 2: Load everything else, resolving move names to IDs
-  species  <- loadSpecies gen  (csvPath "species.csv")
+  (species, speciesNameToId) <- loadSpecies gen (csvPath "species.csv")
   machines <- loadMachines gen moveNameToId (csvPath "tmhm.csv")
   compat   <- loadCompat gen   (csvPath "tmhm_compat.csv")
   levelUp  <- loadLearnsets gen moveNameToId (csvPath "learnsets.csv")
@@ -60,7 +60,9 @@ loadGameData gen = do
   pure GameData
     { gameGen           = gen
     , gameSpecies       = species
+    , gameSpeciesByName = speciesNameToId
     , gameMoves         = moves
+    , gameMoveByName    = moveNameToId
     , gameMachines      = machines
     , gameMachineCompat = compat
     , gameLevelUp       = levelUp
@@ -230,9 +232,10 @@ requireType speciesName raw = case typeFromName raw of
 
 -- ── Loaders ─────────────────────────────────────────────────────
 
--- | species.csv → Map dex Species
+-- | species.csv → (Map dex Species, Map name dex)
 -- Columns use ASM constant names for types, growth rate, etc.
-loadSpecies :: Gen -> FilePath -> IO (Map.Map Int Species)
+-- Returns both the species map and a name→dex lookup.
+loadSpecies :: Gen -> FilePath -> IO (Map.Map Int Species, Map.Map T.Text Int)
 loadSpecies gen path = do
   csv <- readCSV path
   let dexOfRow              = column csv "dex"
@@ -253,32 +256,35 @@ loadSpecies gen path = do
       eggGroup2OfRow        = column csv "egg_group2"
       baseHappinessOfRow    = column csv "base_happiness"
       matching      = forGen gen csv
-  pure $ Map.fromList
-    [ (speciesDex species, species)
-    | row <- matching
-    , let species = Species
-            { speciesDex           = fieldInt (dexOfRow row)
-            , speciesName          = T.strip (nameOfRow row)
-            , speciesBaseStats     = BaseStats
-                { baseHP      = fieldInt (hpOfRow row)
-                , baseAttack  = fieldInt (attackOfRow row)
-                , baseDefense = fieldInt (defenseOfRow row)
-                , baseSpeed   = fieldInt (speedOfRow row)
-                , baseSpecial = case gen of
-                    Gen1 -> Unified (fieldInt (specialOfRow row))
-                    Gen2 -> Split   (fieldInt (specialAttackOfRow row)) (fieldInt (specialDefenseOfRow row))
+  let speciesList =
+        [ species
+        | row <- matching
+        , let species = Species
+                { speciesDex           = fieldInt (dexOfRow row)
+                , speciesName          = T.strip (nameOfRow row)
+                , speciesBaseStats     = BaseStats
+                    { baseHP      = fieldInt (hpOfRow row)
+                    , baseAttack  = fieldInt (attackOfRow row)
+                    , baseDefense = fieldInt (defenseOfRow row)
+                    , baseSpeed   = fieldInt (speedOfRow row)
+                    , baseSpecial = case gen of
+                        Gen1 -> Unified (fieldInt (specialOfRow row))
+                        Gen2 -> Split   (fieldInt (specialAttackOfRow row)) (fieldInt (specialDefenseOfRow row))
+                    }
+                , speciesTypes         = let name = nameOfRow row
+                                         in (requireType name (type1OfRow row), requireType name (type2OfRow row))
+                , speciesCatchRate     = fieldInt (catchRateOfRow row)
+                , speciesGrowthRate    = growthFromName (growthRateOfRow row)
+                , speciesGenderRatio   = genderFromName (genderRatioOfRow row)
+                , speciesEggGroups     = case (eggGroupFromName (eggGroup1OfRow row), eggGroupFromName (eggGroup2OfRow row)) of
+                    (Just group1, Just group2) -> Just (group1, group2)
+                    _                          -> Nothing
+                , speciesBaseHappiness = maybeInt (baseHappinessOfRow row)
                 }
-            , speciesTypes         = let name = nameOfRow row
-                                     in (requireType name (type1OfRow row), requireType name (type2OfRow row))
-            , speciesCatchRate     = fieldInt (catchRateOfRow row)
-            , speciesGrowthRate    = growthFromName (growthRateOfRow row)
-            , speciesGenderRatio   = genderFromName (genderRatioOfRow row)
-            , speciesEggGroups     = case (eggGroupFromName (eggGroup1OfRow row), eggGroupFromName (eggGroup2OfRow row)) of
-                (Just group1, Just group2) -> Just (group1, group2)
-                _                          -> Nothing
-            , speciesBaseHappiness = maybeInt (baseHappinessOfRow row)
-            }
-    ]
+        ]
+      speciesMap = Map.fromList [(speciesDex species, species) | species <- speciesList]
+      nameToId   = Map.fromList [(speciesName species, speciesDex species) | species <- speciesList]
+  pure (speciesMap, nameToId)
 
 
 -- | moves.csv → (Map moveId Move, Map moveName moveId)
