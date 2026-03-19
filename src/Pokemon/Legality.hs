@@ -98,8 +98,8 @@ checkMachine machineData dex moveId =
       , machineMoveId == moveId
       , Set.member machine compatibleMachines
       , let (method, label) = case machine of
-              TM number -> (TMMachine, "TM" ++ padNum number)
-              HM number -> (HMMachine, "HM" ++ padNum number)
+              TM (MachineNumber number) -> (TMMachine, "TM" ++ padNum number)
+              HM (MachineNumber number) -> (HMMachine, "HM" ++ padNum number)
       ]
 
 

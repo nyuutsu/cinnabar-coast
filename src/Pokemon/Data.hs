@@ -367,7 +367,7 @@ buildMachines gen moveNameToId csv = do
             pure $ case Map.lookup moveName moveNameToId of
               Nothing -> Nothing
               Just matchedMoveId ->
-                let machine = if machineKind == "hm" then HM machineNumber else TM machineNumber
+                let machine = if machineKind == "hm" then HM (MachineNumber machineNumber) else TM (MachineNumber machineNumber)
                 in Just (machine, matchedMoveId)
   results <- traverse parseMachineRow matching
   pure $ Map.fromList [pair | Just pair <- results]
@@ -392,8 +392,8 @@ buildCompat gen csv = do
 
 numToMachine :: Int -> Machine
 numToMachine number
-  | number <= 50 = TM number
-  | otherwise    = HM (number - 50)
+  | number <= 50 = TM (MachineNumber number)
+  | otherwise    = HM (MachineNumber (number - 50))
 
 
 -- | learnsets.csv → Map dex [LevelUpEntry]

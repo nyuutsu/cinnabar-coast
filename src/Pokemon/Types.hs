@@ -74,6 +74,7 @@ module Pokemon.Types
   , EvolutionStep (..)
 
     -- * TM / HM
+  , MachineNumber (..)
   , Machine (..)
 
     -- * Move classification
@@ -428,12 +429,15 @@ data EvolutionStep = EvolutionStep
 
 -- ── TM / HM ────────────────────────────────────────────────────
 
+newtype MachineNumber = MachineNumber { unMachineNumber :: Int }
+  deriving (Eq, Ord, Show)
+
 -- | A teaching machine. The number is stable within a gen;
 -- the move it teaches is per-gen data in GameData.
 -- Gen 1: TM01–50, HM01–05. Gen 2: TM01–50, HM01–07.
 data Machine
-  = TM !Int
-  | HM !Int
+  = TM !MachineNumber
+  | HM !MachineNumber
   deriving (Eq, Ord, Show)
 
 
