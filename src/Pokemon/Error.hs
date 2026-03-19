@@ -15,7 +15,7 @@ module Pokemon.Error
 
 import qualified Data.Text as T
 
-import Pokemon.Types (ColumnName (..), RowNumber (..))
+import Pokemon.Types (ColumnName (..), EnumLabel (..), RowNumber (..))
 
 
 -- ── Error type ────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ data LoadError
   | UnknownEnum
       !FilePath
       !RowNumber
-      !T.Text           -- what was being parsed (human-readable label)
+      !EnumLabel         -- what was being parsed (human-readable label)
       !T.Text           -- raw value
   | RawLoadError
       !T.Text           -- transitional: not-yet-migrated error message
@@ -81,9 +81,9 @@ renderLoadError (RowTooShort errorFilePath errorRowNumber expectedCount actualCo
     <> ": row too short: expected " <> T.pack (show expectedCount)
     <> " columns, got " <> T.pack (show actualCount)
 
-renderLoadError (UnknownEnum errorFilePath errorRowNumber errorDescription errorRawValue) =
+renderLoadError (UnknownEnum errorFilePath errorRowNumber errorLabel errorRawValue) =
   T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
-    <> ": unknown " <> errorDescription <> ": " <> quoteValue errorRawValue
+    <> ": unknown " <> unEnumLabel errorLabel <> ": " <> quoteValue errorRawValue
 
 renderLoadError (RawLoadError errorMessage) =
   errorMessage

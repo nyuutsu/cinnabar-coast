@@ -17,6 +17,7 @@ module Pokemon.Types
     -- * CSV context
   , RowNumber (..)
   , ColumnName (..)
+  , EnumLabel (..)
 
     -- * Generation
   , Gen (..)
@@ -125,9 +126,13 @@ newtype TrainerId  = TrainerId  { unTrainerId :: Int } deriving (Eq, Ord, Show)
 
 newtype RowNumber   = RowNumber   { unRowNumber   :: Int  } deriving (Eq, Ord, Show)
 newtype ColumnName  = ColumnName  { unColumnName  :: Text } deriving (Eq, Ord, Show)
+newtype EnumLabel   = EnumLabel   { unEnumLabel   :: Text } deriving (Eq, Ord, Show)
 
 instance IsString ColumnName where
   fromString = ColumnName . T.pack
+
+instance IsString EnumLabel where
+  fromString = EnumLabel . T.pack
 
 -- ── Generation ──────────────────────────────────────────────────
 

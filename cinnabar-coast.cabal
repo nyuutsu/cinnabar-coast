@@ -24,6 +24,7 @@ library
     Pokemon.Types
     Pokemon.Types.Internal
     Pokemon.Error
+    Pokemon.Schema
     Pokemon.Data
     Pokemon.Stats
     Pokemon.Legality

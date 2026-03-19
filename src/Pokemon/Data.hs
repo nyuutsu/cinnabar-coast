@@ -26,6 +26,7 @@ import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
 import Pokemon.Error (LoadError (..))
+import Pokemon.Schema (eggGroupNames, genderRatioNames, growthRateNames, typeNames)
 import Pokemon.Types
 
 
@@ -207,10 +208,17 @@ maybeTextColumn csv name = do
 -- ── Enum helpers ───────────────────────────────────────────────
 
 -- | Require a name-to-type mapping to succeed, or produce UnknownEnum.
-requireEnum :: Row -> T.Text -> (T.Text -> Maybe a) -> T.Text -> Either LoadError a
-requireEnum row label fromName rawValue = case fromName rawValue of
+requireEnum :: Row -> EnumLabel -> Map.Map T.Text a -> T.Text -> Either LoadError a
+requireEnum row label names rawValue = case Map.lookup rawValue names of
   Just result -> Right result
   Nothing     -> Left (UnknownEnum (rowFilePath row) (rowNumber row) label rawValue)
+
+-- | Look up a move's type. Checks for CURSE_TYPE first (the ???
+-- type used only by Curse), then delegates to the standard type map.
+lookupMoveType :: Row -> T.Text -> Either LoadError MoveType
+lookupMoveType row rawValue
+  | rawValue == "CURSE_TYPE" = Right CurseType
+  | otherwise = StandardType <$> requireEnum row "move type" typeNames rawValue
 
 
 -- ── Row filtering ────────────────────────────────────────────────
@@ -226,80 +234,6 @@ forGen gen csv = do
         pure $ if rowGen == genNumber then Just row else Nothing
   checked <- traverse checkGen (csvRows csv)
   pure [row | Just row <- checked]
-
-
--- ── Name-based mapping ──────────────────────────────────────────
-
--- | Map pret ASM type constant name → PokemonType.
--- Returns Nothing for unrecognized names so callers can provide
--- context-specific error messages.
-typeFromName :: T.Text -> Maybe PokemonType
-typeFromName "NORMAL"       = Just Normal
-typeFromName "FIGHTING"     = Just Fighting
-typeFromName "FLYING"       = Just Flying
-typeFromName "POISON"       = Just Poison
-typeFromName "GROUND"       = Just Ground
-typeFromName "ROCK"         = Just Rock
-typeFromName "BUG"          = Just Bug
-typeFromName "GHOST"        = Just Ghost
-typeFromName "STEEL"        = Just Steel
-typeFromName "FIRE"         = Just Fire
-typeFromName "WATER"        = Just Water
-typeFromName "GRASS"        = Just Grass
-typeFromName "ELECTRIC"     = Just Electric
-typeFromName "PSYCHIC"      = Just Psychic
-typeFromName "PSYCHIC_TYPE" = Just Psychic  -- pret alias (avoids collision with move name)
-typeFromName "ICE"          = Just Ice
-typeFromName "DRAGON"       = Just Dragon
-typeFromName "DARK"         = Just Dark
-typeFromName _              = Nothing
-
--- | Map pret ASM type constant name → MoveType.
--- Handles CURSE_TYPE (the ??? type used only by Curse) and delegates
--- to typeFromName for all standard element types.
-moveTypeFromName :: T.Text -> Maybe MoveType
-moveTypeFromName "CURSE_TYPE" = Just CurseType
-moveTypeFromName name         = StandardType <$> typeFromName name
-
--- | Map pret ASM growth rate constant name → GrowthRate.
-growthFromName :: T.Text -> Maybe GrowthRate
-growthFromName "GROWTH_MEDIUM_FAST" = Just MediumFast
-growthFromName "GROWTH_MEDIUM_SLOW" = Just MediumSlow
-growthFromName "GROWTH_FAST"        = Just Fast
-growthFromName "GROWTH_SLOW"        = Just Slow
-growthFromName _                    = Nothing
-
--- | Map pret ASM gender ratio constant name → GenderRatio.
--- Only called for Gen 2 rows where the field is always present.
-genderFromName :: T.Text -> Maybe GenderRatio
-genderFromName "GENDER_F0"      = Just AllMale
-genderFromName "GENDER_F12_5"   = Just Female12_5
-genderFromName "GENDER_F25"     = Just Female25
-genderFromName "GENDER_F50"     = Just Female50
-genderFromName "GENDER_F75"     = Just Female75
-genderFromName "GENDER_F100"    = Just AllFemale
-genderFromName "GENDER_UNKNOWN" = Just Genderless
-genderFromName _                = Nothing
-
--- | Map pret ASM egg group constant name → EggGroup.
--- Only called for Gen 2 rows where the field is always present.
-eggGroupFromName :: T.Text -> Maybe EggGroup
-eggGroupFromName "EGG_MONSTER"       = Just EggMonster
-eggGroupFromName "EGG_WATER_1"      = Just EggWater1
-eggGroupFromName "EGG_BUG"          = Just EggBug
-eggGroupFromName "EGG_FLYING"       = Just EggFlying
-eggGroupFromName "EGG_GROUND"       = Just EggGround
-eggGroupFromName "EGG_FAIRY"        = Just EggFairy
-eggGroupFromName "EGG_PLANT"        = Just EggPlant
-eggGroupFromName "EGG_HUMANSHAPE"   = Just EggHumanShape
-eggGroupFromName "EGG_WATER_3"      = Just EggWater3
-eggGroupFromName "EGG_MINERAL"      = Just EggMineral
-eggGroupFromName "EGG_INDETERMINATE" = Just EggIndeterminate
-eggGroupFromName "EGG_WATER_2"      = Just EggWater2
-eggGroupFromName "EGG_DITTO"        = Just EggDitto
-eggGroupFromName "EGG_DRAGON"       = Just EggDragon
-eggGroupFromName "EGG_NONE"         = Just EggNone
-eggGroupFromName _                  = Nothing
 
 
 -- ── Builders ─────────────────────────────────────────────────────
@@ -339,20 +273,20 @@ buildSpecies gen csv = do
           Gen2 -> Split <$> specialAttackOfRow row <*> specialDefenseOfRow row
         type1Text     <- type1OfRow row
         type2Text     <- type2OfRow row
-        type1         <- requireEnum row "type" typeFromName type1Text
-        type2         <- requireEnum row "type" typeFromName type2Text
+        type1         <- requireEnum row "type" typeNames type1Text
+        type2         <- requireEnum row "type" typeNames type2Text
         catchRate     <- catchRateOfRow row
         growthRateText <- growthRateOfRow row
-        growthRate    <- requireEnum row "growth rate" growthFromName growthRateText
+        growthRate    <- requireEnum row "growth rate" growthRateNames growthRateText
         genFields     <- case gen of
           Gen1 -> pure Gen1SpeciesFields
           Gen2 -> do
             genderRatioText <- genderRatioOfRow row
-            genderRatio     <- requireEnum row "gender ratio" genderFromName genderRatioText
+            genderRatio     <- requireEnum row "gender ratio" genderRatioNames genderRatioText
             eggGroup1Text   <- eggGroup1OfRow row
             eggGroup2Text   <- eggGroup2OfRow row
-            eggGroup1       <- requireEnum row "egg group" eggGroupFromName eggGroup1Text
-            eggGroup2       <- requireEnum row "egg group" eggGroupFromName eggGroup2Text
+            eggGroup1       <- requireEnum row "egg group" eggGroupNames eggGroup1Text
+            eggGroup2       <- requireEnum row "egg group" eggGroupNames eggGroup2Text
             baseHappiness   <- baseHappinessOfRow row
             pure Gen2SpeciesFields
               { speciesGenderRatio   = genderRatio
@@ -396,7 +330,7 @@ buildMoves gen csv = do
         moveIdValue   <- moveIdOfRow row
         name          <- nameOfRow row
         moveTypeText  <- moveTypeOfRow row
-        moveTypeValue <- requireEnum row "move type" moveTypeFromName moveTypeText
+        moveTypeValue <- lookupMoveType row moveTypeText
         power         <- powerOfRow row
         accuracy      <- accuracyOfRow row
         pp            <- ppOfRow row
