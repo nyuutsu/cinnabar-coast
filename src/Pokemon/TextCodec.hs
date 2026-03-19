@@ -42,6 +42,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import Control.Exception (IOException, try)
 import Data.Char (toUpper)
 import Data.Word (Word8)
 import Numeric (readHex, showHex)
@@ -163,14 +164,17 @@ loadCodec :: Gen -> Language -> IO (Either [LoadError] (TextCodec, [NamingScreen
 loadCodec gen lang = do
   dataDir <- getDataDir
   let path = dataDir </> "charsets" </> charsetFilename gen lang
-  rawJson <- LBS.readFile path
-  case Aeson.eitherDecode rawJson of
-    Left decodeError -> pure $ Left
-      [CharsetParseError path (T.pack decodeError)]
-    Right jsonValue -> case buildFromJSON gen lang jsonValue of
-      Left parseError -> pure $ Left
-        [CharsetParseError path (T.pack parseError)]
-      Right result -> pure $ Right result
+  readResult <- try (LBS.readFile path)
+  case readResult of
+    Left ioException ->
+      pure $ Left [CharsetParseError path (T.pack (show (ioException :: IOException)))]
+    Right rawJson -> case Aeson.eitherDecode rawJson of
+      Left decodeError -> pure $ Left
+        [CharsetParseError path (T.pack decodeError)]
+      Right jsonValue -> case buildFromJSON gen lang jsonValue of
+        Left parseError -> pure $ Left
+          [CharsetParseError path (T.pack parseError)]
+        Right result -> pure $ Right result
 
 
 -- | Map (Gen, Language) to the charset JSON filename.
