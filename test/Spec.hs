@@ -7,6 +7,8 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
+import qualified Data.ByteString as BS
+import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
@@ -16,6 +18,8 @@ import Pokemon.Data (loadAllGameData)
 import Pokemon.Error (loadOrDie)
 import Pokemon.Legality (classifyMove)
 import Pokemon.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
+import Pokemon.Save.Checksum (calculateGen1Checksum)
+import Pokemon.Save.Layout (GameVariant (..), SaveRegion (..), cartridgeLayout)
 
 
 -- ── Arbitrary instances ─────────────────────────────────────────
@@ -180,3 +184,15 @@ main = hspec $ do
           sources    = classifyMove gen2Data (Just gen1Data) pikachuDex thunderId (Level 10)
       LevelUp `elem` methods sources `shouldBe` False
       TMMachine `elem` methods sources `shouldBe` True
+
+  -- ── Save file infrastructure ────────────────────────────────
+
+  describe "calculateGen1Checksum" $
+    it "produces complement of byte sum" $
+      let saveBytes = BS.pack [0x01, 0x02, 0x03]
+      in calculateGen1Checksum saveBytes 0 2 `shouldBe` 0xF9
+
+  describe "cartridgeLayout" $
+    it "returns layouts for implemented games" $ do
+      cartridgeLayout Yellow RegionWestern `shouldSatisfy` isRight
+      cartridgeLayout GoldSilver RegionJapanese `shouldSatisfy` isLeft

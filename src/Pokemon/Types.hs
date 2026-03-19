@@ -13,6 +13,7 @@ module Pokemon.Types
   , Level (..)
   , ItemId (..)
   , TrainerId (..)
+  , InternalIndex (..)
 
     -- * CSV context
   , RowNumber (..)
@@ -122,6 +123,12 @@ newtype MoveId     = MoveId     { unMoveId    :: Int } deriving (Eq, Ord, Show)
 newtype Level      = Level      { unLevel     :: Int } deriving (Eq, Ord, Show)
 newtype ItemId     = ItemId     { unItemId    :: Int } deriving (Eq, Ord, Show)
 newtype TrainerId  = TrainerId  { unTrainerId :: Int } deriving (Eq, Ord, Show)
+
+-- | Gen 1 internal species index. Not a dex number — Rhydon is
+-- internal index 1, Kangaskhan is 2, etc. The save file stores
+-- these; interpretation resolves them to DexNumber via a mapping.
+newtype InternalIndex = InternalIndex { unInternalIndex :: Word8 }
+  deriving (Eq, Ord, Show)
 
 -- ── CSV Context ───────────────────────────────────────────────────
 
