@@ -215,6 +215,12 @@ requireEnum row label names rawValue = case Map.lookup rawValue names of
   Just result -> Right result
   Nothing     -> Left (UnknownEnum (rowFilePath row) (rowNumber row) label rawValue)
 
+-- | Require a name-to-ID mapping to succeed, or produce UnresolvedName.
+requireName :: Row -> ColumnName -> Map.Map T.Text a -> T.Text -> Either LoadError a
+requireName row columnName names rawValue = case Map.lookup rawValue names of
+  Just result -> Right result
+  Nothing     -> Left (UnresolvedName (rowFilePath row) (rowNumber row) columnName rawValue)
+
 -- | Look up a move's type. Checks for CURSE_TYPE first (the ???
 -- type used only by Curse), then delegates to the standard type map.
 lookupMoveType :: Row -> T.Text -> Either LoadError MoveType
@@ -366,11 +372,9 @@ buildMachines gen moveNameToId csv = do
           else do
             machineNumber <- numberOfRow row
             moveName <- moveNameOfRow row
-            pure $ case Map.lookup moveName moveNameToId of
-              Nothing -> Nothing
-              Just matchedMoveId ->
-                let machine = if machineKind == "hm" then HM (MachineNumber machineNumber) else TM (MachineNumber machineNumber)
-                in Just (machine, matchedMoveId)
+            matchedMoveId <- requireName row "move_name" moveNameToId moveName
+            let machine = if machineKind == "hm" then HM (MachineNumber machineNumber) else TM (MachineNumber machineNumber)
+            pure $ Just (machine, matchedMoveId)
   results <- traverse parseMachineRow matching
   pure $ Map.fromList [pair | Just pair <- results]
 
@@ -410,14 +414,12 @@ buildLearnsets gen moveNameToId csv = do
         dex <- dexOfRow row
         level <- levelOfRow row
         moveName <- moveNameOfRow row
-        pure $ case Map.lookup moveName moveNameToId of
-          Nothing          -> Nothing
-          Just matchedMoveId ->
-            Just (DexNumber dex, LevelUpEntry (Level level) matchedMoveId)
+        matchedMoveId <- requireName row "move_name" moveNameToId moveName
+        pure (DexNumber dex, LevelUpEntry (Level level) matchedMoveId)
   results <- traverse parseLearnsetRow matching
   pure $ Map.fromListWith (++)
     [ (dexNumber, [entry])
-    | Just (dexNumber, entry) <- results
+    | (dexNumber, entry) <- results
     ]
 
 
@@ -431,11 +433,12 @@ buildNamePairMap moveNameToId csv = do
   let parseNamePairRow row = do
         dex <- dexOfRow row
         moveName <- moveNameOfRow row
-        pure (DexNumber dex, Map.lookup moveName moveNameToId)
+        matchedMoveId <- requireName row "move_name" moveNameToId moveName
+        pure (DexNumber dex, matchedMoveId)
   results <- traverse parseNamePairRow (csvRows csv)
   pure $ Map.fromListWith Set.union
     [ (dexNumber, Set.singleton matchedMoveId)
-    | (dexNumber, Just matchedMoveId) <- results
+    | (dexNumber, matchedMoveId) <- results
     ]
 
 

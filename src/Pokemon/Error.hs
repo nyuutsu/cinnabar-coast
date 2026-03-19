@@ -52,6 +52,11 @@ data LoadError
   | CharsetParseError
       !FilePath
       !T.Text           -- description of the parse failure
+  | UnresolvedName
+      !FilePath
+      !RowNumber
+      !ColumnName       -- the column containing the name
+      !T.Text           -- the name that failed to resolve
   | EvolutionCycle
       !FilePath
       !DexNumber        -- species where the cycle was detected
@@ -91,6 +96,11 @@ renderLoadError (UnknownEnum errorFilePath errorRowNumber errorLabel errorRawVal
 
 renderLoadError (CharsetParseError errorFilePath errorDescription) =
   T.pack errorFilePath <> ": charset parse error: " <> errorDescription
+
+renderLoadError (UnresolvedName errorFilePath errorRowNumber errorColumnName unresolvedValue) =
+  T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
+    <> ": unresolved name in column " <> unColumnName errorColumnName
+    <> ": " <> quoteValue unresolvedValue
 
 renderLoadError (EvolutionCycle errorFilePath dex) =
   T.pack errorFilePath <> ": evolution cycle detected at dex #"
