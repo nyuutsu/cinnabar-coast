@@ -181,7 +181,7 @@ methodLabel PreEvo     = "Pre-evo"
 
 demoTextCodec :: IO ()
 demoTextCodec = do
-  (codec, screens) <- loadCodec Gen1 English
+  (codec, screens) <- loadOrDie =<< loadCodec Gen1 English
   putStrLn $ "  Gen 1 English codec: "
            ++ show (Map.size (codecDecode codec)) ++ " mapped characters"
 

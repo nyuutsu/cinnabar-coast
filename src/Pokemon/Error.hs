@@ -49,8 +49,9 @@ data LoadError
       !RowNumber
       !EnumLabel         -- what was being parsed (human-readable label)
       !T.Text           -- raw value
-  | RawLoadError
-      !T.Text           -- transitional: not-yet-migrated error message
+  | CharsetParseError
+      !FilePath
+      !T.Text           -- description of the parse failure
   deriving (Eq, Show)
 
 
@@ -85,8 +86,8 @@ renderLoadError (UnknownEnum errorFilePath errorRowNumber errorLabel errorRawVal
   T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
     <> ": unknown " <> unEnumLabel errorLabel <> ": " <> quoteValue errorRawValue
 
-renderLoadError (RawLoadError errorMessage) =
-  errorMessage
+renderLoadError (CharsetParseError errorFilePath errorDescription) =
+  T.pack errorFilePath <> ": charset parse error: " <> errorDescription
 
 renderRowNumber :: RowNumber -> T.Text
 renderRowNumber = T.pack . show . unRowNumber

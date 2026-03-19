@@ -31,7 +31,6 @@ RAICHU + THUNDER_WAVE (Gen 2, L100):
             └── TM (TM45)
 ```
 
-
 Save file parsing and editing is next.
 
 ## Building

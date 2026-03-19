@@ -48,6 +48,7 @@ import Numeric (readHex, showHex)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
+import Pokemon.Error (LoadError (..))
 import Pokemon.Types
 import Pokemon.Types.Internal (GameChar (Literal, Ligature, UnknownByte))
 
@@ -158,14 +159,18 @@ lookupLigature codec target =
 
 -- | Load a TextCodec and its associated NamingScreens for a
 -- (Gen, Language) pair. Reads the appropriate charset JSON file.
-loadCodec :: Gen -> Language -> IO (TextCodec, [NamingScreen])
+loadCodec :: Gen -> Language -> IO (Either [LoadError] (TextCodec, [NamingScreen]))
 loadCodec gen lang = do
   dataDir <- getDataDir
   let path = dataDir </> "charsets" </> charsetFilename gen lang
   rawJson <- LBS.readFile path
   case Aeson.eitherDecode rawJson of
-    Left parseError -> error $ "Failed to parse " ++ path ++ ": " ++ parseError
-    Right jsonValue -> pure (buildFromJSON gen lang jsonValue)
+    Left decodeError -> pure $ Left
+      [CharsetParseError path (T.pack decodeError)]
+    Right jsonValue -> case buildFromJSON gen lang jsonValue of
+      Left parseError -> pure $ Left
+        [CharsetParseError path (T.pack parseError)]
+      Right result -> pure $ Right result
 
 
 -- | Map (Gen, Language) to the charset JSON filename.
@@ -191,10 +196,10 @@ charsetFilename gen lang = prefix ++ "-" ++ suffix ++ ".json"
 -- | Build a TextCodec and NamingScreens from parsed JSON.
 -- Handles both flat (characters array) and variant (German Gen 2)
 -- JSON structures.
-buildFromJSON :: Gen -> Language -> Aeson.Value -> (TextCodec, [NamingScreen])
+buildFromJSON :: Gen -> Language -> Aeson.Value -> Either String (TextCodec, [NamingScreen])
 buildFromJSON gen lang jsonValue =
   case parseCharsets jsonValue of
-    Left parseError -> error $ "Charset parse error: " ++ parseError
+    Left parseError -> Left parseError
     Right charsets ->
       let -- Merge all character entries for the decode map
           -- (all variants share the same encoding; only choosable differs)
@@ -210,7 +215,7 @@ buildFromJSON gen lang jsonValue =
             [ NamingScreen label (Set.fromList [entryGameChar entry | entry <- entries, entryChoosable entry])
             | (entries, label) <- charsets
             ]
-      in (codec, screens)
+      in Right (codec, screens)
 
 
 -- | A parsed character entry from JSON.
@@ -251,7 +256,7 @@ parseCharEntry :: Aeson.Value -> Aeson.Parser CharEntry
 parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
   hexStr <- jsonObject Aeson..: "hex" :: Aeson.Parser T.Text
   glyph  <- jsonObject Aeson..: "glyph" :: Aeson.Parser T.Text
-  let byte = parseHexByte hexStr
+  byte   <- parseHexByte hexStr
 
   -- Determine if choosable. Only explicit "choosable": false marks
   -- a character as non-choosable. The "normal" field in the JSON is
@@ -274,9 +279,9 @@ parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
 
 
 -- | Parse "0x7F" style hex strings to Word8.
--- Crashes on malformed input so bad charset data is caught at load time.
-parseHexByte :: T.Text -> Word8
+-- Uses 'fail' so parse errors are captured by the enclosing Aeson parser.
+parseHexByte :: T.Text -> Aeson.Parser Word8
 parseHexByte hexText =
   case readHex (T.unpack (T.drop 2 hexText)) of
-    [(byteValue, "")] -> byteValue
-    _                 -> error $ "Invalid hex byte: " ++ T.unpack hexText
+    [(byteValue, "")] -> pure byteValue
+    _                 -> fail $ "Invalid hex byte: " ++ T.unpack hexText

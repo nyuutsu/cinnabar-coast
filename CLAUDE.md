@@ -29,104 +29,100 @@ git or ffmpeg — no UI baked in, a GUI would be a separate program).
 ```
 cinnabar-coast/
 ├── src/Pokemon/
-│   ├── Types.hs      -- Core domain types (Species, Move, DVs, GameChar, etc.)
-│   ├── Data.hs       -- CSV loader → GameData
-│   ├── Stats.hs      -- Exp curves, stat calculation
-│   ├── Legality.hs   -- Move classification (how can species learn move?)
-│   └── TextCodec.hs  -- Game Boy text encoding/decoding
+│   ├── Types.hs           -- Core domain types (Species, Move, DVs, GameChar, etc.)
+│   ├── Types/Internal.hs  -- GameChar constructors (Internal module pattern)
+│   ├── Data.hs            -- CSV loader → GameData
+│   ├── Error.hs           -- LoadError type, renderLoadError, loadOrDie
+│   ├── Schema.hs          -- Canonical name↔type maps for pret ASM constants
+│   ├── Stats.hs           -- Exp curves, stat calculation
+│   ├── Legality.hs        -- Move classification (how can species learn move?)
+│   └── TextCodec.hs       -- Game Boy text encoding/decoding
 ├── extract/
-│   ├── Main.hs       -- Extraction orchestrator (reads pret repos, writes CSVs)
+│   ├── Main.hs            -- Extraction orchestrator (reads pret repos, writes CSVs)
 │   └── Extract/
-│       ├── ASM.hs    -- Megaparsec primitives for pret ASM format
+│       ├── ASM.hs         -- Megaparsec primitives for pret ASM format
 │       ├── Species.hs     -- base_stats/*.asm → species.csv + tmhm_compat.csv
 │       ├── EvosAttacks.hs -- evos_attacks.asm → learnsets.csv + evolutions.csv
 │       ├── Moves.hs       -- moves/*.asm → moves.csv
-│       ├── TmHm.hs        -- tmhm tables → tmhm.csv
+│       ├── TMHM.hs        -- tmhm tables → tmhm.csv
 │       ├── EggMoves.hs    -- egg_moves.asm → egg_moves.csv
-│       ├── Tutor.hs       -- tutor data → tutor.csv
 │       └── Items.hs       -- item constants → items.csv
-├── app/Main.hs       -- CLI entry point (demo)
-├── data/csv/          -- Game data (extracted from pret by `cabal run extract`)
-├── data/charsets/     -- Character encoding JSONs (en, frde, ites, jp × gen1/gen2)
-├── data/event-pokemon/ -- Event distribution CSVs (not loaded yet)
-├── sketch/            -- Design drafts (not compiled)
-└── test/              -- Tests (placeholder)
+├── app/Main.hs            -- CLI entry point (demo)
+├── data/csv/              -- Game data (extracted from pret by `cabal run extract`)
+├── data/charsets/         -- Character encoding JSONs (en, frde, ites, jp × gen1/gen2)
+├── data/event-pokemon/    -- Event distribution CSVs (not loaded yet)
+└── test/                  -- Tests (stats, codec round-trip, move legality)
 ```
 
-### Key types (in Pokemon.Types)
+### Key types
 
-- `Gen` — Gen1 | Gen2
-- `Species` — Pokedex entry with base stats, types, growth rate, and SpeciesGenFields
-- `SpeciesGenFields` — Gen1SpeciesFields | Gen2SpeciesFields (gender ratio, egg groups, base happiness)
-- `BaseStats` — HP, Attack, Defense, Speed, Special (with gen-aware split)
-- `Special` — Unified Int (Gen 1) | Split Int Int (Gen 2)
-- `GenderRatio` — AllMale | Female12_5 | Female25 | Female50 | Female75 | AllFemale | Genderless
-- `EggGroup` — 15 groups (EggMonster through EggNone). EggNone = legendaries.
-- `MoveType` — StandardType PokemonType | CurseType | UnknownType Word8
-- `Move` — Move definition (name, MoveType, power, PP)
-- `DVs` — 4 determinant values (Attack, Defense, Speed, Special). HP derived.
-- `StatExp` — 5 stat experience values. Same storage in both gens.
-- `Pokemon` — Instance in a save file, with GenData sum type
-- `Machine` — TM Int | HM Int (number only; move mapping is per-gen)
-- `LearnMethod` — LevelUp | TMMachine | HMMachine | EggMove | Tradeback | PreEvo | ...
-- `LearnSource` — One way a species can learn a move. Nests recursively via
-  `sourceVia` to explain compound paths (e.g. PreEvo → Tradeback → TM).
-- `EvoTrigger` — Sum type of evolution conditions (level, item, trade, trade-with-item,
-  happiness, stat comparison)
-- `EvolutionStep` — Edge: species A → species B when trigger fires
-- `MachineData` — TM/HM teaching data: machine-to-move mapping + species compatibility.
-- `LearnsetData` — Direct-learn sources: level-up learnsets, egg moves, tutor moves.
-- `SpeciesGraph` — Species data + bidirectional evolution maps.
-- `LookupTables` — Name-to-ID lookup tables (moves, items). App layer, not legality.
-- `GameData` — All static data for one gen. Contains gameGen + four subrecords
-  (MachineData, LearnsetData, SpeciesGraph, LookupTables).
-- `Language` — English | French | German | Italian | Spanish | Japanese
-- `GameChar` — Literal Char | Ligature Text | UnknownByte Word8
-- `GameText` — Newtype over [GameChar]. Lossless decoded Game Boy text.
-- `TextCodec` — Decode/encode maps for one (Gen, Language) pair.
-- `NamingScreen` — One game variant's choosable character set.
-- `EventConstraint` — Predicate on Pokemon (Maybe = "any value valid")
+See the organized export list in `src/Pokemon/Types.hs` for the full
+type catalog. The exports are grouped by section with comments. Below
+are only the types whose design isn't obvious from the code alone.
+
+- `Special` — Unified Int (Gen 1) | Split Int Int (Gen 2). Models
+  the Special stat split as a sum type rather than conditional fields.
+  This pattern recurs throughout the codebase.
+- `SpeciesGenFields` — Gen1SpeciesFields | Gen2SpeciesFields. Gen 1
+  has no gender, egg groups, or base happiness. Uses a sum type
+  mirroring Special (Unified | Split) and GenData (Gen1Data | Gen2Data)
+  rather than Maybe fields. Pattern-match on the variant.
+- `GameChar` — Opaque outside the codec. Each constructor carries its
+  ROM source byte (!Word8), so two GameChars from different bytes are
+  distinct even if they display the same glyph. Construction is
+  restricted via the Internal module pattern: only Pokemon.TextCodec
+  imports Pokemon.Types.Internal; everything else sees the type without
+  constructors.
+- `GameText` — Newtype over [GameChar]. The lossless intermediate
+  representation for Game Boy text. Losslessness is enforced by
+  GameChar's embedded byte, not convention. `displayText` converts
+  to Text (lossy, for display only).
+- `TextCodec` — Decode map only (Map Word8 GameChar). No encode map:
+  encoding extracts the byte already embedded in each GameChar.
+- `GameData` — All static data for one gen. Four subrecords grouped
+  by usage pattern: MachineData (TM/HM mappings + compatibility),
+  LearnsetData (level-up, egg, tutor), SpeciesGraph (species +
+  bidirectional evolution maps), LookupTables (name→ID, app layer).
+  Functions take the subrecord they need, not the whole GameData.
+- `LearnSource` — One way a species can learn a move. Nests
+  recursively via `sourceVia` to explain compound paths (e.g.
+  Tradeback "Gen 1" [TM source] or PreEvo "PIKACHU" [level-up source]).
+- `LoadError` — Structured error for the loading boundary (CSV and
+  charset). Each constructor carries file path, row number, column
+  name, etc. Rendered by `renderLoadError`; `loadOrDie` crashes on
+  Left for the current error-or-die style.
+- `Row` — CSV row carrying file path and row number provenance
+  (lives in Data.hs, not Types.hs). Typed column accessors
+  (`intColumn`, `textColumn`, etc.) produce LoadError values with
+  full context automatically.
 
 ### Key design decisions
 
 - Dex number is the universal species key across gens
 - DVs and StatExp are gen-agnostic types (same storage format)
-- The Special stat split (Gen 1→Gen 2) is modeled as a sum type
-  in Special, not as conditional fields
 - Empty Maps represent absent GameData features (e.g. no egg moves
-  in Gen 1). Species-level fields that are absent in Gen 1 use a sum
-  type (SpeciesGenFields: Gen1SpeciesFields | Gen2SpeciesFields),
-  matching the pattern established by Special (Unified | Split) and
-  GenData (Gen1Data | Gen2Data). Pattern-match on the gen variant
-  rather than handling Maybe.
+  in Gen 1). Species-level fields that are absent in Gen 1 use a
+  sum type (SpeciesGenFields), matching the Special and GenData
+  pattern. Pattern-match on the gen variant rather than handling Maybe.
 - LearnMethod/Tradeback is always relative to the gen you're asking about
 - Event profiles are predicates (constraints), not Pokemon instances
-- GameText is the lossless intermediate representation for Game Boy text.
-  The codec decodes bytes → GameText (preserving ligatures and unknown
-  bytes); displayText converts GameText → Text (lossy, for display only).
-  This prevents the "normalize everything" trap where information is
-  silently lost during conversion.
 - NamingScreens are stored per game variant (not unioned) because the
   legality check is existential: "does ANY single screen cover all chars
   in this name?" A union would allow names that no single game can
   actually type — e.g. in German Gen 2, space is choosable in
   Gold/Silver but not Crystal, while × is choosable in Crystal but
-  not Gold/Silver. Both characters are in the encoding (other layers
-  handle that), but no single game's name entry screen offers both.
-- GenderRatio is a sum type (not a raw byte). `genderThreshold` converts
-  back to the byte value for stat calculation (not yet integrated).
-- EggGroup has EggNone in the enum (not as a Maybe layer) because the ROM
-  always stores two slots — SpeciesGenFields distinguishes Gen 1 (absent,
-  Gen1SpeciesFields) from Gen 2 (present, Gen2SpeciesFields).
+  not Gold/Silver.
 - CSVs use pret ASM constant names throughout. The extraction layer
   (extract/) handles all format knowledge; the library (Data.hs) does
   pure name→type mapping with no heuristics.
 - Trade evolutions are normalized at extraction: EVOLVE_TRADE (plain)
   and EVOLVE_TRADE_ITEM (with held item) are distinct CSV methods.
-- GameData groups its fields into four subrecords (MachineData,
-  LearnsetData, SpeciesGraph, LookupTables) by usage pattern. This
-  makes function dependencies explicit in type signatures and avoids
-  requiring all fields for testing individual checks.
+- Name-to-type mappings live in Pokemon.Schema as Map Text a values,
+  not pattern-match chains. This prevents catch-all clauses from
+  silently swallowing new constructors.
+- The loading layer uses structured LoadError values returned via
+  Either, not error calls. The pure query layer (Legality, Stats)
+  is total; errors live at the loading boundary.
 
 ## Data provenance
 
@@ -145,14 +141,8 @@ language group: en, frde, ites, jp.
 ## What's next (rough order)
 
 1. **Save parser** — binary format reading/writing for Gen 1 and Gen 2
-3. **Event matching** — constraint checking against event profiles
-4. **CLI interface** — subcommands (info, edit, classify, etc.)
-5. Tests alongside each module
-6. **Error handling boundary** — extraction and CSV loading use `error`
-   because the inputs are controlled (curated CSVs, pret ASM sources).
-   The save parser will handle untrusted binary input and should use
-   `Either` with a descriptive error type from the start. The `error`
-   pattern shouldn't carry over into that work.
+2. **Event matching** — constraint checking against event profiles
+3. **CLI interface** — subcommands (info, edit, classify, etc.)
 
 ## Known tricky areas
 

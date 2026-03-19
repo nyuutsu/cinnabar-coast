@@ -66,7 +66,7 @@ main = hspec $ do
         calcHP (StatInput base (dvHP dvs) (expHP statExp)) level > 0
 
   describe "Text codec round-trip" $ do
-    codec <- runIO $ fst <$> loadCodec Gen1 English
+    codec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
     let safeChars = [ gameChar | (byte, gameChar) <- Map.toList (codecDecode codec)
                          , byte /= terminator ]
     prop "preserves all characters in the decode map" $
