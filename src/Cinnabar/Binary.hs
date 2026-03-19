@@ -22,7 +22,7 @@ module Cinnabar.Binary
   ) where
 
 import Data.Bits (shiftL, (.|.))
-import qualified Data.ByteString as BS
+import qualified Data.ByteString as ByteString
 import Data.Word (Word8, Word16)
 
 
@@ -31,12 +31,12 @@ import Data.Word (Word8, Word16)
 -- | A position within a ByteString. Tracks the current offset
 -- for sequential reads through fixed-layout binary data.
 data Cursor = Cursor
-  { cursorSource :: !BS.ByteString
+  { cursorSource :: !ByteString.ByteString
   , cursorOffset :: !Int
   }
 
 -- | Create a cursor at the beginning of a ByteString.
-mkCursor :: BS.ByteString -> Cursor
+mkCursor :: ByteString.ByteString -> Cursor
 mkCursor source = Cursor { cursorSource = source, cursorOffset = 0 }
 
 
@@ -45,7 +45,7 @@ mkCursor source = Cursor { cursorSource = source, cursorOffset = 0 }
 -- | Read one byte and advance.
 readByte :: Cursor -> (Word8, Cursor)
 readByte cursor =
-  let byte = BS.index (cursorSource cursor) (cursorOffset cursor)
+  let byte = ByteString.index (cursorSource cursor) (cursorOffset cursor)
   in (byte, cursor { cursorOffset = cursorOffset cursor + 1 })
 
 -- | Read a 16-bit big-endian value and advance by 2.
@@ -53,8 +53,8 @@ readWord16BE :: Cursor -> (Word16, Cursor)
 readWord16BE cursor =
   let source = cursorSource cursor
       offset = cursorOffset cursor
-      highByte = fromIntegral (BS.index source offset) :: Word16
-      lowByte  = fromIntegral (BS.index source (offset + 1)) :: Word16
+      highByte = fromIntegral (ByteString.index source offset) :: Word16
+      lowByte  = fromIntegral (ByteString.index source (offset + 1)) :: Word16
   in (highByte `shiftL` 8 .|. lowByte, cursor { cursorOffset = offset + 2 })
 
 -- | Read a 24-bit big-endian value as Int and advance by 3.
@@ -63,18 +63,18 @@ readWord24BE :: Cursor -> (Int, Cursor)
 readWord24BE cursor =
   let source = cursorSource cursor
       offset = cursorOffset cursor
-      highByte = fromIntegral (BS.index source offset)
-      midByte  = fromIntegral (BS.index source (offset + 1))
-      lowByte  = fromIntegral (BS.index source (offset + 2))
+      highByte = fromIntegral (ByteString.index source offset)
+      midByte  = fromIntegral (ByteString.index source (offset + 1))
+      lowByte  = fromIntegral (ByteString.index source (offset + 2))
   in ( highByte `shiftL` 16 .|. midByte `shiftL` 8 .|. lowByte
      , cursor { cursorOffset = offset + 3 }
      )
 
 -- | Read a slice of n bytes and advance. Zero-copy — uses
 -- ByteString's take/drop which share the underlying buffer.
-readBytes :: Int -> Cursor -> (BS.ByteString, Cursor)
+readBytes :: Int -> Cursor -> (ByteString.ByteString, Cursor)
 readBytes count cursor =
-  let slice = BS.take count (BS.drop (cursorOffset cursor) (cursorSource cursor))
+  let slice = ByteString.take count (ByteString.drop (cursorOffset cursor) (cursorSource cursor))
   in (slice, cursor { cursorOffset = cursorOffset cursor + count })
 
 

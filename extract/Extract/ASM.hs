@@ -48,8 +48,8 @@ import Data.Functor (void)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Data.Void (Void)
 import Text.Megaparsec hiding (parseError)
 import Text.Megaparsec.Char hiding (hspace, eol, char)  -- we define our own horizontalSpace and endOfLine
@@ -68,7 +68,7 @@ type Parser = Parsec Void Text
 -- pret sources under our control, not user input.
 parseFile :: Parser a -> FilePath -> IO a
 parseFile parser path = do
-  content <- TIO.readFile path
+  content <- TextIO.readFile path
   case parse parser path content of
     Left parseError -> error (errorBundlePretty parseError)
     Right result    -> pure result
@@ -100,7 +100,7 @@ identifier :: Parser Text
 identifier = lexeme $ do
   firstChar <- satisfy (\char -> char == '_' || (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z'))
   rest <- takeWhileP (Just "identifier") isIdentifierChar
-  pure (T.cons firstChar rest)
+  pure (Text.cons firstChar rest)
 
 -- | Character that can appear in an ASM identifier.
 isIdentifierChar :: Char -> Bool
@@ -345,4 +345,4 @@ commaSeparated = do
   endOfLine
   pure args
   where
-    arg = T.strip <$> takeWhile1P (Just "argument") (\char -> char /= ',' && char /= ';' && char /= '\n')
+    arg = Text.strip <$> takeWhile1P (Just "argument") (\char -> char /= ',' && char /= ';' && char /= '\n')

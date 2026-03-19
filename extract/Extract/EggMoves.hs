@@ -13,7 +13,7 @@ module Extract.EggMoves (extractEggMoves, eggMovesHeader) where
 
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Text.Megaparsec
 
 import Extract.ASM
@@ -27,7 +27,7 @@ extractEggMoves pointersPath eggMovesPath = do
   pointers <- parseFile parsePointerTable pointersPath
   blocks   <- parseFile parseEggMoveBlocks eggMovesPath
   let blockMap = Map.fromList blocks
-  pure [ [T.pack (show dex), move]
+  pure [ [Text.pack (show dex), move]
        | (dex, blockName) <- zip [1 :: Int ..] pointers
        , blockName /= "NoEggMoves"
        , move <- Map.findWithDefault [] blockName blockMap

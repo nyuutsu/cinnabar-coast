@@ -37,11 +37,11 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Control.Exception (IOException, try)
 import Data.Char (toUpper)
 import Data.Word (Word8)
@@ -68,7 +68,7 @@ data TextCodec = TextCodec
 -- player can type. A (Gen, Language) may have multiple screens
 -- (e.g. German Gen 2 Gold/Silver vs Crystal).
 data NamingScreen = NamingScreen
-  { screenLabel :: !T.Text
+  { screenLabel :: !Text.Text
   , screenChars :: !(Set.Set GameChar)
   } deriving (Show)
 
@@ -86,25 +86,25 @@ terminator = 0x50
 -- | Decode raw bytes into GameText. Stops at the terminator byte
 -- (0x50) or end of input. Unrecognized bytes become UnknownByte
 -- values, preserving round-trip fidelity.
-decodeText :: TextCodec -> BS.ByteString -> GameText
+decodeText :: TextCodec -> ByteString.ByteString -> GameText
 decodeText codec bytes = GameText (decodeFrom 0)
   where
     decodeFrom offset
-      | offset >= BS.length bytes = []
+      | offset >= ByteString.length bytes = []
       | byte == terminator        = []
       | otherwise = case Map.lookup byte (codecDecode codec) of
           Just gameChar -> gameChar : decodeFrom (offset + 1)
           Nothing       -> UnknownByte byte : decodeFrom (offset + 1)
-      where byte = BS.index bytes offset
+      where byte = ByteString.index bytes offset
 
 -- | Encode GameText into a fixed-length ByteString, padded with
 -- terminators. The byte is extracted directly from each GameChar —
 -- no lookup needed. The output is always exactly @outputLength@ bytes.
-encodeText :: Int -> GameText -> BS.ByteString
+encodeText :: Int -> GameText -> ByteString.ByteString
 encodeText outputLength (GameText chars) =
   let encoded = take (outputLength - 1) (map charByte chars)
       padding = replicate (outputLength - length encoded) terminator
-  in BS.pack (encoded ++ padding)
+  in ByteString.pack (encoded ++ padding)
 
 
 -- ── Display ───────────────────────────────────────────────────────
@@ -113,12 +113,12 @@ encodeText outputLength (GameText chars) =
 -- conversion: Literal and Ligature expand to their text
 -- representations, UnknownByte renders as a hex placeholder.
 -- Use this only for final display output.
-displayText :: GameText -> T.Text
-displayText (GameText chars) = T.concat (map renderChar chars)
+displayText :: GameText -> Text.Text
+displayText (GameText chars) = Text.concat (map renderChar chars)
   where
-    renderChar (Literal _sourceByte char)    = T.singleton char
+    renderChar (Literal _sourceByte char)    = Text.singleton char
     renderChar (Ligature _sourceByte text)   = text
-    renderChar (UnknownByte rawByte)         = T.pack ("[0x" ++ showHexByte rawByte ++ "]")
+    renderChar (UnknownByte rawByte)         = Text.pack ("[0x" ++ showHexByte rawByte ++ "]")
 
 -- | Format a Word8 as a 2-character uppercase hex string.
 showHexByte :: Word8 -> String
@@ -145,7 +145,7 @@ lookupChar codec target =
     []          -> Nothing
 
 -- | Find a Ligature GameChar in the codec by its display text.
-lookupLigature :: TextCodec -> T.Text -> Maybe GameChar
+lookupLigature :: TextCodec -> Text.Text -> Maybe GameChar
 lookupLigature codec target =
   let matches = [ gameChar
                 | gameChar@(Ligature _sourceByte text) <- Map.elems (codecDecode codec)
@@ -164,16 +164,16 @@ loadCodec :: Gen -> Language -> IO (Either [LoadError] (TextCodec, [NamingScreen
 loadCodec gen lang = do
   dataDir <- getDataDir
   let path = dataDir </> "charsets" </> charsetFilename gen lang
-  readResult <- try (LBS.readFile path)
+  readResult <- try (LazyByteString.readFile path)
   case readResult of
     Left ioException ->
-      pure $ Left [CharsetParseError path (T.pack (show (ioException :: IOException)))]
+      pure $ Left [CharsetParseError path (Text.pack (show (ioException :: IOException)))]
     Right rawJson -> case Aeson.eitherDecode rawJson of
       Left decodeError -> pure $ Left
-        [CharsetParseError path (T.pack decodeError)]
+        [CharsetParseError path (Text.pack decodeError)]
       Right jsonValue -> case buildFromJSON gen lang jsonValue of
         Left parseError -> pure $ Left
-          [CharsetParseError path (T.pack parseError)]
+          [CharsetParseError path (Text.pack parseError)]
         Right result -> pure $ Right result
 
 
@@ -221,7 +221,7 @@ buildFromJSON gen lang jsonValue = do
 
 
 -- | Fail if any byte value appears more than once in a single variant's entries.
-checkDuplicateBytes :: [CharEntry] -> T.Text -> Either String ()
+checkDuplicateBytes :: [CharEntry] -> Text.Text -> Either String ()
 checkDuplicateBytes entries variantLabel =
   let byteCounts = Map.fromListWith (+)
         [(entryByte entry, 1 :: Int) | entry <- entries]
@@ -229,7 +229,7 @@ checkDuplicateBytes entries variantLabel =
   in case duplicateBytes of
     []    -> pure ()
     (_:_) -> Left $ "duplicate byte values in charset variant "
-               ++ T.unpack variantLabel ++ ": "
+               ++ Text.unpack variantLabel ++ ": "
                ++ unwords (map (\byte -> "0x" ++ showHexByte byte) duplicateBytes)
 
 
@@ -242,7 +242,7 @@ data CharEntry = CharEntry
 
 -- | Parse the JSON value into a list of (entries, label) pairs.
 -- Flat JSON → one pair. Variant JSON (gen2-de) → one pair per variant.
-parseCharsets :: Aeson.Value -> Either String [([CharEntry], T.Text)]
+parseCharsets :: Aeson.Value -> Either String [([CharEntry], Text.Text)]
 parseCharsets = Aeson.parseEither $ \jsonValue -> do
   jsonObject <- Aeson.parseJSON jsonValue
   -- Check for "variants" key (gen2-de.json structure)
@@ -255,8 +255,8 @@ parseCharsets = Aeson.parseEither $ \jsonValue -> do
       entries <- mapM parseCharEntry chars
       label <- do
         gen <- jsonObject Aeson..: "generation" :: Aeson.Parser Int
-        region <- jsonObject Aeson..: "region" :: Aeson.Parser T.Text
-        pure $ "Gen " <> T.pack (show gen) <> " " <> T.toUpper region
+        region <- jsonObject Aeson..: "region" :: Aeson.Parser Text.Text
+        pure $ "Gen " <> Text.pack (show gen) <> " " <> Text.toUpper region
       pure [(entries, label)]
   where
     parseVariant (label, variantValue) = do
@@ -269,8 +269,8 @@ parseCharsets = Aeson.parseEither $ \jsonValue -> do
 -- | Parse one character entry from the JSON characters array.
 parseCharEntry :: Aeson.Value -> Aeson.Parser CharEntry
 parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
-  hexStr <- jsonObject Aeson..: "hex" :: Aeson.Parser T.Text
-  glyph  <- jsonObject Aeson..: "glyph" :: Aeson.Parser T.Text
+  hexStr <- jsonObject Aeson..: "hex" :: Aeson.Parser Text.Text
+  glyph  <- jsonObject Aeson..: "glyph" :: Aeson.Parser Text.Text
   byte   <- parseHexByte hexStr
 
   -- Determine if choosable. Only explicit "choosable": false marks
@@ -282,8 +282,8 @@ parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
         Just isChoosable -> isChoosable
         Nothing          -> True
 
-  let gameChar = case T.uncons glyph of
-        Just (char, rest) | T.null rest -> Literal byte char
+  let gameChar = case Text.uncons glyph of
+        Just (char, rest) | Text.null rest -> Literal byte char
         _ -> Ligature byte glyph
 
   pure CharEntry
@@ -295,8 +295,8 @@ parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
 
 -- | Parse "0x7F" style hex strings to Word8.
 -- Uses 'fail' so parse errors are captured by the enclosing Aeson parser.
-parseHexByte :: T.Text -> Aeson.Parser Word8
+parseHexByte :: Text.Text -> Aeson.Parser Word8
 parseHexByte hexText =
-  case readHex (T.unpack (T.drop 2 hexText)) of
+  case readHex (Text.unpack (Text.drop 2 hexText)) of
     [(byteValue, "")] -> pure byteValue
-    _                 -> fail $ "Invalid hex byte: " ++ T.unpack hexText
+    _                 -> fail $ "Invalid hex byte: " ++ Text.unpack hexText

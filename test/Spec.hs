@@ -7,10 +7,10 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString as ByteString
 import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Data.Word (Word8)
 
 import Cinnabar.Types
@@ -50,10 +50,10 @@ instance Arbitrary Level where
 
 -- ── Helpers ───────────────────────────────────────────────────────
 
-setByte :: Int -> Word8 -> BS.ByteString -> BS.ByteString
+setByte :: Int -> Word8 -> ByteString.ByteString -> ByteString.ByteString
 setByte offset byte bytes =
-  let (prefix, suffix) = BS.splitAt offset bytes
-  in prefix <> BS.singleton byte <> BS.drop 1 suffix
+  let (prefix, suffix) = ByteString.splitAt offset bytes
+  in prefix <> ByteString.singleton byte <> ByteString.drop 1 suffix
 
 
 -- ── Main ────────────────────────────────────────────────────────
@@ -140,12 +140,12 @@ main = hspec $ do
     let lookupSpeciesByName gameData name =
           case Map.lookup name (gameSpeciesByName (gameSpeciesGraph gameData)) of
             Just dex -> dex
-            Nothing  -> error $ "Species not found: " ++ T.unpack name
+            Nothing  -> error $ "Species not found: " ++ Text.unpack name
 
         lookupMoveByName gameData name =
           case Map.lookup name (gameMoveByName (gameLookupTables gameData)) of
             Just matchedMoveId -> matchedMoveId
-            Nothing            -> error $ "Move not found: " ++ T.unpack name
+            Nothing            -> error $ "Move not found: " ++ Text.unpack name
 
         methods sources = map sourceMethod sources
 
@@ -205,7 +205,7 @@ main = hspec $ do
 
   describe "calculateGen1Checksum" $
     it "produces complement of byte sum" $
-      let saveBytes = BS.pack [0x01, 0x02, 0x03]
+      let saveBytes = ByteString.pack [0x01, 0x02, 0x03]
       in calculateGen1Checksum saveBytes 0 2 `shouldBe` 0xF9
 
   describe "cartridgeLayout" $
@@ -215,7 +215,7 @@ main = hspec $ do
 
   describe "Gen 1 struct parsers" $
     it "parseGen1PartyMon and parseGen1BoxMon parse a hand-crafted struct" $ do
-      let pikachuBytes = BS.pack
+      let pikachuBytes = ByteString.pack
             [ 0x54                          -- species: Pikachu internal index
             , 0x00, 0x64                    -- current HP: 100
             , 0x19                          -- box level: 25
@@ -255,9 +255,9 @@ main = hspec $ do
       if not exists
         then pendingWith "test/data/yellow.sav not present"
         else do
-          bytes <- BS.readFile savePath
+          bytes <- ByteString.readFile savePath
           case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (T.unpack msg)
+            Left msg -> expectationFailure (Text.unpack msg)
             Right layout -> case parseRawSave layout bytes of
               Left err -> expectationFailure (show err)
               Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
@@ -271,11 +271,11 @@ main = hspec $ do
 
     it "parses an empty party without crashing" $
       case cartridgeLayout Yellow RegionWestern of
-        Left msg -> expectationFailure (T.unpack msg)
+        Left msg -> expectationFailure (Text.unpack msg)
         Right layout -> case layoutOffsets layout of
           Gen2Offsets _ -> expectationFailure "expected Gen 1 offsets"
           Gen1Offsets offsets -> do
-            let zeroes = BS.replicate 32768 0x00
+            let zeroes = ByteString.replicate 32768 0x00
                 withTerminators = setByte (g1PartyData offsets + 1) 0xFF
                                 $ setByte (g1CurrentBox offsets + 1) 0xFF
                                 $ zeroes

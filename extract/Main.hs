@@ -13,8 +13,8 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import System.Directory (doesFileExist)
 import System.Environment (getArgs)
 import System.FilePath ((</>), takeBaseName)
@@ -124,7 +124,7 @@ extractAll pokered pokecrystal outDir = do
   -- Gen 1 starting moves live in base_stats, not evos_moves.
   -- Gen 2 has them inline in evos_attacks.asm (as level 1 entries).
   let gen1StartingRows =
-        [ ["1", T.pack (show dex), "1", move]
+        [ ["1", Text.pack (show dex), "1", move]
         | (dex, _name, parsedSpecies) <- gen1SpeciesData
         , move <- gen1StartingMoves parsedSpecies
         ]
@@ -161,9 +161,9 @@ extractAllSpecies :: FilePath -> IO [(Int, Text, SpeciesData)]
 extractAllSpecies repoPath = do
   includes <- parseFile parseBaseStatsIncludes
     (repoPath </> "data/pokemon/base_stats.asm")
-  speciesList <- mapM (\includePath -> extractSpeciesFile (repoPath </> T.unpack includePath))
+  speciesList <- mapM (\includePath -> extractSpeciesFile (repoPath </> Text.unpack includePath))
     includes
-  let nameFromInclude includePath = T.toUpper . T.pack $ takeBaseName (T.unpack includePath)
+  let nameFromInclude includePath = Text.toUpper . Text.pack $ takeBaseName (Text.unpack includePath)
       names = map nameFromInclude includes
       numbered = zip3 [1 :: Int ..] names speciesList
       nextDex = length includes + 1
@@ -207,7 +207,7 @@ parseDexOrderFile = scanLines parseDbEntry
       arg <- takeWhile1P (Just "argument") (\char -> char /= '\n' && char /= ';' && char /= ' ' && char /= '\t')
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
-      pure (T.strip arg)
+      pure (Text.strip arg)
 
 -- | Build species constant name → dex number for Gen 1.
 -- Composes: name → internal index → dex number.
@@ -239,7 +239,7 @@ buildMoveNumberMap tmhm =
 -- For each species' tmhm moves, look up the TM/HM number.
 buildTMHMCompat :: Text -> Map Text Int -> [(Int, Text, SpeciesData)] -> [[Text]]
 buildTMHMCompat gen moveToNumber speciesData =
-  [ [gen, T.pack (show dex), T.pack (show number)]
+  [ [gen, Text.pack (show dex), Text.pack (show number)]
   | (dex, _name, parsedSpecies) <- speciesData
   , moveName <- speciesTmhm parsedSpecies
   , Just number <- [Map.lookup moveName moveToNumber]
@@ -250,7 +250,7 @@ buildTMHMCompat gen moveToNumber speciesData =
 buildTutorCompat :: TMHM -> [(Int, Text, SpeciesData)] -> [[Text]]
 buildTutorCompat tmhm speciesData =
   let tutorSet = Set.fromList (tutorMoves tmhm)
-  in [ [T.pack (show dex), moveName]
+  in [ [Text.pack (show dex), moveName]
      | (dex, _name, parsedSpecies) <- speciesData
      , moveName <- speciesTmhm parsedSpecies
      , Set.member moveName tutorSet
@@ -261,7 +261,7 @@ buildTutorCompat tmhm speciesData =
 
 writeCSV :: FilePath -> [Text] -> [[Text]] -> IO ()
 writeCSV path header rows = do
-  let headerLine = T.intercalate "," header
-      dataLines  = map (T.intercalate ",") rows
-  TIO.writeFile path (T.unlines (headerLine : dataLines))
+  let headerLine = Text.intercalate "," header
+      dataLines  = map (Text.intercalate ",") rows
+  TextIO.writeFile path (Text.unlines (headerLine : dataLines))
   putStrLn $ "  Wrote " ++ path ++ " (" ++ show (length rows) ++ " rows)"

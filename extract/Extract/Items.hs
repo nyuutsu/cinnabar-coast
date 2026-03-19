@@ -8,7 +8,7 @@
 module Extract.Items (extractItems, itemsHeader) where
 
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Text.Megaparsec
 
 import Extract.ASM
@@ -34,7 +34,7 @@ parseItemNames = scanLines parseLi
       pure name
 
 formatRow :: Text -> Int -> Text -> [Text]
-formatRow gen itemId name = [gen, T.pack (show itemId), name]
+formatRow gen itemId name = [gen, Text.pack (show itemId), name]
 
 itemsHeader :: [Text]
 itemsHeader = ["gen", "id", "name"]

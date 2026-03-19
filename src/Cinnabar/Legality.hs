@@ -23,7 +23,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import Cinnabar.Types
 
@@ -79,7 +79,7 @@ checkLevelUp levelUpMap dex moveId level =
   case Map.lookup dex levelUpMap of
     Nothing      -> []
     Just entries ->
-      [ LearnSource LevelUp (T.pack $ "L" ++ show (unLevel entryLevel)) []
+      [ LearnSource LevelUp (Text.pack $ "L" ++ show (unLevel entryLevel)) []
       | LevelUpEntry entryLevel entryMoveId <- entries
       , entryMoveId == moveId
       , entryLevel <= level
@@ -93,7 +93,7 @@ checkMachine machineData dex moveId =
   case Map.lookup dex (gameMachineCompat machineData) of
     Nothing               -> []
     Just compatibleMachines ->
-      [ LearnSource method (T.pack label) []
+      [ LearnSource method (Text.pack label) []
       | (machine, machineMoveId) <- Map.toList (gameMachines machineData)
       , machineMoveId == moveId
       , Set.member machine compatibleMachines
@@ -217,8 +217,8 @@ padNum number
   | otherwise = show number
 
 -- | Look up a species name for display, falling back to dex number.
-speciesLabel :: SpeciesGraph -> DexNumber -> T.Text
+speciesLabel :: SpeciesGraph -> DexNumber -> Text.Text
 speciesLabel graph dex =
   case Map.lookup dex (gameSpecies graph) of
-    Just species -> speciesName species <> " (#" <> T.pack (show (unDex dex)) <> ")"
-    Nothing      -> "#" <> T.pack (show (unDex dex))
+    Just species -> speciesName species <> " (#" <> Text.pack (show (unDex dex)) <> ")"
+    Nothing      -> "#" <> Text.pack (show (unDex dex))

@@ -216,7 +216,8 @@ shouldn't come back in through new helpers or variables. `buildRow`
 not `mkRow`, `species` not `s`, `collectResults` not `go`.
 This includes test code.
 
-**Qualified imports** for containers (`Map`, `Set`, `T` for Text).
+**Qualified imports** for containers (`Map`, `Set`, `Text`,
+`ByteString`, `LazyByteString`, `TextIO`).
 
 **Comments explain WHY, not WHAT.** If a comment restates the code,
 delete it.

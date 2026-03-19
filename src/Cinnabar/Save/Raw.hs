@@ -23,7 +23,7 @@ module Cinnabar.Save.Raw
   , parseRawSave
   ) where
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString as ByteString
 import Data.Text (Text)
 import Data.Word (Word8)
 
@@ -57,10 +57,10 @@ data RawSaveFile
   | RawGen2Save !RawGen2SaveFile
 
 data RawGen1SaveFile = RawGen1SaveFile
-  { rawGen1Bytes         :: !BS.ByteString
+  { rawGen1Bytes         :: !ByteString.ByteString
   , rawGen1Layout        :: !CartridgeLayout
-  , rawGen1PlayerName    :: !BS.ByteString
-  , rawGen1RivalName     :: !BS.ByteString
+  , rawGen1PlayerName    :: !ByteString.ByteString
+  , rawGen1RivalName     :: !ByteString.ByteString
   , rawGen1Party         :: !RawGen1Party
   , rawGen1CurrentBox    :: !RawGen1Box
   , rawGen1Checksum      :: !Word8
@@ -77,16 +77,16 @@ data RawGen1Party = RawGen1Party
   { rawPartyCount   :: !Word8
   , rawPartySpecies :: ![InternalIndex]
   , rawPartyMons    :: ![RawGen1PartyMon]
-  , rawPartyOTNames :: ![BS.ByteString]
-  , rawPartyNicks   :: ![BS.ByteString]
+  , rawPartyOTNames :: ![ByteString.ByteString]
+  , rawPartyNicks   :: ![ByteString.ByteString]
   } deriving (Eq, Show)
 
 data RawGen1Box = RawGen1Box
   { rawBoxCount   :: !Word8
   , rawBoxSpecies :: ![InternalIndex]
   , rawBoxMons    :: ![RawGen1BoxMon]
-  , rawBoxOTNames :: ![BS.ByteString]
-  , rawBoxNicks   :: ![BS.ByteString]
+  , rawBoxOTNames :: ![ByteString.ByteString]
+  , rawBoxNicks   :: ![ByteString.ByteString]
   } deriving (Eq, Show)
 
 
@@ -95,11 +95,11 @@ data RawGen1Box = RawGen1Box
 gen1FileSize :: Int
 gen1FileSize = 32768
 
-parseRawSave :: CartridgeLayout -> BS.ByteString -> Either SaveError RawSaveFile
+parseRawSave :: CartridgeLayout -> ByteString.ByteString -> Either SaveError RawSaveFile
 parseRawSave layout bytes = case layoutGen layout of
   Gen1
-    | BS.length bytes /= gen1FileSize ->
-        Left (WrongFileSize gen1FileSize (BS.length bytes))
+    | ByteString.length bytes /= gen1FileSize ->
+        Left (WrongFileSize gen1FileSize (ByteString.length bytes))
     | Gen1Offsets offsets <- layoutOffsets layout ->
         Right (RawGen1Save (parseGen1Save layout offsets bytes))
     | otherwise ->
@@ -109,7 +109,7 @@ parseRawSave layout bytes = case layoutGen layout of
 
 -- ── Gen 1 Save Parsing ────────────────────────────────────────
 
-parseGen1Save :: CartridgeLayout -> Gen1SaveOffsets -> BS.ByteString -> RawGen1SaveFile
+parseGen1Save :: CartridgeLayout -> Gen1SaveOffsets -> ByteString.ByteString -> RawGen1SaveFile
 parseGen1Save layout offsets bytes =
   let cursor      = mkCursor bytes
       nameLen     = layoutNameLen layout
@@ -120,7 +120,7 @@ parseGen1Save layout offsets bytes =
       (party, _)      = parseGen1Party nameLen (seekTo (g1PartyData offsets) cursor)
       (currentBox, _) = parseGen1Box nameLen boxCapacity (seekTo (g1CurrentBox offsets) cursor)
 
-      storedChecksum     = BS.index bytes (g1Checksum offsets)
+      storedChecksum     = ByteString.index bytes (g1Checksum offsets)
       calculatedChecksum = calculateGen1Checksum bytes
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
 

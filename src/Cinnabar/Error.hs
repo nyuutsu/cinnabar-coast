@@ -13,7 +13,7 @@ module Cinnabar.Error
   , loadOrDie
   ) where
 
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import Cinnabar.Types (ColumnName (..), DexNumber (..), EnumLabel (..), RowNumber (..))
 
@@ -34,7 +34,7 @@ data LoadError
       !FilePath
       !RowNumber
       !ColumnName
-      !T.Text           -- raw value
+      !Text.Text           -- raw value
   | EmptyRequiredField
       !FilePath
       !RowNumber
@@ -48,15 +48,15 @@ data LoadError
       !FilePath
       !RowNumber
       !EnumLabel         -- what was being parsed (human-readable label)
-      !T.Text           -- raw value
+      !Text.Text           -- raw value
   | CharsetParseError
       !FilePath
-      !T.Text           -- description of the parse failure
+      !Text.Text           -- description of the parse failure
   | UnresolvedName
       !FilePath
       !RowNumber
       !ColumnName       -- the column containing the name
-      !T.Text           -- the name that failed to resolve
+      !Text.Text           -- the name that failed to resolve
   | DanglingEvolution
       !FilePath
       !DexNumber        -- dex number not found in the species map
@@ -70,53 +70,53 @@ data LoadError
 
 -- | Format: filepath:rowNumber: description (row-level)
 --           filepath: description (file-level)
-renderLoadError :: LoadError -> T.Text
+renderLoadError :: LoadError -> Text.Text
 renderLoadError (EmptyCSV errorFilePath) =
-  T.pack errorFilePath <> ": CSV file is empty"
+  Text.pack errorFilePath <> ": CSV file is empty"
 
 renderLoadError (MissingColumn errorFilePath errorColumnName existingColumns) =
-  T.pack errorFilePath <> ": column not found: "
+  Text.pack errorFilePath <> ": column not found: "
     <> unColumnName errorColumnName
-    <> " (have: " <> T.intercalate ", " (map unColumnName existingColumns) <> ")"
+    <> " (have: " <> Text.intercalate ", " (map unColumnName existingColumns) <> ")"
 
 renderLoadError (UnparseableInt errorFilePath errorRowNumber errorColumnName errorRawValue) =
-  T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
+  Text.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
     <> ": unparseable integer in column " <> unColumnName errorColumnName
     <> ": " <> quoteValue errorRawValue
 
 renderLoadError (EmptyRequiredField errorFilePath errorRowNumber errorColumnName) =
-  T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
+  Text.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
     <> ": required field is empty: " <> unColumnName errorColumnName
 
 renderLoadError (RowTooShort errorFilePath errorRowNumber expectedCount actualCount) =
-  T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
-    <> ": row too short: expected " <> T.pack (show expectedCount)
-    <> " columns, got " <> T.pack (show actualCount)
+  Text.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
+    <> ": row too short: expected " <> Text.pack (show expectedCount)
+    <> " columns, got " <> Text.pack (show actualCount)
 
 renderLoadError (UnknownEnum errorFilePath errorRowNumber errorLabel errorRawValue) =
-  T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
+  Text.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
     <> ": unknown " <> unEnumLabel errorLabel <> ": " <> quoteValue errorRawValue
 
 renderLoadError (CharsetParseError errorFilePath errorDescription) =
-  T.pack errorFilePath <> ": charset parse error: " <> errorDescription
+  Text.pack errorFilePath <> ": charset parse error: " <> errorDescription
 
 renderLoadError (UnresolvedName errorFilePath errorRowNumber errorColumnName unresolvedValue) =
-  T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
+  Text.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
     <> ": unresolved name in column " <> unColumnName errorColumnName
     <> ": " <> quoteValue unresolvedValue
 
 renderLoadError (DanglingEvolution errorFilePath dex) =
-  T.pack errorFilePath <> ": evolution references unknown dex #"
-    <> T.pack (show (unDex dex))
+  Text.pack errorFilePath <> ": evolution references unknown dex #"
+    <> Text.pack (show (unDex dex))
 
 renderLoadError (EvolutionCycle errorFilePath dex) =
-  T.pack errorFilePath <> ": evolution cycle detected at dex #"
-    <> T.pack (show (unDex dex))
+  Text.pack errorFilePath <> ": evolution cycle detected at dex #"
+    <> Text.pack (show (unDex dex))
 
-renderRowNumber :: RowNumber -> T.Text
-renderRowNumber = T.pack . show . unRowNumber
+renderRowNumber :: RowNumber -> Text.Text
+renderRowNumber = Text.pack . show . unRowNumber
 
-quoteValue :: T.Text -> T.Text
+quoteValue :: Text.Text -> Text.Text
 quoteValue value = "\"" <> value <> "\""
 
 
@@ -128,5 +128,5 @@ quoteValue value = "\"" <> value <> "\""
 -- Returns IO so it chains cleanly with =<< on IO (Either ...) actions.
 loadOrDie :: Either [LoadError] a -> IO a
 loadOrDie (Right value) = pure value
-loadOrDie (Left errors) = error $ T.unpack $
-  T.intercalate "\n" (map renderLoadError errors)
+loadOrDie (Left errors) = error $ Text.unpack $
+  Text.intercalate "\n" (map renderLoadError errors)

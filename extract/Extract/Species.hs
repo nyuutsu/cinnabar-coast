@@ -23,7 +23,7 @@ module Extract.Species
   ) where
 
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Text.Megaparsec
 
 import Extract.ASM
@@ -81,7 +81,7 @@ parseBaseStats = scanArguments [] [] []
     parseTmhmLine = do
       _ <- keyword "tmhm"
       content <- logicalLine
-      pure (map T.strip (filter (not . T.null) (T.splitOn "," content)))
+      pure (map Text.strip (filter (not . Text.null) (Text.splitOn "," content)))
 
     -- Read a logical line, joining backslash-continued lines.
     logicalLine :: Parser Text
@@ -113,14 +113,14 @@ formatGen1Species name dex speciesData = case speciesDbArgs speciesData of
     : type1 : type2 : catchRate : baseExp
     : _move1 : _move2 : _move3 : _move4
     : growthRate : _padding : _) ->
-    [ "1", T.pack (show dex), name
+    [ "1", Text.pack (show dex), name
     , hp, attack, defense, speed
     , special, special, special     -- unified in Gen 1
     , type1, type2
     , catchRate, baseExp, growthRate
     , "", "", "", "", "", "", ""    -- Gen 2 fields absent
     ]
-  _ -> error $ "Gen 1 species " ++ T.unpack name ++ ": unexpected field count"
+  _ -> error $ "Gen 1 species " ++ Text.unpack name ++ ": unexpected field count"
 
 -- | Format a Gen 2 species row from parsed data.
 -- Gen 2 db args order (positional):
@@ -140,7 +140,7 @@ formatGen2Species name dex speciesData =
       : type1 : type2 : catchRate : baseExp
       : item1 : item2 : gender
       : baseHappiness : hatchCycles : _unknown : growthRate : _) ->
-      [ "2", T.pack (show dex), name
+      [ "2", Text.pack (show dex), name
       , hp, attack, defense, speed
       , specialAttack, specialAttack, specialDefense
       , type1, type2
@@ -150,7 +150,7 @@ formatGen2Species name dex speciesData =
       , item1, item2
       , hatchCycles, baseHappiness
       ]
-    _ -> error $ "Gen 2 species " ++ T.unpack name ++ ": unexpected field count"
+    _ -> error $ "Gen 2 species " ++ Text.unpack name ++ ": unexpected field count"
 
 -- | Extract Gen 1 starting moves from the base_stats db args.
 -- Returns move constant names, filtering out NO_MOVE (empty slots).

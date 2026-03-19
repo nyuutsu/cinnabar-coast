@@ -23,7 +23,7 @@ import Data.Char (isDigit)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Text.Megaparsec
 
 import Extract.ASM
@@ -100,7 +100,7 @@ parseEvosAttacksFile = scanBlocks []
 -- | Format learnset data into CSV rows.
 formatLearnsetRows :: Text -> [(Int, EvosAttacksData)] -> [[Text]]
 formatLearnsetRows gen blocks =
-  [ [gen, T.pack (show dex), level, move]
+  [ [gen, Text.pack (show dex), level, move]
   | (dex, evosData) <- blocks
   , (level, move) <- evosAttacksLearnset evosData
   ]
@@ -127,7 +127,7 @@ formatEvolutionRows gen speciesToDex blocks =
                       | isNumericOrEmpty param1 -> ("EVOLVE_TRADE", "")
                       | otherwise               -> ("EVOLVE_TRADE_ITEM", param1)
                     _ -> (method, param1)
-              in [genLabel, T.pack (show fromDex), T.pack (show toDex), normalizedMethod, normalizedParam1, param2]
+              in [genLabel, Text.pack (show fromDex), Text.pack (show toDex), normalizedMethod, normalizedParam1, param2]
         in case args of
           [method, target]                       -> buildRow target method "" ""
           [method, firstParam, target]           -> buildRow target method firstParam ""
@@ -137,10 +137,10 @@ formatEvolutionRows gen speciesToDex blocks =
     -- | Is this text empty, or all digits (possibly with leading minus)?
     -- Used to distinguish pret's numeric sentinel from item constant names.
     isNumericOrEmpty :: Text -> Bool
-    isNumericOrEmpty text = case T.uncons (T.strip text) of
+    isNumericOrEmpty text = case Text.uncons (Text.strip text) of
       Nothing          -> True
-      Just ('-', digits) -> T.all isDigit digits && not (T.null digits)
-      Just _           -> T.all isDigit (T.strip text)
+      Just ('-', digits) -> Text.all isDigit digits && not (Text.null digits)
+      Just _           -> Text.all isDigit (Text.strip text)
 
 learnsetHeader :: [Text]
 learnsetHeader = ["gen", "dex", "level", "move_name"]

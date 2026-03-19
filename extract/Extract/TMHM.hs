@@ -8,7 +8,7 @@
 module Extract.TMHM (extractTMHM, tmhmHeader) where
 
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import Extract.ASM
 
@@ -26,7 +26,7 @@ extractTMHM gen path = do
 
 formatRow :: Text -> Text -> Int -> Text -> [Text]
 formatRow gen kind number moveName =
-  [gen, T.pack (show number), moveName, kind]
+  [gen, Text.pack (show number), moveName, kind]
 
 tmhmHeader :: [Text]
 tmhmHeader = ["gen", "number", "move_name", "kind"]

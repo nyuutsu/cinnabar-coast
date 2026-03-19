@@ -2,11 +2,11 @@
 
 module Main where
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString as ByteString
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 
 import Cinnabar.Types
 import Cinnabar.Data (loadAllGameData)
@@ -48,14 +48,14 @@ section title = putStrLn $
   "\x2500\x2500 " ++ title ++ " " ++ replicate (50 - 4 - length title) '\x2500'
 
 -- | Find a species by name in a GameData.
-findSpecies :: GameData -> T.Text -> Maybe (DexNumber, Species)
+findSpecies :: GameData -> Text.Text -> Maybe (DexNumber, Species)
 findSpecies gameData name = do
   dex <- Map.lookup name (gameSpeciesByName (gameSpeciesGraph gameData))
   species <- Map.lookup dex (gameSpecies (gameSpeciesGraph gameData))
   pure (dex, species)
 
 -- | Find a move by name in a GameData.
-findMove :: GameData -> T.Text -> Maybe (MoveId, Move)
+findMove :: GameData -> Text.Text -> Maybe (MoveId, Move)
 findMove gameData name = do
   matchedMoveId <- Map.lookup name (gameMoveByName (gameLookupTables gameData))
   move <- Map.lookup matchedMoveId (gameMoves (gameLookupTables gameData))
@@ -134,16 +134,16 @@ demoLegality gen1Data gen2Data = do
   classify gen2Data (Just gen1Data) "PIKACHU"  "THUNDERBOLT"  (Level 10)
 
 
-classify :: GameData -> Maybe GameData -> T.Text -> T.Text -> Level -> IO ()
+classify :: GameData -> Maybe GameData -> Text.Text -> Text.Text -> Level -> IO ()
 classify gameData otherGameData targetSpecies targetMove level =
   case (findSpecies gameData targetSpecies, findMove gameData targetMove) of
-    (Nothing, _) -> TIO.putStrLn $ "  " <> targetSpecies <> ": species not found"
-    (_, Nothing) -> TIO.putStrLn $ "  " <> targetMove <> ": move not found"
+    (Nothing, _) -> TextIO.putStrLn $ "  " <> targetSpecies <> ": species not found"
+    (_, Nothing) -> TextIO.putStrLn $ "  " <> targetMove <> ": move not found"
     (Just (dex, _), Just (targetMoveId, _)) -> do
       let genLabel = case gameGen gameData of Gen1 -> "Gen 1"; Gen2 -> "Gen 2"
           sources = classifyMove gameData otherGameData dex targetMoveId level
-      TIO.putStrLn $ "  " <> targetSpecies <> " + " <> targetMove
-                   <> " (" <> genLabel <> ", L" <> T.pack (show (unLevel level)) <> "):"
+      TextIO.putStrLn $ "  " <> targetSpecies <> " + " <> targetMove
+                   <> " (" <> genLabel <> ", L" <> Text.pack (show (unLevel level)) <> "):"
       if null sources
         then putStrLn "    (not learnable)"
         else putStr $ renderSources "    " sources
@@ -162,7 +162,7 @@ renderSources prefix sources = unlines (renderBranches prefix sources)
       : renderBranches (indent ++ cont) (sourceVia source)
 
     showSource source =
-      methodLabel (sourceMethod source) ++ " (" ++ T.unpack (sourceDetail source) ++ ")"
+      methodLabel (sourceMethod source) ++ " (" ++ Text.unpack (sourceDetail source) ++ ")"
 
 
 -- | Human-readable label for a LearnMethod.
@@ -193,17 +193,17 @@ demoTextCodec = do
       encoded = encodeText 11 name
       decoded = decodeText codec encoded
   putStrLn $ "  Encode \"PIKACHU\"  \x2192 " ++ showHexBytes encoded
-  TIO.putStrLn $ "  Decode back      \x2192 " <> displayText decoded
+  TextIO.putStrLn $ "  Decode back      \x2192 " <> displayText decoded
 
   -- Ligature round-trip (the PK and MN symbols from the games)
   let encodeLigature text = case lookupLigature codec text of
         Just gameChar -> gameChar
-        Nothing       -> error $ "Ligature not in codec: " ++ T.unpack text
+        Nothing       -> error $ "Ligature not in codec: " ++ Text.unpack text
       ligatureText    = GameText [encodeLigature "PK", encodeLigature "MN"]
       ligatureEncoded = encodeText 11 ligatureText
       ligatureDecoded = decodeText codec ligatureEncoded
   putStrLn $ "  Encode [PK][MN]  \x2192 " ++ showHexBytes ligatureEncoded
-  TIO.putStrLn $ "  Decode back      \x2192 " <> displayText ligatureDecoded
+  TextIO.putStrLn $ "  Decode back      \x2192 " <> displayText ligatureDecoded
 
   -- Naming screen info
   putStrLn $ "  Naming screens: " ++ show (length screens)
@@ -211,11 +211,11 @@ demoTextCodec = do
 
 
 showScreen :: NamingScreen -> IO ()
-showScreen screen = TIO.putStrLn $
+showScreen screen = TextIO.putStrLn $
   "    " <> screenLabel screen <> ": "
-  <> T.pack (show (Set.size (screenChars screen))) <> " choosable characters"
+  <> Text.pack (show (Set.size (screenChars screen))) <> " choosable characters"
 
 
 -- | Show a ByteString as space-separated hex pairs.
-showHexBytes :: BS.ByteString -> String
-showHexBytes bytes = unwords [ showHexByte byte | byte <- BS.unpack bytes ]
+showHexBytes :: ByteString.ByteString -> String
+showHexBytes bytes = unwords [ showHexByte byte | byte <- ByteString.unpack bytes ]

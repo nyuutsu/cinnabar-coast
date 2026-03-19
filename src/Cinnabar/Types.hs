@@ -111,7 +111,7 @@ import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.String (IsString (..))
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Data.Word (Word8, Word16)
 
 import Cinnabar.Types.Internal (GameChar, charByte)
@@ -137,10 +137,10 @@ newtype ColumnName  = ColumnName  { unColumnName  :: Text } deriving (Eq, Ord, S
 newtype EnumLabel   = EnumLabel   { unEnumLabel   :: Text } deriving (Eq, Ord, Show)
 
 instance IsString ColumnName where
-  fromString = ColumnName . T.pack
+  fromString = ColumnName . Text.pack
 
 instance IsString EnumLabel where
-  fromString = EnumLabel . T.pack
+  fromString = EnumLabel . Text.pack
 
 -- ── Generation ──────────────────────────────────────────────────
 

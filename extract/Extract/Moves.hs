@@ -17,7 +17,7 @@
 module Extract.Moves (extractMoves, movesHeader) where
 
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 import Extract.ASM
 
 
@@ -38,9 +38,9 @@ parseMoveTable = scanLines (keyword "move" *> commaSeparated)
 formatRow :: Text -> Int -> [Text] -> [Text]
 formatRow gen moveId fields = case fields of
   [name, effect, power, moveType, accuracy, pp] ->
-    [gen, T.pack (show moveId), name, effect, power, moveType, accuracy, pp, "0"]
+    [gen, Text.pack (show moveId), name, effect, power, moveType, accuracy, pp, "0"]
   [name, effect, power, moveType, accuracy, pp, effectChance] ->
-    [gen, T.pack (show moveId), name, effect, power, moveType, accuracy, pp, effectChance]
+    [gen, Text.pack (show moveId), name, effect, power, moveType, accuracy, pp, effectChance]
   _ -> error $ "move line has unexpected number of fields: " ++ show (length fields)
 
 -- | CSV header for the moves table.
