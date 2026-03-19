@@ -10,6 +10,7 @@ import qualified Data.Text.IO as TIO
 
 import Pokemon.Types
 import Pokemon.Data (loadAllGameData)
+import Pokemon.Error (loadOrDie)
 import Pokemon.Stats
 import Pokemon.Legality (classifyMove)
 import Pokemon.TextCodec
@@ -20,7 +21,7 @@ import Pokemon.TextCodec
 main :: IO ()
 main = do
   putStrLn "Loading game data..."
-  (gen1Data, gen2Data) <- loadAllGameData
+  (gen1Data, gen2Data) <- loadOrDie =<< loadAllGameData
   putStrLn $ "  Gen 1: " ++ show (Map.size (gameSpecies (gameSpeciesGraph gen1Data))) ++ " species, "
            ++ show (Map.size (gameMoves (gameLookupTables gen1Data))) ++ " moves, "
            ++ show (Map.size (gameMachines (gameMachineData gen1Data))) ++ " TM/HMs"

@@ -34,7 +34,8 @@ library
     bytestring >= 0.11,
     containers >= 0.6,
     text       >= 2.0,
-    filepath   >= 1.4
+    filepath   >= 1.4,
+    transformers >= 0.5
 
 executable cinnabar
   import:           warnings

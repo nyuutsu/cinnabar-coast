@@ -100,7 +100,8 @@ quoteValue value = "\"" <> value <> "\""
 -- | Crash with rendered error messages on Left. Intended for the
 -- current error-or-die loading style; will be replaced with proper
 -- error handling when the save parser introduces untrusted input.
-loadOrDie :: Either [LoadError] a -> a
-loadOrDie (Right value) = value
+-- Returns IO so it chains cleanly with =<< on IO (Either ...) actions.
+loadOrDie :: Either [LoadError] a -> IO a
+loadOrDie (Right value) = pure value
 loadOrDie (Left errors) = error $ T.unpack $
   T.intercalate "\n" (map renderLoadError errors)

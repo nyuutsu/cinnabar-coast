@@ -1,13 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
--- TODO: Remove -Wno-unused-top-binds after builders are migrated to typed accessors
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 -- | Load game data from CSV files into a 'GameData' value.
 --
 -- Each CSV is simple (no quoted fields, no embedded commas). We parse
 -- them directly with Data.Text rather than pulling in a CSV library.
--- If a field can't be parsed, we crash — the CSVs are curated and
--- a parse error means something is genuinely wrong.
+-- Structured errors are returned via 'Either' 'LoadError' rather than
+-- crashing — the CSVs are curated, but errors are reported cleanly.
 --
 -- The CSVs store pret ASM constant names (NORMAL, FIRE, MOON_STONE,
 -- GROWTH_MEDIUM_SLOW, etc.) rather than numeric IDs. This module maps
@@ -18,6 +16,7 @@ module Pokemon.Data
   , loadAllGameData
   ) where
 
+import Control.Monad.Trans.Except (ExceptT (..), runExceptT, except)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -33,77 +32,84 @@ import Pokemon.Types
 -- ── Public API ──────────────────────────────────────────────────
 
 -- | Load all static game data for one generation.
--- Convenience wrapper around 'loadAllGameData' for when only one
--- gen is needed. All CSVs are read eagerly, but only the requested
--- gen's GameData is assembled.
-loadGameData :: Gen -> IO GameData
+-- All CSVs are read and validated; only the requested gen is returned.
+loadGameData :: Gen -> IO (Either [LoadError] GameData)
 loadGameData gen = do
-  (gen1Data, gen2Data) <- loadAllGameData
-  pure $ case gen of
-    Gen1 -> gen1Data
-    Gen2 -> gen2Data
+  result <- loadAllGameData
+  pure $ case result of
+    Left errors -> Left errors
+    Right (gen1Data, gen2Data) -> Right $ case gen of
+      Gen1 -> gen1Data
+      Gen2 -> gen2Data
 
 -- | Load all static game data for both generations in a single pass.
--- Reads each CSV file once, then partitions rows by gen and builds
--- both GameData values from the shared parse. Returns (Gen 1, Gen 2).
-loadAllGameData :: IO (GameData, GameData)
+-- Reads each CSV file once, then builds both GameData values.
+-- Returns (Gen 1, Gen 2), or the first error encountered.
+loadAllGameData :: IO (Either [LoadError] (GameData, GameData))
 loadAllGameData = do
   dataDir <- getDataDir
   let csvPath name = dataDir </> "csv" </> name
+  result <- runExceptT $ do
+    movesCsv      <- ExceptT (readCSV (csvPath "moves.csv"))
+    speciesCsv    <- ExceptT (readCSV (csvPath "species.csv"))
+    machinesCsv   <- ExceptT (readCSV (csvPath "tmhm.csv"))
+    compatCsv     <- ExceptT (readCSV (csvPath "tmhm_compat.csv"))
+    learnsetsCsv  <- ExceptT (readCSV (csvPath "learnsets.csv"))
+    eggMovesCsv   <- ExceptT (readCSV (csvPath "egg_moves.csv"))
+    tutorCsv      <- ExceptT (readCSV (csvPath "tutor.csv"))
+    itemsCsv      <- ExceptT (readCSV (csvPath "items.csv"))
+    evolutionsCsv <- ExceptT (readCSV (csvPath "evolutions.csv"))
 
-  movesCsv      <- readCSV (csvPath "moves.csv")
-  speciesCsv    <- readCSV (csvPath "species.csv")
-  machinesCsv   <- readCSV (csvPath "tmhm.csv")
-  compatCsv     <- readCSV (csvPath "tmhm_compat.csv")
-  learnsetsCsv  <- readCSV (csvPath "learnsets.csv")
-  eggMovesCsv   <- readCSV (csvPath "egg_moves.csv")
-  tutorCsv      <- readCSV (csvPath "tutor.csv")
-  itemsCsv      <- readCSV (csvPath "items.csv")
-  evolutionsCsv <- readCSV (csvPath "evolutions.csv")
+    let buildForGen gen = do
+          (moves, moveNameToId)      <- buildMoves gen movesCsv
+          (species, speciesNameToId) <- buildSpecies gen speciesCsv
+          machines   <- buildMachines gen moveNameToId machinesCsv
+          compat     <- buildCompat gen compatCsv
+          levelUp    <- buildLearnsets gen moveNameToId learnsetsCsv
+          eggMoves   <- case gen of
+            Gen2 -> buildNamePairMap moveNameToId eggMovesCsv
+            Gen1 -> Right Map.empty
+          tutors     <- case gen of
+            Gen2 -> buildNamePairMap moveNameToId tutorCsv
+            Gen1 -> Right Map.empty
+          items      <- buildItems gen itemsCsv
+          evolutions <- buildEvolutions gen evolutionsCsv
+          let evolvesInto = Map.fromListWith (++)
+                [ (stepFrom step, [step]) | step <- evolutions ]
+              evolvesFrom = Map.fromListWith (++)
+                [ (stepTo step, [step]) | step <- evolutions ]
+          pure GameData
+            { gameGen          = gen
+            , gameMachineData  = MachineData
+                { gameMachines      = machines
+                , gameMachineCompat = compat
+                }
+            , gameLearnsetData = LearnsetData
+                { gameLevelUp    = levelUp
+                , gameEggMoves   = eggMoves
+                , gameTutorMoves = tutors
+                }
+            , gameSpeciesGraph = SpeciesGraph
+                { gameSpecies       = species
+                , gameSpeciesByName = speciesNameToId
+                , gameEvolvesInto   = evolvesInto
+                , gameEvolvesFrom   = evolvesFrom
+                }
+            , gameLookupTables = LookupTables
+                { gameMoves      = moves
+                , gameMoveByName = moveNameToId
+                , gameItems      = items
+                }
+            }
 
-  let buildForGen gen =
-        let (moves, moveNameToId)      = buildMoves gen movesCsv
-            (species, speciesNameToId) = buildSpecies gen speciesCsv
-            machines   = buildMachines gen moveNameToId machinesCsv
-            compat     = buildCompat gen compatCsv
-            levelUp    = buildLearnsets gen moveNameToId learnsetsCsv
-            eggMoves   = case gen of
-              Gen2 -> buildNamePairMap moveNameToId eggMovesCsv
-              Gen1 -> Map.empty
-            tutors     = case gen of
-              Gen2 -> buildNamePairMap moveNameToId tutorCsv
-              Gen1 -> Map.empty
-            items      = buildItems gen itemsCsv
-            evolutions = buildEvolutions gen evolutionsCsv
-            evolvesInto = Map.fromListWith (++)
-              [ (stepFrom step, [step]) | step <- evolutions ]
-            evolvesFrom = Map.fromListWith (++)
-              [ (stepTo step, [step]) | step <- evolutions ]
-        in GameData
-          { gameGen          = gen
-          , gameMachineData  = MachineData
-              { gameMachines      = machines
-              , gameMachineCompat = compat
-              }
-          , gameLearnsetData = LearnsetData
-              { gameLevelUp    = levelUp
-              , gameEggMoves   = eggMoves
-              , gameTutorMoves = tutors
-              }
-          , gameSpeciesGraph = SpeciesGraph
-              { gameSpecies       = species
-              , gameSpeciesByName = speciesNameToId
-              , gameEvolvesInto   = evolvesInto
-              , gameEvolvesFrom   = evolvesFrom
-              }
-          , gameLookupTables = LookupTables
-              { gameMoves      = moves
-              , gameMoveByName = moveNameToId
-              , gameItems      = items
-              }
-          }
+    except $ do
+      gen1Data <- buildForGen Gen1
+      gen2Data <- buildForGen Gen2
+      pure (gen1Data, gen2Data)
 
-  pure (buildForGen Gen1, buildForGen Gen2)
+  pure $ case result of
+    Left loadError -> Left [loadError]
+    Right value    -> Right value
 
 
 -- ── CSV reading ─────────────────────────────────────────────────
@@ -125,105 +131,101 @@ data CSV = CSV
 
 -- | Read a CSV file. Each data row becomes a Row stamped with its source
 -- file path and 1-based line number (counting only data rows, not the header).
--- Rows with fewer fields than the header get empty strings for the missing
--- columns. Blank lines are silently skipped.
-readCSV :: FilePath -> IO CSV
+-- Rows with fewer fields than the header produce a RowTooShort error.
+-- Blank lines are silently skipped.
+readCSV :: FilePath -> IO (Either LoadError CSV)
 readCSV path = do
   content <- TIO.readFile path
   let allLines = filter (not . T.null . T.strip) (T.lines content)
-  case allLines of
-    [] -> error $ "Empty CSV file: " ++ path
+  pure $ case allLines of
+    [] -> Left (EmptyCSV path)
     (headerLine:dataLines) ->
       let headers = map (ColumnName . T.strip) (T.splitOn "," headerLine)
-          toRow lineNumber line =
-            let values = map T.strip (T.splitOn "," line)
-                fields = Map.fromList (zip headers (values ++ repeat ""))
-            in Row { rowFilePath = path
-                   , rowNumber   = RowNumber lineNumber
-                   , rowFields   = fields
-                   }
-          rows = zipWith toRow [1..] dataLines
-      in pure CSV { csvFilePath = path, csvColumnNames = headers, csvRows = rows }
+          expectedCount = length headers
+      in do
+        rows <- sequence (zipWith (buildRow headers expectedCount) [1..] dataLines)
+        pure CSV { csvFilePath = path, csvColumnNames = headers, csvRows = rows }
+  where
+    buildRow headers expectedCount lineNumber line =
+      let values = map T.strip (T.splitOn "," line)
+          actualCount = length values
+      in if actualCount < expectedCount
+         then Left (RowTooShort path (RowNumber lineNumber) expectedCount actualCount)
+         else Right Row
+           { rowFilePath = path
+           , rowNumber   = RowNumber lineNumber
+           , rowFields   = Map.fromList (zip headers values)
+           }
+
+
+-- ── Column accessors ──────────────────────────────────────────────
 
 -- | Build a row accessor for a named column. Validates that the column
--- exists upfront (crashes immediately on typo), then returns a function
--- that extracts the value from any row via Map lookup.
-column :: CSV -> ColumnName -> (Row -> T.Text)
+-- exists in the header, returning MissingColumn if not. Internal helper
+-- used by the typed accessor functions below.
+column :: CSV -> ColumnName -> Either LoadError (Row -> T.Text)
 column csv name
   | name `elem` csvColumnNames csv =
-      \row -> Map.findWithDefault "" name (rowFields row)
+      Right (\row -> Map.findWithDefault "" name (rowFields row))
   | otherwise =
-      error $ "CSV column not found: " ++ T.unpack (unColumnName name)
-           ++ " (have: " ++ T.unpack (T.intercalate ", " (map unColumnName (csvColumnNames csv))) ++ ")"
-
-
--- ── Typed column accessors ────────────────────────────────────────
+      Left (MissingColumn (csvFilePath csv) name (csvColumnNames csv))
 
 -- | Integer column: empty → EmptyRequiredField, non-numeric → UnparseableInt.
-intColumn :: CSV -> ColumnName -> (Row -> Either LoadError Int)
-intColumn csv name =
-  let accessor = column csv name
-  in \row ->
+intColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError Int)
+intColumn csv name = do
+  accessor <- column csv name
+  pure $ \row ->
     let rawValue = accessor row
-    in if T.null (T.strip rawValue)
+    in if T.null rawValue
        then Left (EmptyRequiredField (rowFilePath row) (rowNumber row) name)
        else case decimal rawValue of
          Right (parsed, remainder)
            | T.null remainder -> Right parsed
          _ -> Left (UnparseableInt (rowFilePath row) (rowNumber row) name rawValue)
 
--- | Optional integer column: empty → Right Nothing, non-numeric → UnparseableInt.
-maybeIntColumn :: CSV -> ColumnName -> (Row -> Either LoadError (Maybe Int))
-maybeIntColumn csv name =
-  let accessor = column csv name
-  in \row ->
-    let rawValue = accessor row
-    in if T.null (T.strip rawValue)
-       then Right Nothing
-       else case decimal rawValue of
-         Right (parsed, remainder)
-           | T.null remainder -> Right (Just parsed)
-         _ -> Left (UnparseableInt (rowFilePath row) (rowNumber row) name rawValue)
-
 -- | Required text column: empty → EmptyRequiredField.
-textColumn :: CSV -> ColumnName -> (Row -> Either LoadError T.Text)
-textColumn csv name =
-  let accessor = column csv name
-  in \row ->
+textColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError T.Text)
+textColumn csv name = do
+  accessor <- column csv name
+  pure $ \row ->
     let rawValue = accessor row
-    in if T.null (T.strip rawValue)
+    in if T.null rawValue
        then Left (EmptyRequiredField (rowFilePath row) (rowNumber row) name)
        else Right rawValue
 
 -- | Optional text column: empty → Right Nothing.
-maybeTextColumn :: CSV -> ColumnName -> (Row -> Either LoadError (Maybe T.Text))
-maybeTextColumn csv name =
-  let accessor = column csv name
-  in \row ->
+maybeTextColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError (Maybe T.Text))
+maybeTextColumn csv name = do
+  accessor <- column csv name
+  pure $ \row ->
     let rawValue = accessor row
-    in if T.null (T.strip rawValue)
+    in if T.null rawValue
        then Right Nothing
        else Right (Just rawValue)
 
 
--- ── Field parsers ───────────────────────────────────────────────
+-- ── Enum helpers ───────────────────────────────────────────────
 
--- | Parse a Text field as Int. Empty/whitespace → 0 (convention for
--- absent optional numeric fields). Non-empty garbage → crash.
-fieldInt :: T.Text -> Int
-fieldInt fieldText
-  | T.null (T.strip fieldText) = 0
-  | otherwise = case reads (T.unpack fieldText) of
-      [(value, "")] -> value
-      _         -> error $ "Unparseable integer: " ++ T.unpack fieldText
+-- | Require a name-to-type mapping to succeed, or produce UnknownEnum.
+requireEnum :: Row -> T.Text -> (T.Text -> Maybe a) -> T.Text -> Either LoadError a
+requireEnum row label fromName rawValue = case fromName rawValue of
+  Just result -> Right result
+  Nothing     -> Left (UnknownEnum (rowFilePath row) (rowNumber row) label rawValue)
+
+
+-- ── Row filtering ────────────────────────────────────────────────
 
 -- | Filter CSV rows where the "gen" column matches a gen number.
-forGen :: Gen -> CSV -> [Row]
-forGen gen csv = filter matchesGen (csvRows csv)
-  where
-    genNumber = fromEnum gen + 1
-    genOfRow = column csv "gen"
-    matchesGen row = fieldInt (genOfRow row) == genNumber
+-- Unparseable gen values produce a LoadError rather than being silently skipped.
+forGen :: Gen -> CSV -> Either LoadError [Row]
+forGen gen csv = do
+  genOfRow <- intColumn csv "gen"
+  let genNumber = fromEnum gen + 1
+      checkGen row = do
+        rowGen <- genOfRow row
+        pure $ if rowGen == genNumber then Just row else Nothing
+  checked <- traverse checkGen (csvRows csv)
+  pure [row | Just row <- checked]
 
 
 -- ── Name-based mapping ──────────────────────────────────────────
@@ -255,60 +257,49 @@ typeFromName _              = Nothing
 -- | Map pret ASM type constant name → MoveType.
 -- Handles CURSE_TYPE (the ??? type used only by Curse) and delegates
 -- to typeFromName for all standard element types.
-moveTypeFromName :: T.Text -> MoveType
-moveTypeFromName "CURSE_TYPE" = CurseType
-moveTypeFromName name = case typeFromName name of
-  Just pokemonType -> StandardType pokemonType
-  Nothing          -> error $ "Unknown move type: " ++ T.unpack name
+moveTypeFromName :: T.Text -> Maybe MoveType
+moveTypeFromName "CURSE_TYPE" = Just CurseType
+moveTypeFromName name         = StandardType <$> typeFromName name
 
 -- | Map pret ASM growth rate constant name → GrowthRate.
-growthFromName :: T.Text -> GrowthRate
-growthFromName "GROWTH_MEDIUM_FAST" = MediumFast
-growthFromName "GROWTH_MEDIUM_SLOW" = MediumSlow
-growthFromName "GROWTH_FAST"        = Fast
-growthFromName "GROWTH_SLOW"        = Slow
-growthFromName unrecognized = error $ "Unknown growth rate: " ++ T.unpack unrecognized
+growthFromName :: T.Text -> Maybe GrowthRate
+growthFromName "GROWTH_MEDIUM_FAST" = Just MediumFast
+growthFromName "GROWTH_MEDIUM_SLOW" = Just MediumSlow
+growthFromName "GROWTH_FAST"        = Just Fast
+growthFromName "GROWTH_SLOW"        = Just Slow
+growthFromName _                    = Nothing
 
 -- | Map pret ASM gender ratio constant name → GenderRatio.
 -- Only called for Gen 2 rows where the field is always present.
-genderFromName :: T.Text -> GenderRatio
-genderFromName "GENDER_F0"      = AllMale
-genderFromName "GENDER_F12_5"   = Female12_5
-genderFromName "GENDER_F25"     = Female25
-genderFromName "GENDER_F50"     = Female50
-genderFromName "GENDER_F75"     = Female75
-genderFromName "GENDER_F100"    = AllFemale
-genderFromName "GENDER_UNKNOWN" = Genderless
-genderFromName unrecognized = error $ "Unknown gender ratio: " ++ T.unpack unrecognized
+genderFromName :: T.Text -> Maybe GenderRatio
+genderFromName "GENDER_F0"      = Just AllMale
+genderFromName "GENDER_F12_5"   = Just Female12_5
+genderFromName "GENDER_F25"     = Just Female25
+genderFromName "GENDER_F50"     = Just Female50
+genderFromName "GENDER_F75"     = Just Female75
+genderFromName "GENDER_F100"    = Just AllFemale
+genderFromName "GENDER_UNKNOWN" = Just Genderless
+genderFromName _                = Nothing
 
 -- | Map pret ASM egg group constant name → EggGroup.
 -- Only called for Gen 2 rows where the field is always present.
-eggGroupFromName :: T.Text -> EggGroup
-eggGroupFromName "EGG_MONSTER"       = EggMonster
-eggGroupFromName "EGG_WATER_1"      = EggWater1
-eggGroupFromName "EGG_BUG"          = EggBug
-eggGroupFromName "EGG_FLYING"       = EggFlying
-eggGroupFromName "EGG_GROUND"       = EggGround
-eggGroupFromName "EGG_FAIRY"        = EggFairy
-eggGroupFromName "EGG_PLANT"        = EggPlant
-eggGroupFromName "EGG_HUMANSHAPE"   = EggHumanShape
-eggGroupFromName "EGG_WATER_3"      = EggWater3
-eggGroupFromName "EGG_MINERAL"      = EggMineral
-eggGroupFromName "EGG_INDETERMINATE" = EggIndeterminate
-eggGroupFromName "EGG_WATER_2"      = EggWater2
-eggGroupFromName "EGG_DITTO"        = EggDitto
-eggGroupFromName "EGG_DRAGON"       = EggDragon
-eggGroupFromName "EGG_NONE"         = EggNone
-eggGroupFromName unrecognized = error $ "Unknown egg group: " ++ T.unpack unrecognized
-
-
--- | Unwrap a type name or crash with the species name and bad value
--- for context. Used by buildSpecies for type1 and type2.
-requireType :: T.Text -> T.Text -> PokemonType
-requireType speciesName raw = case typeFromName raw of
-  Just pokemonType -> pokemonType
-  Nothing          -> error $ "Species " ++ T.unpack speciesName
-                           ++ ": unknown type " ++ T.unpack raw
+eggGroupFromName :: T.Text -> Maybe EggGroup
+eggGroupFromName "EGG_MONSTER"       = Just EggMonster
+eggGroupFromName "EGG_WATER_1"      = Just EggWater1
+eggGroupFromName "EGG_BUG"          = Just EggBug
+eggGroupFromName "EGG_FLYING"       = Just EggFlying
+eggGroupFromName "EGG_GROUND"       = Just EggGround
+eggGroupFromName "EGG_FAIRY"        = Just EggFairy
+eggGroupFromName "EGG_PLANT"        = Just EggPlant
+eggGroupFromName "EGG_HUMANSHAPE"   = Just EggHumanShape
+eggGroupFromName "EGG_WATER_3"      = Just EggWater3
+eggGroupFromName "EGG_MINERAL"      = Just EggMineral
+eggGroupFromName "EGG_INDETERMINATE" = Just EggIndeterminate
+eggGroupFromName "EGG_WATER_2"      = Just EggWater2
+eggGroupFromName "EGG_DITTO"        = Just EggDitto
+eggGroupFromName "EGG_DRAGON"       = Just EggDragon
+eggGroupFromName "EGG_NONE"         = Just EggNone
+eggGroupFromName _                  = Nothing
 
 
 -- ── Builders ─────────────────────────────────────────────────────
@@ -316,222 +307,295 @@ requireType speciesName raw = case typeFromName raw of
 -- | species.csv → (Map dex Species, Map name dex)
 -- Columns use ASM constant names for types, growth rate, etc.
 -- Returns both the species map and a name→dex lookup.
-buildSpecies :: Gen -> CSV -> (Map.Map DexNumber Species, Map.Map T.Text DexNumber)
-buildSpecies gen csv =
-  let dexOfRow              = column csv "dex"
-      nameOfRow             = column csv "name"
-      hpOfRow               = column csv "hp"
-      attackOfRow           = column csv "attack"
-      defenseOfRow          = column csv "defense"
-      speedOfRow            = column csv "speed"
-      specialOfRow          = column csv "special"
-      specialAttackOfRow    = column csv "special_attack"
-      specialDefenseOfRow   = column csv "special_defense"
-      type1OfRow            = column csv "type1"
-      type2OfRow            = column csv "type2"
-      catchRateOfRow        = column csv "catch_rate"
-      growthRateOfRow       = column csv "growth_rate"
-      genderRatioOfRow      = column csv "gender_ratio"
-      eggGroup1OfRow        = column csv "egg_group1"
-      eggGroup2OfRow        = column csv "egg_group2"
-      baseHappinessOfRow    = column csv "base_happiness"
-      matching      = forGen gen csv
-      speciesList =
-        [ species
-        | row <- matching
-        , let species = Species
-                { speciesDex           = DexNumber (fieldInt (dexOfRow row))
-                , speciesName          = T.strip (nameOfRow row)
-                , speciesBaseStats     = BaseStats
-                    { baseHP      = fieldInt (hpOfRow row)
-                    , baseAttack  = fieldInt (attackOfRow row)
-                    , baseDefense = fieldInt (defenseOfRow row)
-                    , baseSpeed   = fieldInt (speedOfRow row)
-                    , baseSpecial = case gen of
-                        Gen1 -> Unified (fieldInt (specialOfRow row))
-                        Gen2 -> Split   (fieldInt (specialAttackOfRow row)) (fieldInt (specialDefenseOfRow row))
-                    }
-                , speciesTypes         = let name = nameOfRow row
-                                         in TypePair (requireType name (type1OfRow row)) (requireType name (type2OfRow row))
-                , speciesCatchRate     = fieldInt (catchRateOfRow row)
-                , speciesGrowthRate    = growthFromName (growthRateOfRow row)
-                , speciesGenFields     = case gen of
-                    Gen1 -> Gen1SpeciesFields
-                    Gen2 -> Gen2SpeciesFields
-                      { speciesGenderRatio   = genderFromName (genderRatioOfRow row)
-                      , speciesEggGroups     = EggGroupPair (eggGroupFromName (eggGroup1OfRow row))
-                                                            (eggGroupFromName (eggGroup2OfRow row))
-                      , speciesBaseHappiness = fieldInt (baseHappinessOfRow row)
-                      }
-                }
-        ]
-      speciesMap = Map.fromList [(speciesDex species, species) | species <- speciesList]
+buildSpecies :: Gen -> CSV -> Either LoadError (Map.Map DexNumber Species, Map.Map T.Text DexNumber)
+buildSpecies gen csv = do
+  dexOfRow              <- intColumn csv "dex"
+  nameOfRow             <- textColumn csv "name"
+  hpOfRow               <- intColumn csv "hp"
+  attackOfRow           <- intColumn csv "attack"
+  defenseOfRow          <- intColumn csv "defense"
+  speedOfRow            <- intColumn csv "speed"
+  specialOfRow          <- intColumn csv "special"
+  specialAttackOfRow    <- intColumn csv "special_attack"
+  specialDefenseOfRow   <- intColumn csv "special_defense"
+  type1OfRow            <- textColumn csv "type1"
+  type2OfRow            <- textColumn csv "type2"
+  catchRateOfRow        <- intColumn csv "catch_rate"
+  growthRateOfRow       <- textColumn csv "growth_rate"
+  genderRatioOfRow      <- textColumn csv "gender_ratio"
+  eggGroup1OfRow        <- textColumn csv "egg_group1"
+  eggGroup2OfRow        <- textColumn csv "egg_group2"
+  baseHappinessOfRow    <- intColumn csv "base_happiness"
+  matching              <- forGen gen csv
+  let parseSpeciesRow row = do
+        dex           <- dexOfRow row
+        name          <- nameOfRow row
+        hp            <- hpOfRow row
+        attack        <- attackOfRow row
+        defense       <- defenseOfRow row
+        speed         <- speedOfRow row
+        special       <- case gen of
+          Gen1 -> Unified <$> specialOfRow row
+          Gen2 -> Split <$> specialAttackOfRow row <*> specialDefenseOfRow row
+        type1Text     <- type1OfRow row
+        type2Text     <- type2OfRow row
+        type1         <- requireEnum row "type" typeFromName type1Text
+        type2         <- requireEnum row "type" typeFromName type2Text
+        catchRate     <- catchRateOfRow row
+        growthRateText <- growthRateOfRow row
+        growthRate    <- requireEnum row "growth rate" growthFromName growthRateText
+        genFields     <- case gen of
+          Gen1 -> pure Gen1SpeciesFields
+          Gen2 -> do
+            genderRatioText <- genderRatioOfRow row
+            genderRatio     <- requireEnum row "gender ratio" genderFromName genderRatioText
+            eggGroup1Text   <- eggGroup1OfRow row
+            eggGroup2Text   <- eggGroup2OfRow row
+            eggGroup1       <- requireEnum row "egg group" eggGroupFromName eggGroup1Text
+            eggGroup2       <- requireEnum row "egg group" eggGroupFromName eggGroup2Text
+            baseHappiness   <- baseHappinessOfRow row
+            pure Gen2SpeciesFields
+              { speciesGenderRatio   = genderRatio
+              , speciesEggGroups     = EggGroupPair eggGroup1 eggGroup2
+              , speciesBaseHappiness = baseHappiness
+              }
+        pure Species
+          { speciesDex       = DexNumber dex
+          , speciesName      = name
+          , speciesBaseStats = BaseStats
+              { baseHP      = hp
+              , baseAttack  = attack
+              , baseDefense = defense
+              , baseSpeed   = speed
+              , baseSpecial = special
+              }
+          , speciesTypes      = TypePair type1 type2
+          , speciesCatchRate  = catchRate
+          , speciesGrowthRate = growthRate
+          , speciesGenFields  = genFields
+          }
+  speciesList <- traverse parseSpeciesRow matching
+  let speciesMap = Map.fromList [(speciesDex species, species) | species <- speciesList]
       nameToId   = Map.fromList [(speciesName species, speciesDex species) | species <- speciesList]
-  in (speciesMap, nameToId)
+  pure (speciesMap, nameToId)
 
 
 -- | moves.csv → (Map moveId Move, Map moveName moveId)
 -- Returns both the move map and a name→ID lookup for use by
 -- other builders that reference moves by constant name.
-buildMoves :: Gen -> CSV -> (Map.Map MoveId Move, Map.Map T.Text MoveId)
-buildMoves gen csv =
-  let moveIdOfRow   = column csv "id"
-      nameOfRow     = column csv "name"
-      moveTypeOfRow = column csv "type"
-      powerOfRow    = column csv "power"
-      accuracyOfRow = column csv "accuracy"
-      ppOfRow       = column csv "pp"
-      matching = forGen gen csv
-      moveList = [ move
-                 | row <- matching
-                 , let move = Move
-                         { moveId       = MoveId (fieldInt (moveIdOfRow row))
-                         , moveName     = T.strip (nameOfRow row)
-                         , moveType     = moveTypeFromName (moveTypeOfRow row)
-                         , movePower    = fieldInt (powerOfRow row)
-                         , moveAccuracy = fieldInt (accuracyOfRow row)
-                         , movePP       = fieldInt (ppOfRow row)
-                         }
-                 ]
-      moveMap    = Map.fromList [(moveId move, move) | move <- moveList]
-      nameToId   = Map.fromList [(moveName move, moveId move) | move <- moveList]
-  in (moveMap, nameToId)
+buildMoves :: Gen -> CSV -> Either LoadError (Map.Map MoveId Move, Map.Map T.Text MoveId)
+buildMoves gen csv = do
+  moveIdOfRow   <- intColumn csv "id"
+  nameOfRow     <- textColumn csv "name"
+  moveTypeOfRow <- textColumn csv "type"
+  powerOfRow    <- intColumn csv "power"
+  accuracyOfRow <- intColumn csv "accuracy"
+  ppOfRow       <- intColumn csv "pp"
+  matching      <- forGen gen csv
+  let parseMoveRow row = do
+        moveIdValue   <- moveIdOfRow row
+        name          <- nameOfRow row
+        moveTypeText  <- moveTypeOfRow row
+        moveTypeValue <- requireEnum row "move type" moveTypeFromName moveTypeText
+        power         <- powerOfRow row
+        accuracy      <- accuracyOfRow row
+        pp            <- ppOfRow row
+        pure Move
+          { moveId       = MoveId moveIdValue
+          , moveName     = name
+          , moveType     = moveTypeValue
+          , movePower    = power
+          , moveAccuracy = accuracy
+          , movePP       = pp
+          }
+  moveList <- traverse parseMoveRow matching
+  let moveMap  = Map.fromList [(moveId move, move) | move <- moveList]
+      nameToId = Map.fromList [(moveName move, moveId move) | move <- moveList]
+  pure (moveMap, nameToId)
 
 
 -- | tmhm.csv → Map Machine moveId
 -- New schema: gen,number,move_name,kind (kind = "tm"/"hm"/"tutor")
 -- Tutors are skipped — they aren't TMs or HMs.
-buildMachines :: Gen -> Map.Map T.Text MoveId -> CSV -> Map.Map Machine MoveId
-buildMachines gen moveNameToId csv =
-  let numberOfRow   = column csv "number"
-      moveNameOfRow = column csv "move_name"
-      kindOfRow     = column csv "kind"
-      matching = forGen gen csv
-  in Map.fromList
-    [ (machine, matchedMoveId)
-    | row <- matching
-    , let machineKind = kindOfRow row
-    , machineKind == "tm" || machineKind == "hm"    -- skip tutors
-    , let machineNumber = fieldInt (numberOfRow row)
-          machine = if machineKind == "hm" then HM machineNumber else TM machineNumber
-    , Just matchedMoveId <- [Map.lookup (moveNameOfRow row) moveNameToId]
-    ]
+buildMachines :: Gen -> Map.Map T.Text MoveId -> CSV -> Either LoadError (Map.Map Machine MoveId)
+buildMachines gen moveNameToId csv = do
+  numberOfRow   <- intColumn csv "number"
+  moveNameOfRow <- textColumn csv "move_name"
+  kindOfRow     <- textColumn csv "kind"
+  matching      <- forGen gen csv
+  let parseMachineRow row = do
+        machineKind <- kindOfRow row
+        if machineKind /= "tm" && machineKind /= "hm"
+          then pure Nothing
+          else do
+            machineNumber <- numberOfRow row
+            moveName <- moveNameOfRow row
+            pure $ case Map.lookup moveName moveNameToId of
+              Nothing -> Nothing
+              Just matchedMoveId ->
+                let machine = if machineKind == "hm" then HM machineNumber else TM machineNumber
+                in Just (machine, matchedMoveId)
+  results <- traverse parseMachineRow matching
+  pure $ Map.fromList [pair | Just pair <- results]
 
 
 -- | tmhm_compat.csv → Map dex (Set Machine)
 -- Numbers 1–50 are TMs; 51+ are HMs (51=HM01, 52=HM02, etc.)
-buildCompat :: Gen -> CSV -> Map.Map DexNumber (Set.Set Machine)
-buildCompat gen csv =
-  let dexOfRow    = column csv "dex"
-      numberOfRow = column csv "number"
-      matching = forGen gen csv
-      pairs    = [ (DexNumber (fieldInt (dexOfRow row)), numToMachine (fieldInt (numberOfRow row)))
-                 | row <- matching
-                 ]
-  in Map.fromListWith Set.union
+buildCompat :: Gen -> CSV -> Either LoadError (Map.Map DexNumber (Set.Set Machine))
+buildCompat gen csv = do
+  dexOfRow    <- intColumn csv "dex"
+  numberOfRow <- intColumn csv "number"
+  matching    <- forGen gen csv
+  let parseCompatRow row = do
+        dex    <- dexOfRow row
+        number <- numberOfRow row
+        pure (DexNumber dex, numToMachine number)
+  pairs <- traverse parseCompatRow matching
+  pure $ Map.fromListWith Set.union
     [ (dexNumber, Set.singleton machine)
     | (dexNumber, machine) <- pairs
     ]
 
 numToMachine :: Int -> Machine
 numToMachine number
-  | number <= 50   = TM number
-  | otherwise = HM (number - 50)
+  | number <= 50 = TM number
+  | otherwise    = HM (number - 50)
 
 
 -- | learnsets.csv → Map dex [LevelUpEntry]
 -- New schema: gen,dex,level,move_name (name resolved via lookup map)
-buildLearnsets :: Gen -> Map.Map T.Text MoveId -> CSV -> Map.Map DexNumber [LevelUpEntry]
-buildLearnsets gen moveNameToId csv =
-  let dexOfRow      = column csv "dex"
-      levelOfRow    = column csv "level"
-      moveNameOfRow = column csv "move_name"
-      matching = forGen gen csv
-      pairs    = [ (DexNumber (fieldInt (dexOfRow row)),
-                    LevelUpEntry (Level (fieldInt (levelOfRow row))) matchedMoveId)
-                 | row <- matching
-                 , Just matchedMoveId <- [Map.lookup (moveNameOfRow row) moveNameToId]
-                 ]
-  in Map.fromListWith (++)
+buildLearnsets :: Gen -> Map.Map T.Text MoveId -> CSV -> Either LoadError (Map.Map DexNumber [LevelUpEntry])
+buildLearnsets gen moveNameToId csv = do
+  dexOfRow      <- intColumn csv "dex"
+  levelOfRow    <- intColumn csv "level"
+  moveNameOfRow <- textColumn csv "move_name"
+  matching      <- forGen gen csv
+  let parseLearnsetRow row = do
+        dex <- dexOfRow row
+        level <- levelOfRow row
+        moveName <- moveNameOfRow row
+        pure $ case Map.lookup moveName moveNameToId of
+          Nothing          -> Nothing
+          Just matchedMoveId ->
+            Just (DexNumber dex, LevelUpEntry (Level level) matchedMoveId)
+  results <- traverse parseLearnsetRow matching
+  pure $ Map.fromListWith (++)
     [ (dexNumber, [entry])
-    | (dexNumber, entry) <- pairs
+    | Just (dexNumber, entry) <- results
     ]
 
 
 -- | egg_moves.csv or tutor.csv → Map dex (Set moveId)
 -- New schema: dex,move_name (no gen column — Gen 2 only).
 -- Move names are resolved to IDs via the lookup map.
-buildNamePairMap :: Map.Map T.Text MoveId -> CSV -> Map.Map DexNumber (Set.Set MoveId)
-buildNamePairMap moveNameToId csv =
-  let dexOfRow      = column csv "dex"
-      moveNameOfRow = column csv "move_name"
-  in Map.fromListWith Set.union
-    [ (DexNumber (fieldInt (dexOfRow row)), Set.singleton matchedMoveId)
-    | row <- csvRows csv
-    , Just matchedMoveId <- [Map.lookup (moveNameOfRow row) moveNameToId]
+buildNamePairMap :: Map.Map T.Text MoveId -> CSV -> Either LoadError (Map.Map DexNumber (Set.Set MoveId))
+buildNamePairMap moveNameToId csv = do
+  dexOfRow      <- intColumn csv "dex"
+  moveNameOfRow <- textColumn csv "move_name"
+  let parseNamePairRow row = do
+        dex <- dexOfRow row
+        moveName <- moveNameOfRow row
+        pure (DexNumber dex, Map.lookup moveName moveNameToId)
+  results <- traverse parseNamePairRow (csvRows csv)
+  pure $ Map.fromListWith Set.union
+    [ (dexNumber, Set.singleton matchedMoveId)
+    | (dexNumber, Just matchedMoveId) <- results
     ]
 
 
 -- | items.csv → Map itemId name
-buildItems :: Gen -> CSV -> Map.Map ItemId T.Text
-buildItems gen csv =
-  let itemIdOfRow = column csv "id"
-      nameOfRow   = column csv "name"
-      matching    = forGen gen csv
-  in Map.fromList
-    [ (ItemId (fieldInt (itemIdOfRow row)), T.strip (nameOfRow row))
-    | row <- matching
-    ]
+buildItems :: Gen -> CSV -> Either LoadError (Map.Map ItemId T.Text)
+buildItems gen csv = do
+  itemIdOfRow <- intColumn csv "id"
+  nameOfRow   <- textColumn csv "name"
+  matching    <- forGen gen csv
+  let parseItemRow row = do
+        itemIdValue <- itemIdOfRow row
+        name <- nameOfRow row
+        pure (ItemId itemIdValue, name)
+  pairs <- traverse parseItemRow matching
+  pure $ Map.fromList pairs
 
 
 -- | Raw CSV fields for one evolution row, before parsing into an EvoTrigger.
 data RawEvolution = RawEvolution
   { rawMethod :: !T.Text
-  , rawParam1 :: !T.Text
-  , rawParam2 :: !T.Text
+  , rawParam1 :: !(Maybe T.Text)
+  , rawParam2 :: !(Maybe T.Text)
   }
 
 -- | evolutions.csv → [EvolutionStep]
 -- New schema: gen,from_dex,to_dex,method,param1,param2
 -- Methods and params use pret ASM constant names.
-buildEvolutions :: Gen -> CSV -> [EvolutionStep]
-buildEvolutions gen csv =
-  let fromDexOfRow = column csv "from_dex"
-      toDexOfRow   = column csv "to_dex"
-      methodOfRow  = column csv "method"
-      param1OfRow  = column csv "param1"
-      param2OfRow  = column csv "param2"
-      matching = forGen gen csv
-  in [ EvolutionStep
-         { stepFrom    = DexNumber (fieldInt (fromDexOfRow row))
-         , stepTo      = DexNumber (fieldInt (toDexOfRow row))
-         , stepTrigger = parseTrigger RawEvolution
-             { rawMethod = methodOfRow row
-             , rawParam1 = param1OfRow row
-             , rawParam2 = param2OfRow row
-             }
-         }
-     | row <- matching
-     ]
+buildEvolutions :: Gen -> CSV -> Either LoadError [EvolutionStep]
+buildEvolutions gen csv = do
+  fromDexOfRow <- intColumn csv "from_dex"
+  toDexOfRow   <- intColumn csv "to_dex"
+  methodOfRow  <- textColumn csv "method"
+  param1OfRow  <- maybeTextColumn csv "param1"
+  param2OfRow  <- maybeTextColumn csv "param2"
+  matching     <- forGen gen csv
+  let parseEvolutionRow row = do
+        fromDex    <- fromDexOfRow row
+        toDex      <- toDexOfRow row
+        methodText <- methodOfRow row
+        param1     <- param1OfRow row
+        param2     <- param2OfRow row
+        let raw = RawEvolution
+              { rawMethod = methodText
+              , rawParam1 = param1
+              , rawParam2 = param2
+              }
+        trigger <- case parseTrigger raw of
+          Right value  -> Right value
+          Left message -> Left (UnknownEnum (rowFilePath row) (rowNumber row) "evolution" message)
+        pure EvolutionStep
+          { stepFrom    = DexNumber fromDex
+          , stepTo      = DexNumber toDex
+          , stepTrigger = trigger
+          }
+  traverse parseEvolutionRow matching
 
 -- | Parse an evolution trigger from ASM constant names.
 -- EVOLVE_TRADE and EVOLVE_TRADE_ITEM are distinct in the CSV
 -- (normalized at extraction time), so no heuristic is needed.
-parseTrigger :: RawEvolution -> EvoTrigger
+parseTrigger :: RawEvolution -> Either T.Text EvoTrigger
 parseTrigger RawEvolution{rawMethod, rawParam1, rawParam2} =
-  case T.strip rawMethod of
-    "EVOLVE_LEVEL"      -> EvoLevel (Level (fieldInt rawParam1))
-    "EVOLVE_ITEM"       -> EvoItem (T.strip rawParam1)
-    "EVOLVE_TRADE"      -> EvoTrade
-    "EVOLVE_TRADE_ITEM" -> EvoTradeItem (T.strip rawParam1)
-    "EVOLVE_HAPPINESS"  -> case T.strip rawParam1 of
-      "TR_ANYTIME" -> EvoHappiness
-      "TR_MORNDAY" -> EvoHappinessDay
-      "TR_NITE"    -> EvoHappinessNight
-      unrecognized -> error $ "Unknown happiness time: " ++ T.unpack unrecognized
-    "EVOLVE_STAT" -> case T.strip rawParam2 of
-      "ATK_LT_DEF" -> EvoStatLT (Level (fieldInt rawParam1))
-      "ATK_GT_DEF" -> EvoStatGT (Level (fieldInt rawParam1))
-      "ATK_EQ_DEF" -> EvoStatEQ (Level (fieldInt rawParam1))
-      unrecognized -> error $ "Unknown stat comparison: " ++ T.unpack unrecognized
-    unrecognized -> error $ "Unknown evolution method: " ++ T.unpack unrecognized
+  case rawMethod of
+    "EVOLVE_LEVEL" -> do
+      param <- requireParam "param1" rawParam1
+      level <- parseIntField param
+      pure $ EvoLevel (Level level)
+    "EVOLVE_ITEM" -> do
+      param <- requireParam "param1" rawParam1
+      pure $ EvoItem param
+    "EVOLVE_TRADE" -> pure EvoTrade
+    "EVOLVE_TRADE_ITEM" -> do
+      param <- requireParam "param1" rawParam1
+      pure $ EvoTradeItem param
+    "EVOLVE_HAPPINESS" -> do
+      param <- requireParam "param1" rawParam1
+      case param of
+        "TR_ANYTIME" -> pure EvoHappiness
+        "TR_MORNDAY" -> pure EvoHappinessDay
+        "TR_NITE"    -> pure EvoHappinessNight
+        unrecognized -> Left $ "unknown happiness time: " <> unrecognized
+    "EVOLVE_STAT" -> do
+      levelParam <- requireParam "param1" rawParam1
+      compParam  <- requireParam "param2" rawParam2
+      level <- parseIntField levelParam
+      case compParam of
+        "ATK_LT_DEF" -> pure $ EvoStatLT (Level level)
+        "ATK_GT_DEF" -> pure $ EvoStatGT (Level level)
+        "ATK_EQ_DEF" -> pure $ EvoStatEQ (Level level)
+        unrecognized -> Left $ "unknown stat comparison: " <> unrecognized
+    unrecognized -> Left $ "unknown evolution method: " <> unrecognized
+
+requireParam :: T.Text -> Maybe T.Text -> Either T.Text T.Text
+requireParam label Nothing      = Left $ "missing " <> label
+requireParam _     (Just value) = Right value
+
+parseIntField :: T.Text -> Either T.Text Int
+parseIntField rawValue = case decimal rawValue of
+  Right (parsed, remainder) | T.null remainder -> Right parsed
+  _ -> Left $ "unparseable integer: " <> rawValue
