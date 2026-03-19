@@ -14,6 +14,10 @@ module Pokemon.Types
   , ItemId (..)
   , TrainerId (..)
 
+    -- * CSV context
+  , RowNumber (..)
+  , ColumnName (..)
+
     -- * Generation
   , Gen (..)
 
@@ -102,7 +106,9 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
 import Data.Map.Strict (Map)
 import Data.Set (Set)
+import Data.String (IsString (..))
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Word (Word8, Word16)
 
 import Pokemon.Types.Internal (GameChar, charByte)
@@ -115,6 +121,13 @@ newtype Level      = Level      { unLevel     :: Int } deriving (Eq, Ord, Show)
 newtype ItemId     = ItemId     { unItemId    :: Int } deriving (Eq, Ord, Show)
 newtype TrainerId  = TrainerId  { unTrainerId :: Int } deriving (Eq, Ord, Show)
 
+-- ── CSV Context ───────────────────────────────────────────────────
+
+newtype RowNumber   = RowNumber   { unRowNumber   :: Int  } deriving (Eq, Ord, Show)
+newtype ColumnName  = ColumnName  { unColumnName  :: Text } deriving (Eq, Ord, Show)
+
+instance IsString ColumnName where
+  fromString = ColumnName . T.pack
 
 -- ── Generation ──────────────────────────────────────────────────
 

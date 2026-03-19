@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+-- TODO: Remove -Wno-unused-top-binds after builders are migrated to typed accessors
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 -- | Load game data from CSV files into a 'GameData' value.
 --
@@ -20,9 +22,11 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import Data.Text.Read (decimal)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
+import Pokemon.Error (LoadError (..))
 import Pokemon.Types
 
 
@@ -104,19 +108,25 @@ loadAllGameData = do
 
 -- ── CSV reading ─────────────────────────────────────────────────
 
--- | One CSV row: column name → value. Self-describing, no positional
--- indexing. Missing trailing columns produce empty strings.
-type Row = Map.Map T.Text T.Text
+-- | One CSV row, carrying the file path and line number it came from.
+-- Column values are keyed by ColumnName, not bare Text.
+data Row = Row
+  { rowFilePath :: !FilePath
+  , rowNumber   :: !RowNumber
+  , rowFields   :: !(Map.Map ColumnName T.Text)
+  }
 
--- | A parsed CSV file: column names (for error messages) plus rows.
+-- | A parsed CSV file: source path, column names, and provenance-stamped rows.
 data CSV = CSV
-  { csvColumnNames :: ![T.Text]
+  { csvFilePath    :: !FilePath
+  , csvColumnNames :: ![ColumnName]
   , csvRows        :: ![Row]
   }
 
--- | Read a CSV file. Each data row becomes a Map from column name to
--- value. Rows with fewer fields than the header get empty strings for
--- the missing columns. Blank lines are silently skipped.
+-- | Read a CSV file. Each data row becomes a Row stamped with its source
+-- file path and 1-based line number (counting only data rows, not the header).
+-- Rows with fewer fields than the header get empty strings for the missing
+-- columns. Blank lines are silently skipped.
 readCSV :: FilePath -> IO CSV
 readCSV path = do
   content <- TIO.readFile path
@@ -124,23 +134,76 @@ readCSV path = do
   case allLines of
     [] -> error $ "Empty CSV file: " ++ path
     (headerLine:dataLines) ->
-      let headers = map T.strip (T.splitOn "," headerLine)
-          toRow line =
+      let headers = map (ColumnName . T.strip) (T.splitOn "," headerLine)
+          toRow lineNumber line =
             let values = map T.strip (T.splitOn "," line)
-            in Map.fromList (zip headers (values ++ repeat ""))
-          rows = map toRow dataLines
-      in pure CSV { csvColumnNames = headers, csvRows = rows }
+                fields = Map.fromList (zip headers (values ++ repeat ""))
+            in Row { rowFilePath = path
+                   , rowNumber   = RowNumber lineNumber
+                   , rowFields   = fields
+                   }
+          rows = zipWith toRow [1..] dataLines
+      in pure CSV { csvFilePath = path, csvColumnNames = headers, csvRows = rows }
 
 -- | Build a row accessor for a named column. Validates that the column
 -- exists upfront (crashes immediately on typo), then returns a function
 -- that extracts the value from any row via Map lookup.
-column :: CSV -> T.Text -> (Row -> T.Text)
+column :: CSV -> ColumnName -> (Row -> T.Text)
 column csv name
   | name `elem` csvColumnNames csv =
-      \row -> Map.findWithDefault "" name row
+      \row -> Map.findWithDefault "" name (rowFields row)
   | otherwise =
-      error $ "CSV column not found: " ++ T.unpack name
-           ++ " (have: " ++ T.unpack (T.intercalate ", " (csvColumnNames csv)) ++ ")"
+      error $ "CSV column not found: " ++ T.unpack (unColumnName name)
+           ++ " (have: " ++ T.unpack (T.intercalate ", " (map unColumnName (csvColumnNames csv))) ++ ")"
+
+
+-- ── Typed column accessors ────────────────────────────────────────
+
+-- | Integer column: empty → EmptyRequiredField, non-numeric → UnparseableInt.
+intColumn :: CSV -> ColumnName -> (Row -> Either LoadError Int)
+intColumn csv name =
+  let accessor = column csv name
+  in \row ->
+    let rawValue = accessor row
+    in if T.null (T.strip rawValue)
+       then Left (EmptyRequiredField (rowFilePath row) (rowNumber row) name)
+       else case decimal rawValue of
+         Right (parsed, remainder)
+           | T.null remainder -> Right parsed
+         _ -> Left (UnparseableInt (rowFilePath row) (rowNumber row) name rawValue)
+
+-- | Optional integer column: empty → Right Nothing, non-numeric → UnparseableInt.
+maybeIntColumn :: CSV -> ColumnName -> (Row -> Either LoadError (Maybe Int))
+maybeIntColumn csv name =
+  let accessor = column csv name
+  in \row ->
+    let rawValue = accessor row
+    in if T.null (T.strip rawValue)
+       then Right Nothing
+       else case decimal rawValue of
+         Right (parsed, remainder)
+           | T.null remainder -> Right (Just parsed)
+         _ -> Left (UnparseableInt (rowFilePath row) (rowNumber row) name rawValue)
+
+-- | Required text column: empty → EmptyRequiredField.
+textColumn :: CSV -> ColumnName -> (Row -> Either LoadError T.Text)
+textColumn csv name =
+  let accessor = column csv name
+  in \row ->
+    let rawValue = accessor row
+    in if T.null (T.strip rawValue)
+       then Left (EmptyRequiredField (rowFilePath row) (rowNumber row) name)
+       else Right rawValue
+
+-- | Optional text column: empty → Right Nothing.
+maybeTextColumn :: CSV -> ColumnName -> (Row -> Either LoadError (Maybe T.Text))
+maybeTextColumn csv name =
+  let accessor = column csv name
+  in \row ->
+    let rawValue = accessor row
+    in if T.null (T.strip rawValue)
+       then Right Nothing
+       else Right (Just rawValue)
 
 
 -- ── Field parsers ───────────────────────────────────────────────

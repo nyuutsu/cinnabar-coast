@@ -23,6 +23,7 @@ library
   exposed-modules:
     Pokemon.Types
     Pokemon.Types.Internal
+    Pokemon.Error
     Pokemon.Data
     Pokemon.Stats
     Pokemon.Legality
