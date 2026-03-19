@@ -15,7 +15,7 @@ module Pokemon.Error
 
 import qualified Data.Text as T
 
-import Pokemon.Types (ColumnName (..), EnumLabel (..), RowNumber (..))
+import Pokemon.Types (ColumnName (..), DexNumber (..), EnumLabel (..), RowNumber (..))
 
 
 -- ── Error type ────────────────────────────────────────────────────
@@ -52,6 +52,9 @@ data LoadError
   | CharsetParseError
       !FilePath
       !T.Text           -- description of the parse failure
+  | EvolutionCycle
+      !FilePath
+      !DexNumber        -- species where the cycle was detected
   deriving (Eq, Show)
 
 
@@ -88,6 +91,10 @@ renderLoadError (UnknownEnum errorFilePath errorRowNumber errorLabel errorRawVal
 
 renderLoadError (CharsetParseError errorFilePath errorDescription) =
   T.pack errorFilePath <> ": charset parse error: " <> errorDescription
+
+renderLoadError (EvolutionCycle errorFilePath dex) =
+  T.pack errorFilePath <> ": evolution cycle detected at dex #"
+    <> T.pack (show (unDex dex))
 
 renderRowNumber :: RowNumber -> T.Text
 renderRowNumber = T.pack . show . unRowNumber

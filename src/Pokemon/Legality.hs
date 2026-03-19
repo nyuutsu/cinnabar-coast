@@ -200,6 +200,8 @@ allPreEvolutions graph dex = collectAncestors (Set.singleton dex) dex []
           in foldl (visitParent visited) ancestors parents
 
     visitParent visited ancestorsSoFar parent
+      -- Load-time cycle check in Data.hs prevents this from firing;
+      -- kept as an assertion for direct callers outside the normal load path.
       | Set.member parent visited =
           error $ "allPreEvolutions: cycle detected at dex #" ++ show (unDex parent)
       | otherwise =

@@ -17,6 +17,7 @@ module Pokemon.Data
   ) where
 
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, except)
+import Data.Foldable (traverse_)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -79,6 +80,7 @@ loadAllGameData = do
                 [ (stepFrom step, [step]) | step <- evolutions ]
               evolvesFrom = Map.fromListWith (++)
                 [ (stepTo step, [step]) | step <- evolutions ]
+          detectEvolutionCycle (csvFilePath evolutionsCsv) evolvesFrom
           pure GameData
             { gameGen          = gen
             , gameMachineData  = MachineData
@@ -533,3 +535,21 @@ parseIntField :: T.Text -> Either T.Text Int
 parseIntField rawValue = case decimal rawValue of
   Right (parsed, remainder) | T.null remainder -> Right parsed
   _ -> Left $ "unparseable integer: " <> rawValue
+
+
+-- ── Validation ────────────────────────────────────────────────────
+
+-- | Check for cycles in the evolvesFrom map. A cycle means some
+-- species can reach itself by walking backward through evolution
+-- steps, which indicates corrupt evolution data.
+detectEvolutionCycle :: FilePath -> Map.Map DexNumber [EvolutionStep] -> Either LoadError ()
+detectEvolutionCycle path evolvesFrom =
+  traverse_ (walkAncestors Set.empty) (Map.keys evolvesFrom)
+  where
+    walkAncestors visited dex
+      | Set.member dex visited = Left (EvolutionCycle path dex)
+      | otherwise =
+          case Map.lookup dex evolvesFrom of
+            Nothing    -> Right ()
+            Just steps ->
+              traverse_ (walkAncestors (Set.insert dex visited) . stepFrom) steps
