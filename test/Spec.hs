@@ -104,11 +104,15 @@ main = hspec $ do
       expForLevel MediumFast (Level 100) `shouldBe` 1000000
 
   describe "isShiny" $ do
-    it "DVs 10 10 10 10 is shiny" $
-      isShiny (DVs 10 10 10 10) `shouldBe` True
+    it "accepts all 8 valid shiny Attack DVs" $
+      let shinyDVs = [DVs atk 10 10 10 | atk <- [2, 3, 6, 7, 10, 11, 14, 15]]
+      in all isShiny shinyDVs `shouldBe` True
 
-    it "DVs 15 15 15 15 is not shiny" $
-      isShiny (DVs 15 15 15 15) `shouldBe` False
+    prop "matches the shiny specification" $ \dvs ->
+      isShiny dvs === ( dvDefense dvs == 10
+                     && dvSpeed dvs == 10
+                     && dvSpecial dvs == 10
+                     && dvAttack dvs `elem` [2, 3, 6, 7, 10, 11, 14, 15] )
 
   -- ── Move Legality ─────────────────────────────────────────
 
