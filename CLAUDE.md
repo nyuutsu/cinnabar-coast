@@ -1,16 +1,17 @@
 # cinnabar-coast
 
-Pokemon Gen 1/2 game data library. Haskell.
+Pokemon Gen 1/2 save editor. Haskell.
 
 ## What this is
 
-A Haskell library for working with Gen 1/2 Pokemon game data —
-species, moves, learnsets, evolutions, text encoding. Currently
-loads and queries static game data; save file parsing is next.
+A Pokemon Gen 1/2 save editor — CLI tool for reading and editing
+save files (like git or ffmpeg — no UI baked in, a GUI would be a
+separate program). Domain logic covers species, moves, learnsets,
+evolutions, and text encoding. Currently loads and queries static
+game data; save file parsing is the active next step.
 
-The eventual goal is a CLI tool for reading and editing save files,
-with the library doing the work and the CLI as the interface (like
-git or ffmpeg — no UI baked in, a GUI would be a separate program).
+Core logic lives in the cabal library stanza so the executable and
+tests can share code, but there are no external consumers.
 
 ## Project constraints
 
