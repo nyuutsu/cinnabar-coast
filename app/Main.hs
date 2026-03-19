@@ -8,12 +8,12 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
-import Pokemon.Types
-import Pokemon.Data (loadAllGameData)
-import Pokemon.Error (loadOrDie)
-import Pokemon.Stats
-import Pokemon.Legality (classifyMove)
-import Pokemon.TextCodec
+import Cinnabar.Types
+import Cinnabar.Data (loadAllGameData)
+import Cinnabar.Error (loadOrDie)
+import Cinnabar.Stats
+import Cinnabar.Legality (classifyMove)
+import Cinnabar.TextCodec
   (TextCodec (..), NamingScreen (..), loadCodec, encodeText, decodeText,
    displayText, showHexByte, lookupChar, lookupLigature)
 

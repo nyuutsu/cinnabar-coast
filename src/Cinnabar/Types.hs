@@ -6,7 +6,7 @@
 -- Every value is immutable. Types model the domain, not the
 -- binary save format — the parser layer handles translation.
 
-module Pokemon.Types
+module Cinnabar.Types
   ( -- * Domain IDs
     DexNumber (..)
   , MoveId (..)
@@ -91,7 +91,7 @@ module Pokemon.Types
 
     -- * Text codec
   , Language (..)
-  , GameChar     -- opaque: no constructors, see Pokemon.Types.Internal
+  , GameChar     -- opaque: no constructors, see Cinnabar.Types.Internal
   , charByte
   , GameText (..)
 
@@ -114,7 +114,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word (Word8, Word16)
 
-import Pokemon.Types.Internal (GameChar, charByte)
+import Cinnabar.Types.Internal (GameChar, charByte)
 
 -- ── Domain IDs ─────────────────────────────────────────────────
 

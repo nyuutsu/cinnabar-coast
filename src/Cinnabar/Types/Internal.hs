@@ -1,15 +1,15 @@
 -- | Internal constructors for GameChar.
 --
 -- This module exports GameChar's constructors for use by the codec
--- layer (Pokemon.TextCodec), which needs to build GameChars from
--- charset JSON data. All other modules should import Pokemon.Types,
+-- layer (Cinnabar.TextCodec), which needs to build GameChars from
+-- charset JSON data. All other modules should import Cinnabar.Types,
 -- which re-exports GameChar opaquely — type name and charByte only,
 -- no constructors.
 --
 -- This is the standard Internal module pattern used by containers,
 -- text, bytestring, etc.
 
-module Pokemon.Types.Internal
+module Cinnabar.Types.Internal
   ( GameChar (..)
   , charByte
   ) where

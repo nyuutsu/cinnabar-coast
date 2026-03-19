@@ -4,7 +4,7 @@
 -- known-good offsets in fixed-size files. Out-of-bounds reads are
 -- programming bugs, not data errors.
 
-module Pokemon.Binary
+module Cinnabar.Binary
   ( -- * Cursor
     Cursor
   , mkCursor

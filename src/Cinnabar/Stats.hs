@@ -5,7 +5,7 @@
 -- into SpAtk/SpDef (modeled by Special). The DV and stat exp
 -- for Special are shared between both in Gen 2.
 
-module Pokemon.Stats
+module Cinnabar.Stats
   ( -- * Experience curves
     expForLevel
 
@@ -21,7 +21,7 @@ module Pokemon.Stats
   , calcAllStats
   ) where
 
-import Pokemon.Types
+import Cinnabar.Types
 
 
 -- ── Experience curves ────────────────────────────────────────

@@ -9,7 +9,7 @@
 -- swallowed by a catch-all — the missing mapping is visible in
 -- the association list.
 
-module Pokemon.Schema
+module Cinnabar.Schema
   ( typeNames
   , growthRateNames
   , genderRatioNames
@@ -19,7 +19,7 @@ module Pokemon.Schema
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 
-import Pokemon.Types
+import Cinnabar.Types
 
 
 -- ── Type names ───────────────────────────────────────────────────

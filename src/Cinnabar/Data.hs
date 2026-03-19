@@ -11,7 +11,7 @@
 -- GROWTH_MEDIUM_SLOW, etc.) rather than numeric IDs. This module maps
 -- those names to our domain types.
 
-module Pokemon.Data
+module Cinnabar.Data
   ( loadGameData
   , loadAllGameData
   ) where
@@ -26,9 +26,9 @@ import Data.Text.Read (decimal)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
-import Pokemon.Error (LoadError (..))
-import Pokemon.Schema (eggGroupNames, genderRatioNames, growthRateNames, typeNames)
-import Pokemon.Types
+import Cinnabar.Error (LoadError (..))
+import Cinnabar.Schema (eggGroupNames, genderRatioNames, growthRateNames, typeNames)
+import Cinnabar.Types
 
 
 -- ── Public API ──────────────────────────────────────────────────

@@ -14,7 +14,7 @@
 --
 -- EventMove is a stub until event data is loaded.
 
-module Pokemon.Legality
+module Cinnabar.Legality
   ( classifyMove
   , classifyMoveNoTradeback
   ) where
@@ -25,7 +25,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text as T
 
-import Pokemon.Types
+import Cinnabar.Types
 
 
 -- | Classify how a species can learn a move in a given generation.

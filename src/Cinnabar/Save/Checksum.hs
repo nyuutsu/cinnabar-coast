@@ -3,7 +3,7 @@
 -- Pure functions. Gen 1 uses complement-of-byte-sum. Gen 2 uses
 -- a 16-bit variant (stubbed until the Gen 2 parser is built).
 
-module Pokemon.Save.Checksum
+module Cinnabar.Save.Checksum
   ( calculateGen1Checksum
   , calculateGen2Checksum
   ) where

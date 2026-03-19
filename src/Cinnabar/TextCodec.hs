@@ -11,7 +11,7 @@
 -- for the legality layer to consume, but the codec itself doesn't
 -- enforce it.
 
-module Pokemon.TextCodec
+module Cinnabar.TextCodec
   ( -- * Codec type
     TextCodec (..)
   , NamingScreen (..)
@@ -49,9 +49,9 @@ import Numeric (readHex, showHex)
 import System.FilePath ((</>))
 
 import Paths_cinnabar_coast (getDataDir)
-import Pokemon.Error (LoadError (..))
-import Pokemon.Types
-import Pokemon.Types.Internal (GameChar (Literal, Ligature, UnknownByte))
+import Cinnabar.Error (LoadError (..))
+import Cinnabar.Types
+import Cinnabar.Types.Internal (GameChar (Literal, Ligature, UnknownByte))
 
 
 -- ── Types ─────────────────────────────────────────────────────────

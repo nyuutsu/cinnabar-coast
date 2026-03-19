@@ -6,7 +6,7 @@
 -- a value, not modifying the parser. Each CartridgeLayout describes
 -- where structures live in SRAM for a given game and region.
 
-module Pokemon.Save.Layout
+module Cinnabar.Save.Layout
   ( -- * Game identification
     GameVariant (..)
   , SaveRegion (..)
@@ -24,7 +24,7 @@ module Pokemon.Save.Layout
 
 import Data.Text (Text)
 
-import Pokemon.Types (Gen (..))
+import Cinnabar.Types (Gen (..))
 
 
 -- ── Game Variant ────────────────────────────────────────────────

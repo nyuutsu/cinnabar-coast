@@ -29,7 +29,7 @@ tests can share code, but there are no external consumers.
 
 ```
 cinnabar-coast/
-├── src/Pokemon/
+├── src/Cinnabar/
 │   ├── Types.hs           -- Core domain types (Species, Move, DVs, GameChar, etc.)
 │   ├── Types/Internal.hs  -- GameChar constructors (Internal module pattern)
 │   ├── Data.hs            -- CSV loader → GameData
@@ -57,7 +57,7 @@ cinnabar-coast/
 
 ### Key types
 
-See the organized export list in `src/Pokemon/Types.hs` for the full
+See the organized export list in `src/Cinnabar/Types.hs` for the full
 type catalog. The exports are grouped by section with comments. Below
 are only the types whose design isn't obvious from the code alone.
 
@@ -71,8 +71,8 @@ are only the types whose design isn't obvious from the code alone.
 - `GameChar` — Opaque outside the codec. Each constructor carries its
   ROM source byte (!Word8), so two GameChars from different bytes are
   distinct even if they display the same glyph. Construction is
-  restricted via the Internal module pattern: only Pokemon.TextCodec
-  imports Pokemon.Types.Internal; everything else sees the type without
+  restricted via the Internal module pattern: only Cinnabar.TextCodec
+  imports Cinnabar.Types.Internal; everything else sees the type without
   constructors.
 - `GameText` — Newtype over [GameChar]. The lossless intermediate
   representation for Game Boy text. Losslessness is enforced by
@@ -118,7 +118,7 @@ are only the types whose design isn't obvious from the code alone.
   pure name→type mapping with no heuristics.
 - Trade evolutions are normalized at extraction: EVOLVE_TRADE (plain)
   and EVOLVE_TRADE_ITEM (with held item) are distinct CSV methods.
-- Name-to-type mappings live in Pokemon.Schema as Map Text a values,
+- Name-to-type mappings live in Cinnabar.Schema as Map Text a values,
   not pattern-match chains. This prevents catch-all clauses from
   silently swallowing new constructors.
 - The loading layer uses structured LoadError values returned via

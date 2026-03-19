@@ -7,7 +7,7 @@
 -- the error type, a renderer, and a convenience crash function for
 -- the current error-or-die loading style.
 
-module Pokemon.Error
+module Cinnabar.Error
   ( LoadError (..)
   , renderLoadError
   , loadOrDie
@@ -15,7 +15,7 @@ module Pokemon.Error
 
 import qualified Data.Text as T
 
-import Pokemon.Types (ColumnName (..), DexNumber (..), EnumLabel (..), RowNumber (..))
+import Cinnabar.Types (ColumnName (..), DexNumber (..), EnumLabel (..), RowNumber (..))
 
 
 -- ── Error type ────────────────────────────────────────────────────

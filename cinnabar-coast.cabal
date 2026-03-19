@@ -21,17 +21,17 @@ library
   autogen-modules:  Paths_cinnabar_coast
   other-modules:    Paths_cinnabar_coast
   exposed-modules:
-    Pokemon.Types
-    Pokemon.Types.Internal
-    Pokemon.Error
-    Pokemon.Schema
-    Pokemon.Data
-    Pokemon.Stats
-    Pokemon.Legality
-    Pokemon.TextCodec
-    Pokemon.Binary
-    Pokemon.Save.Layout
-    Pokemon.Save.Checksum
+    Cinnabar.Types
+    Cinnabar.Types.Internal
+    Cinnabar.Error
+    Cinnabar.Schema
+    Cinnabar.Data
+    Cinnabar.Stats
+    Cinnabar.Legality
+    Cinnabar.TextCodec
+    Cinnabar.Binary
+    Cinnabar.Save.Layout
+    Cinnabar.Save.Checksum
   build-depends:
     base       >= 4.18 && < 5,
     aeson      >= 2.1,

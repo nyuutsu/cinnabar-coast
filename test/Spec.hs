@@ -12,14 +12,14 @@ import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
-import Pokemon.Types
-import Pokemon.Stats
-import Pokemon.Data (loadAllGameData)
-import Pokemon.Error (loadOrDie)
-import Pokemon.Legality (classifyMove)
-import Pokemon.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
-import Pokemon.Save.Checksum (calculateGen1Checksum)
-import Pokemon.Save.Layout (GameVariant (..), SaveRegion (..), cartridgeLayout)
+import Cinnabar.Types
+import Cinnabar.Stats
+import Cinnabar.Data (loadAllGameData)
+import Cinnabar.Error (loadOrDie)
+import Cinnabar.Legality (classifyMove)
+import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
+import Cinnabar.Save.Checksum (calculateGen1Checksum)
+import Cinnabar.Save.Layout (GameVariant (..), SaveRegion (..), cartridgeLayout)
 
 
 -- ── Arbitrary instances ─────────────────────────────────────────
