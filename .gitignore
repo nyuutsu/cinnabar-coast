@@ -6,3 +6,4 @@ dist-newstyle/
 .claude/
 __pycache__/
 pret/
+test/data/*.sav

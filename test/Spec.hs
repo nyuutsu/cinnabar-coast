@@ -11,6 +11,7 @@ import qualified Data.ByteString as BS
 import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import Data.Word (Word8)
 
 import Cinnabar.Types
 import Cinnabar.Stats
@@ -21,7 +22,12 @@ import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, te
 import Cinnabar.Binary (mkCursor, cursorOffset)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
-import Cinnabar.Save.Layout (GameVariant (..), SaveRegion (..), cartridgeLayout)
+import Cinnabar.Save.Layout
+  ( GameVariant (..), SaveRegion (..), CartridgeLayout (..)
+  , SaveOffsets (..), Gen1SaveOffsets (..), cartridgeLayout
+  )
+import Cinnabar.Save.Raw
+import System.Directory (doesFileExist)
 
 
 -- ── Arbitrary instances ─────────────────────────────────────────
@@ -40,6 +46,14 @@ instance Arbitrary GrowthRate where
 
 instance Arbitrary Level where
   arbitrary = Level <$> choose (1, 100)
+
+
+-- ── Helpers ───────────────────────────────────────────────────────
+
+setByte :: Int -> Word8 -> BS.ByteString -> BS.ByteString
+setByte offset byte bytes =
+  let (prefix, suffix) = BS.splitAt offset bytes
+  in prefix <> BS.singleton byte <> BS.drop 1 suffix
 
 
 -- ── Main ────────────────────────────────────────────────────────
@@ -233,3 +247,46 @@ main = hspec $ do
       rawG1BoxSpeciesIndex boxMon `shouldBe` rawG1SpeciesIndex partyMon
       cursorOffset partyCursor `shouldBe` 44
       cursorOffset boxCursor `shouldBe` 33
+
+  describe "Save file parser" $ do
+    it "parses a real Yellow save file" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- BS.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (T.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) -> do
+                rawGen1ChecksumValid save `shouldBe` True
+                let party = rawGen1Party save
+                    count = fromIntegral (rawPartyCount party)
+                count `shouldSatisfy` (\n -> n >= 1 && n <= (6 :: Int))
+                length (rawPartySpecies party) `shouldBe` count
+                length (rawPartyMons party) `shouldBe` count
+
+    it "parses an empty party without crashing" $
+      case cartridgeLayout Yellow RegionWestern of
+        Left msg -> expectationFailure (T.unpack msg)
+        Right layout -> case layoutOffsets layout of
+          Gen2Offsets _ -> expectationFailure "expected Gen 1 offsets"
+          Gen1Offsets offsets -> do
+            let zeroes = BS.replicate 32768 0x00
+                withTerminators = setByte (g1PartyData offsets + 1) 0xFF
+                                $ setByte (g1CurrentBox offsets + 1) 0xFF
+                                $ zeroes
+                checksum = calculateGen1Checksum withTerminators
+                             (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
+                saveBytes = setByte (g1Checksum offsets) checksum withTerminators
+            case parseRawSave layout saveBytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) -> do
+                let party = rawGen1Party save
+                rawPartyCount party `shouldBe` 0
+                rawPartySpecies party `shouldBe` []
+                rawPartyMons party `shouldBe` []

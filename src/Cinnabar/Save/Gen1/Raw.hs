@@ -11,7 +11,6 @@ module Cinnabar.Save.Gen1.Raw
   , RawGen1BoxMon (..)
 
     -- * Parsers
-  , parseRawStatExp
   , parseGen1PartyMon
   , parseGen1BoxMon
   ) where
