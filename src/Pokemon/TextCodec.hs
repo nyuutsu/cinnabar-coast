@@ -201,25 +201,36 @@ charsetFilename gen lang = prefix ++ "-" ++ suffix ++ ".json"
 -- Handles both flat (characters array) and variant (German Gen 2)
 -- JSON structures.
 buildFromJSON :: Gen -> Language -> Aeson.Value -> Either String (TextCodec, [NamingScreen])
-buildFromJSON gen lang jsonValue =
-  case parseCharsets jsonValue of
-    Left parseError -> Left parseError
-    Right charsets ->
-      let -- Merge all character entries for the decode map
-          -- (all variants share the same encoding; only choosable differs)
-          allEntries = concatMap fst charsets
-          decodeMap = Map.fromList
-            [ (entryByte entry, entryGameChar entry) | entry <- allEntries ]
-          codec = TextCodec
-            { codecGen      = gen
-            , codecLanguage = lang
-            , codecDecode   = decodeMap
-            }
-          screens =
-            [ NamingScreen label (Set.fromList [entryGameChar entry | entry <- entries, entryChoosable entry])
-            | (entries, label) <- charsets
-            ]
-      in Right (codec, screens)
+buildFromJSON gen lang jsonValue = do
+  charsets <- parseCharsets jsonValue
+  mapM_ (\(entries, label) -> checkDuplicateBytes entries label) charsets
+  -- All variants share the same encoding; only choosable differs
+  let allEntries = concatMap fst charsets
+      decodeMap = Map.fromList
+        [ (entryByte entry, entryGameChar entry) | entry <- allEntries ]
+      codec = TextCodec
+        { codecGen      = gen
+        , codecLanguage = lang
+        , codecDecode   = decodeMap
+        }
+      screens =
+        [ NamingScreen label (Set.fromList [entryGameChar entry | entry <- entries, entryChoosable entry])
+        | (entries, label) <- charsets
+        ]
+  pure (codec, screens)
+
+
+-- | Fail if any byte value appears more than once in a single variant's entries.
+checkDuplicateBytes :: [CharEntry] -> T.Text -> Either String ()
+checkDuplicateBytes entries variantLabel =
+  let byteCounts = Map.fromListWith (+)
+        [(entryByte entry, 1 :: Int) | entry <- entries]
+      duplicateBytes = Map.keys (Map.filter (> 1) byteCounts)
+  in case duplicateBytes of
+    []    -> pure ()
+    (_:_) -> Left $ "duplicate byte values in charset variant "
+               ++ T.unpack variantLabel ++ ": "
+               ++ unwords (map (\byte -> "0x" ++ showHexByte byte) duplicateBytes)
 
 
 -- | A parsed character entry from JSON.
