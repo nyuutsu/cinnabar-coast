@@ -57,6 +57,9 @@ data LoadError
       !RowNumber
       !ColumnName       -- the column containing the name
       !T.Text           -- the name that failed to resolve
+  | DanglingEvolution
+      !FilePath
+      !DexNumber        -- dex number not found in the species map
   | EvolutionCycle
       !FilePath
       !DexNumber        -- species where the cycle was detected
@@ -101,6 +104,10 @@ renderLoadError (UnresolvedName errorFilePath errorRowNumber errorColumnName unr
   T.pack errorFilePath <> ":" <> renderRowNumber errorRowNumber
     <> ": unresolved name in column " <> unColumnName errorColumnName
     <> ": " <> quoteValue unresolvedValue
+
+renderLoadError (DanglingEvolution errorFilePath dex) =
+  T.pack errorFilePath <> ": evolution references unknown dex #"
+    <> T.pack (show (unDex dex))
 
 renderLoadError (EvolutionCycle errorFilePath dex) =
   T.pack errorFilePath <> ": evolution cycle detected at dex #"

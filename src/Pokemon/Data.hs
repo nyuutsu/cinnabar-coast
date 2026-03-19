@@ -76,6 +76,7 @@ loadAllGameData = do
             Gen1 -> Right Map.empty
           items      <- buildItems gen itemsCsv
           evolutions <- buildEvolutions gen evolutionsCsv
+          validateEvolutionDexNumbers (csvFilePath evolutionsCsv) species evolutions
           let evolvesInto = Map.fromListWith (++)
                 [ (stepFrom step, [step]) | step <- evolutions ]
               evolvesFrom = Map.fromListWith (++)
@@ -541,6 +542,21 @@ parseIntField rawValue = case decimal rawValue of
 
 
 -- ── Validation ────────────────────────────────────────────────────
+
+-- | Check that every dex number referenced in evolution steps
+-- exists in the species map. Catches dangling references before
+-- they cause silent Map.lookup failures in the legality engine.
+validateEvolutionDexNumbers :: FilePath -> Map.Map DexNumber Species -> [EvolutionStep] -> Either LoadError ()
+validateEvolutionDexNumbers path speciesMap evolutions =
+  traverse_ checkStep evolutions
+  where
+    checkStep step = do
+      checkDex (stepFrom step)
+      checkDex (stepTo step)
+    checkDex dex
+      | Map.member dex speciesMap = Right ()
+      | otherwise = Left (DanglingEvolution path dex)
+
 
 -- | Check for cycles in the evolvesFrom map. A cycle means some
 -- species can reach itself by walking backward through evolution
