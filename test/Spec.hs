@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main where
@@ -7,11 +8,13 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
 
 import Pokemon.Types
 import Pokemon.Stats
 import Pokemon.Data (loadAllGameData)
 import Pokemon.Error (loadOrDie)
+import Pokemon.Legality (classifyMove)
 import Pokemon.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
 
 
@@ -37,6 +40,7 @@ instance Arbitrary Level where
 
 main :: IO ()
 main = hspec $ do
+  (gen1Data, gen2Data) <- runIO (loadOrDie =<< loadAllGameData)
 
   -- ── Property tests ──────────────────────────────────────────
 
@@ -75,8 +79,7 @@ main = hspec $ do
   -- ── Golden tests ────────────────────────────────────────────
 
   describe "Pikachu Gen 1" $ do
-    (gameData, _) <- runIO (loadOrDie =<< loadAllGameData)
-    let pikachu = case Map.lookup (DexNumber 25) (gameSpecies (gameSpeciesGraph gameData)) of
+    let pikachu = case Map.lookup (DexNumber 25) (gameSpecies (gameSpeciesGraph gen1Data)) of
           Just species -> species
           Nothing      -> error "Pikachu (dex 25) not found in Gen 1 data"
 
@@ -106,3 +109,70 @@ main = hspec $ do
 
     it "DVs 15 15 15 15 is not shiny" $
       isShiny (DVs 15 15 15 15) `shouldBe` False
+
+  -- ── Move Legality ─────────────────────────────────────────
+
+  describe "Move Legality" $ do
+    let lookupSpeciesByName gameData name =
+          case Map.lookup name (gameSpeciesByName (gameSpeciesGraph gameData)) of
+            Just dex -> dex
+            Nothing  -> error $ "Species not found: " ++ T.unpack name
+
+        lookupMoveByName gameData name =
+          case Map.lookup name (gameMoveByName (gameLookupTables gameData)) of
+            Just matchedMoveId -> matchedMoveId
+            Nothing            -> error $ "Move not found: " ++ T.unpack name
+
+        methods sources = map sourceMethod sources
+
+    it "Pikachu learns Thunder by level-up in Gen 2" $ do
+      let pikachuDex = lookupSpeciesByName gen2Data "PIKACHU"
+          thunderId  = lookupMoveByName gen2Data "THUNDER"
+          sources    = classifyMove gen2Data (Just gen1Data) pikachuDex thunderId (Level 100)
+      LevelUp `elem` methods sources `shouldBe` True
+
+    it "Pikachu learns Toxic by TM in Gen 2" $ do
+      let pikachuDex = lookupSpeciesByName gen2Data "PIKACHU"
+          toxicId    = lookupMoveByName gen2Data "TOXIC"
+          sources    = classifyMove gen2Data (Just gen1Data) pikachuDex toxicId (Level 100)
+      TMMachine `elem` methods sources `shouldBe` True
+
+    it "Larvitar has Pursuit as an egg move in Gen 2" $ do
+      let larvitarDex = lookupSpeciesByName gen2Data "LARVITAR"
+          pursuitId   = lookupMoveByName gen2Data "PURSUIT"
+          sources     = classifyMove gen2Data (Just gen1Data) larvitarDex pursuitId (Level 100)
+      EggMove `elem` methods sources `shouldBe` True
+
+    it "Snorlax learns Flamethrower by tutor in Gen 2" $ do
+      let snorlaxDex    = lookupSpeciesByName gen2Data "SNORLAX"
+          flamethrowerId = lookupMoveByName gen2Data "FLAMETHROWER"
+          sources        = classifyMove gen2Data (Just gen1Data) snorlaxDex flamethrowerId (Level 100)
+      TutorMove `elem` methods sources `shouldBe` True
+
+    it "Chansey learns Mega Punch by tradeback to Gen 1 TM" $ do
+      let chanseyDex  = lookupSpeciesByName gen2Data "CHANSEY"
+          megaPunchId = lookupMoveByName gen2Data "MEGA_PUNCH"
+          sources     = classifyMove gen2Data (Just gen1Data) chanseyDex megaPunchId (Level 100)
+          tradebackSources = filter ((== Tradeback) . sourceMethod) sources
+          nestedMethods    = concatMap (map sourceMethod . sourceVia) tradebackSources
+      Tradeback `elem` methods sources `shouldBe` True
+      TMMachine `elem` nestedMethods `shouldBe` True
+
+    it "Raichu learns Thunder Wave via pre-evolution in Gen 2" $ do
+      let raichuDex     = lookupSpeciesByName gen2Data "RAICHU"
+          thunderWaveId = lookupMoveByName gen2Data "THUNDER_WAVE"
+          sources       = classifyMove gen2Data (Just gen1Data) raichuDex thunderWaveId (Level 100)
+      PreEvo `elem` methods sources `shouldBe` True
+
+    it "Pikachu cannot learn Aeroblast" $ do
+      let pikachuDex  = lookupSpeciesByName gen2Data "PIKACHU"
+          aeroblastId = lookupMoveByName gen2Data "AEROBLAST"
+          sources     = classifyMove gen2Data (Just gen1Data) pikachuDex aeroblastId (Level 100)
+      sources `shouldBe` []
+
+    it "Pikachu at level 10 can learn Thunder by TM but not level-up" $ do
+      let pikachuDex = lookupSpeciesByName gen2Data "PIKACHU"
+          thunderId  = lookupMoveByName gen2Data "THUNDER"
+          sources    = classifyMove gen2Data (Just gen1Data) pikachuDex thunderId (Level 10)
+      LevelUp `elem` methods sources `shouldBe` False
+      TMMachine `elem` methods sources `shouldBe` True
