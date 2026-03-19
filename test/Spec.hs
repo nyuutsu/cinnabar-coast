@@ -134,6 +134,16 @@ main = hspec $ do
                      && dvSpecial dvs == 10
                      && dvAttack dvs `elem` [2, 3, 6, 7, 10, 11, 14, 15] )
 
+  -- ── Internal index mapping ───────────────────────────────
+
+  describe "Internal index mapping" $
+    it "loads internal index mapping with correct known entries" $ do
+      let indexMap = gameInternalIndex (gameSpeciesGraph gen1Data)
+      Map.lookup (InternalIndex 1) indexMap `shouldBe` Just (DexNumber 112)
+      Map.lookup (InternalIndex 84) indexMap `shouldBe` Just (DexNumber 25)
+      Map.lookup (InternalIndex 31) indexMap `shouldBe` Nothing
+      Map.size indexMap `shouldBe` 151
+
   -- ── Move Legality ─────────────────────────────────────────
 
   describe "Move Legality" $ do

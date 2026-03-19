@@ -494,10 +494,11 @@ data LearnsetData = LearnsetData
 -- | Species existence and evolution relationships.
 -- Used by pre-evolution walking and species name lookup.
 data SpeciesGraph = SpeciesGraph
-  { gameSpecies       :: !(Map DexNumber Species)
-  , gameSpeciesByName :: !(Map Text DexNumber)            -- name → dex number
-  , gameEvolvesInto   :: !(Map DexNumber [EvolutionStep]) -- dex → what it evolves into
-  , gameEvolvesFrom   :: !(Map DexNumber [EvolutionStep]) -- dex → what evolves into it
+  { gameSpecies        :: !(Map DexNumber Species)
+  , gameSpeciesByName  :: !(Map Text DexNumber)            -- name → dex number
+  , gameEvolvesInto    :: !(Map DexNumber [EvolutionStep]) -- dex → what it evolves into
+  , gameEvolvesFrom    :: !(Map DexNumber [EvolutionStep]) -- dex → what evolves into it
+  , gameInternalIndex  :: !(Map InternalIndex DexNumber)   -- Gen 1 only; empty for Gen 2
   } deriving (Show)
 
 -- | Name-to-ID lookup tables for the app layer.

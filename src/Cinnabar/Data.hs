@@ -60,7 +60,8 @@ loadAllGameData = do
     eggMovesCsv   <- ExceptT (readCSV (csvPath "egg_moves.csv"))
     tutorCsv      <- ExceptT (readCSV (csvPath "tutor.csv"))
     itemsCsv      <- ExceptT (readCSV (csvPath "items.csv"))
-    evolutionsCsv <- ExceptT (readCSV (csvPath "evolutions.csv"))
+    evolutionsCsv    <- ExceptT (readCSV (csvPath "evolutions.csv"))
+    internalIndexCsv <- ExceptT (readCSV (csvPath "internal_index.csv"))
 
     let buildForGen gen = do
           (moves, moveNameToId)      <- buildMoves gen movesCsv
@@ -75,6 +76,9 @@ loadAllGameData = do
             Gen2 -> buildNamePairMap moveNameToId tutorCsv
             Gen1 -> Right Map.empty
           items      <- buildItems gen itemsCsv
+          internalIndex <- case gen of
+            Gen1 -> buildInternalIndex internalIndexCsv
+            Gen2 -> Right Map.empty
           evolutions <- buildEvolutions gen evolutionsCsv
           validateEvolutionDexNumbers (csvFilePath evolutionsCsv) species evolutions
           let evolvesInto = Map.fromListWith (++)
@@ -98,6 +102,7 @@ loadAllGameData = do
                 , gameSpeciesByName = speciesNameToId
                 , gameEvolvesInto   = evolvesInto
                 , gameEvolvesFrom   = evolvesFrom
+                , gameInternalIndex = internalIndex
                 }
             , gameLookupTables = LookupTables
                 { gameMoves      = moves
@@ -556,6 +561,20 @@ validateEvolutionDexNumbers path speciesMap evolutions =
     checkDex dex
       | Map.member dex speciesMap = Right ()
       | otherwise = Left (DanglingEvolution path dex)
+
+
+-- | internal_index.csv → Map InternalIndex DexNumber
+-- No gen column — this is Gen 1 only.
+buildInternalIndex :: CSV -> Either LoadError (Map.Map InternalIndex DexNumber)
+buildInternalIndex csv = do
+  internalIndexOfRow <- intColumn csv "internal_index"
+  dexOfRow           <- intColumn csv "dex"
+  let parseRow row = do
+        idx <- internalIndexOfRow row
+        dex <- dexOfRow row
+        pure (InternalIndex (fromIntegral idx), DexNumber dex)
+  pairs <- traverse parseRow (csvRows csv)
+  pure $ Map.fromList pairs
 
 
 -- | Check for cycles in the evolvesFrom map. A cycle means some

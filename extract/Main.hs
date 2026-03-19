@@ -104,6 +104,14 @@ extractAll pokered pokecrystal outDir = do
   let tutorCompat = buildTutorCompat gen2TMHM gen2SpeciesData
   writeCSV (outDir </> "tutor.csv") ["dex", "move_name"] tutorCompat
 
+  -- ── Internal index (Gen 1 only) ──────────────────────────────
+  let internalIndexRows =
+        [ [Text.pack (show idx), Text.pack (show dex)]
+        | (idx, dex) <- IntMap.toAscList gen1InternalToDex
+        ]
+  writeCSV (outDir </> "internal_index.csv")
+    ["internal_index", "dex"] internalIndexRows
+
   -- ── Egg moves (Gen 2 only) ──────────────────────────────────
   eggMoves <- extractEggMoves
     (pokecrystal </> "data/pokemon/egg_move_pointers.asm")
@@ -148,6 +156,7 @@ extractAll pokered pokecrystal outDir = do
   putStrLn $ "  egg_moves:   " ++ show (length eggMoves)
   putStrLn $ "  learnsets:   " ++ show (length learnsetRows)
   putStrLn $ "  evolutions:  " ++ show (length evolutionRows)
+  putStrLn $ "  internal:    " ++ show (length internalIndexRows)
 
 
 -- ── Species extraction ─────────────────────────────────────────
