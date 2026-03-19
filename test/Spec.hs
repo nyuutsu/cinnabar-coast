@@ -18,7 +18,9 @@ import Cinnabar.Data (loadAllGameData)
 import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
 import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
+import Cinnabar.Binary (mkCursor, cursorOffset)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
+import Cinnabar.Save.Gen1.Raw
 import Cinnabar.Save.Layout (GameVariant (..), SaveRegion (..), cartridgeLayout)
 
 
@@ -196,3 +198,38 @@ main = hspec $ do
     it "returns layouts for implemented games" $ do
       cartridgeLayout Yellow RegionWestern `shouldSatisfy` isRight
       cartridgeLayout GoldSilver RegionJapanese `shouldSatisfy` isLeft
+
+  describe "Gen 1 struct parsers" $
+    it "parseGen1PartyMon and parseGen1BoxMon parse a hand-crafted struct" $ do
+      let pikachuBytes = BS.pack
+            [ 0x54                          -- species: Pikachu internal index
+            , 0x00, 0x64                    -- current HP: 100
+            , 0x19                          -- box level: 25
+            , 0x00                          -- status: none
+            , 0x17, 0x17                    -- type1, type2: Electric
+            , 0xBE                          -- catch rate: 190
+            , 0x54, 0x55, 0x56, 0x57        -- moves
+            , 0x30, 0x39                    -- OT ID: 12345
+            , 0x00, 0xC3, 0x50             -- experience: 50000 (24-bit BE)
+            , 0x00, 0x00, 0x00, 0x00, 0x00  -- stat exp HP, Attack, Defense
+            , 0x00, 0x00, 0x00, 0x00, 0x00  -- stat exp Speed, Special
+            , 0xFA, 0xD8                    -- DVs: 0xFAD8
+            , 0x23, 0x24, 0x25, 0x26        -- PP slots
+            -- box struct ends here (33 bytes)
+            , 0x19                          -- party level: 25
+            , 0x00, 0x6E                    -- max HP: 110
+            , 0x00, 0x4B                    -- attack: 75
+            , 0x00, 0x32                    -- defense: 50
+            , 0x00, 0x6E                    -- speed: 110
+            , 0x00, 0x46                    -- special: 70
+            ]
+          (partyMon, partyCursor) = parseGen1PartyMon (mkCursor pikachuBytes)
+          (boxMon, boxCursor)     = parseGen1BoxMon (mkCursor pikachuBytes)
+      rawG1SpeciesIndex partyMon `shouldBe` InternalIndex 0x54
+      rawG1Exp partyMon `shouldBe` 50000
+      rawG1DVBytes partyMon `shouldBe` 0xFAD8
+      rawG1OTID partyMon `shouldBe` 12345
+      rawG1Level partyMon `shouldBe` 25
+      rawG1BoxSpeciesIndex boxMon `shouldBe` rawG1SpeciesIndex partyMon
+      cursorOffset partyCursor `shouldBe` 44
+      cursorOffset boxCursor `shouldBe` 33
