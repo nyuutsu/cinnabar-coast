@@ -13,6 +13,8 @@ module Cinnabar.Save.Layout
 
     -- * Layout configuration
   , CartridgeLayout (..)
+  , NameLength (..)
+  , BoxCapacity (..)
   , SaveOffsets (..)
   , Gen1SaveOffsets (..)
   , Gen2SaveOffsets (..)
@@ -51,16 +53,29 @@ data SaveRegion = RegionJapanese | RegionWestern | RegionKorean
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 
+-- ── Layout Newtypes ──────────────────────────────────────────────
+
+-- | Byte length of a name field (player, rival, OT, nickname).
+-- Varies by region: 11 for Western, 6 for Japanese.
+newtype NameLength = NameLength { unNameLength :: Int }
+  deriving (Eq, Ord, Show)
+
+-- | Maximum number of Pokemon a PC box can hold.
+-- Varies by region: 20 for Western, 30 for Japanese.
+newtype BoxCapacity = BoxCapacity { unBoxCapacity :: Int }
+  deriving (Eq, Ord, Show)
+
+
 -- ── Cartridge Layout ────────────────────────────────────────────
 
 data CartridgeLayout = CartridgeLayout
   { layoutGen         :: !Gen
   , layoutGame        :: !GameVariant
   , layoutRegion      :: !SaveRegion
-  , layoutNameLen     :: !Int
+  , layoutNameLen     :: !NameLength
   , layoutOffsets     :: !SaveOffsets
   , layoutBoxCount    :: !Int
-  , layoutBoxCapacity :: !Int
+  , layoutBoxCapacity :: !BoxCapacity
   } deriving (Show)
 
 
@@ -219,10 +234,10 @@ westernGen1Layout game = CartridgeLayout
   { layoutGen         = Gen1
   , layoutGame        = game
   , layoutRegion      = RegionWestern
-  , layoutNameLen     = 11
+  , layoutNameLen     = NameLength 11
   , layoutOffsets     = Gen1Offsets westernGen1Offsets
   , layoutBoxCount    = 12
-  , layoutBoxCapacity = 20
+  , layoutBoxCapacity = BoxCapacity 20
   }
 
 -- | Western Gen 1 save file offsets. Shared across Red, Blue, and Yellow.

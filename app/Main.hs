@@ -29,7 +29,9 @@ import Cinnabar.Save.Interpret
   , InventoryEntry (..), PlayTime (..)
   )
 import Cinnabar.Save.Layout
-  (cartridgeLayout, CartridgeLayout (..), GameVariant (..), SaveRegion (..))
+  ( cartridgeLayout, CartridgeLayout (..), BoxCapacity (..)
+  , GameVariant (..), SaveRegion (..)
+  )
 import Cinnabar.Save.Raw
   (parseRawSave, SaveError (..), RawSaveFile (..), RawGen1SaveFile (..))
 import Cinnabar.Stats
@@ -224,7 +226,7 @@ printBoxSummary :: InterpretedSave -> IO ()
 printBoxSummary interpreted = do
   let activeBoxNum = interpActiveBoxNum interpreted
       boxCapacity = case interpRaw interpreted of
-        RawGen1Save raw -> layoutBoxCapacity (rawGen1Layout raw)
+        RawGen1Save raw -> unBoxCapacity (layoutBoxCapacity (rawGen1Layout raw))
         _ -> 20
       boxes = interpPCBoxes interpreted
       nonEmptyNums = Set.fromList (map interpBoxNumber boxes)
@@ -246,7 +248,7 @@ printAllBoxes :: InterpretedSave -> IO ()
 printAllBoxes interpreted = do
   let boxes = interpPCBoxes interpreted
       boxCapacity = case interpRaw interpreted of
-        RawGen1Save raw -> layoutBoxCapacity (rawGen1Layout raw)
+        RawGen1Save raw -> unBoxCapacity (layoutBoxCapacity (rawGen1Layout raw))
         _ -> 20
   if null boxes
     then putStrLn "No Pokémon in PC boxes."

@@ -21,7 +21,8 @@ import Cinnabar.Binary (writeByte, writeWord16BE, writeWord24BE, patchByte, patc
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 import Cinnabar.Save.Layout
-  ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), BoxBankInfo (..)
+  ( CartridgeLayout (..), NameLength (..), BoxCapacity (..)
+  , SaveOffsets (..), Gen1SaveOffsets (..), BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
   , gen1HoFRecordCount, gen1HoFRecordSize, gen1HoFEntrySize
   )
@@ -53,13 +54,13 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
 
         partyRegionSize = 1 + (gen1PartyCapacity + 1)
                         + gen1PartyCapacity * gen1PartyMonSize
-                        + gen1PartyCapacity * nameLen * 2
+                        + gen1PartyCapacity * unNameLength nameLen * 2
         originalPartyRegion = ByteString.take partyRegionSize
                             $ ByteString.drop (g1PartyData offsets) originalBytes
 
-        boxRegionSize = 1 + (boxCapacity + 1)
-                      + boxCapacity * gen1BoxMonSize
-                      + boxCapacity * nameLen * 2
+        boxRegionSize = 1 + (unBoxCapacity boxCapacity + 1)
+                      + unBoxCapacity boxCapacity * gen1BoxMonSize
+                      + unBoxCapacity boxCapacity * unNameLength nameLen * 2
         originalBoxRegion = ByteString.take boxRegionSize
                           $ ByteString.drop (g1CurrentBox offsets) originalBytes
 
@@ -177,15 +178,16 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
 
 -- ── Container Serializers ────────────────────────────────────
 
-serializeGen1Party :: Int -> ByteString -> RawGen1Party -> ByteString
+serializeGen1Party :: NameLength -> ByteString -> RawGen1Party -> ByteString
 serializeGen1Party nameLen original party =
-  let count        = fromIntegral (rawGen1PartyCount party) :: Int
+  let nameLenInt   = unNameLength nameLen
+      count        = fromIntegral (rawGen1PartyCount party) :: Int
       speciesStart = 1
       structsStart = 1 + gen1PartyCapacity + 1
       otStart      = structsStart + gen1PartyCapacity * gen1PartyMonSize
-      nicksStart   = otStart + gen1PartyCapacity * nameLen
-  in patchSlots nicksStart nameLen (rawGen1PartyNicks party)
-   $ patchSlots otStart nameLen (rawGen1PartyOTNames party)
+      nicksStart   = otStart + gen1PartyCapacity * nameLenInt
+  in patchSlots nicksStart nameLenInt (rawGen1PartyNicks party)
+   $ patchSlots otStart nameLenInt (rawGen1PartyOTNames party)
    $ patchSlots structsStart gen1PartyMonSize
        (map serializeGen1PartyMon (rawGen1PartyMons party))
    $ patchByte (speciesStart + count) 0xFF
@@ -194,15 +196,17 @@ serializeGen1Party nameLen original party =
    $ patchByte 0 (rawGen1PartyCount party)
      original
 
-serializeGen1Box :: Int -> Int -> ByteString -> RawGen1Box -> ByteString
+serializeGen1Box :: NameLength -> BoxCapacity -> ByteString -> RawGen1Box -> ByteString
 serializeGen1Box nameLen boxCapacity original box =
-  let count        = fromIntegral (rawGen1BoxCount box) :: Int
+  let nameLenInt   = unNameLength nameLen
+      boxCapInt    = unBoxCapacity boxCapacity
+      count        = fromIntegral (rawGen1BoxCount box) :: Int
       speciesStart = 1
-      structsStart = 1 + boxCapacity + 1
-      otStart      = structsStart + boxCapacity * gen1BoxMonSize
-      nicksStart   = otStart + boxCapacity * nameLen
-  in patchSlots nicksStart nameLen (rawGen1BoxNicks box)
-   $ patchSlots otStart nameLen (rawGen1BoxOTNames box)
+      structsStart = 1 + boxCapInt + 1
+      otStart      = structsStart + boxCapInt * gen1BoxMonSize
+      nicksStart   = otStart + boxCapInt * nameLenInt
+  in patchSlots nicksStart nameLenInt (rawGen1BoxNicks box)
+   $ patchSlots otStart nameLenInt (rawGen1BoxOTNames box)
    $ patchSlots structsStart gen1BoxMonSize
        (map serializeGen1BoxMon (rawGen1BoxMons box))
    $ patchByte (speciesStart + count) 0xFF
@@ -299,7 +303,7 @@ serializeRawPlayTime playTime = ByteString.pack
 
 -- ── Hall of Fame Serialization ──────────────────────────────────
 
-serializeHallOfFame :: Int -> ByteString -> [RawGen1HoFRecord] -> ByteString
+serializeHallOfFame :: NameLength -> ByteString -> [RawGen1HoFRecord] -> ByteString
 serializeHallOfFame nameLen original records =
   foldl' patchRecord original (zip [0 ..] records)
   where
@@ -308,17 +312,18 @@ serializeHallOfFame nameLen original records =
         (zip [0 ..] (rawGen1HoFEntries record))
 
     patchEntry recordIndex region (entryIndex, entry) =
-      let offset = recordIndex * gen1HoFRecordSize + entryIndex * gen1HoFEntrySize
+      let nameLenInt = unNameLength nameLen
+          offset = recordIndex * gen1HoFRecordSize + entryIndex * gen1HoFEntrySize
       in patchByte offset (unInternalIndex (rawGen1HoFSpecies entry))
        $ patchByte (offset + 1) (rawGen1HoFLevel entry)
        $ patchBytes (offset + 2) (rawGen1HoFNickname entry)
-       $ patchBytes (offset + 2 + nameLen) (rawGen1HoFPadding entry)
+       $ patchBytes (offset + 2 + nameLenInt) (rawGen1HoFPadding entry)
          region
 
 
 -- ── Box Bank Serialization ────────────────────────────────────
 
-patchBoxBanks :: Int -> Int -> [BoxBankInfo] -> [RawGen1Box] -> ByteString -> ByteString
+patchBoxBanks :: NameLength -> BoxCapacity -> [BoxBankInfo] -> [RawGen1Box] -> ByteString -> ByteString
 patchBoxBanks _ _ [] _ bytes = bytes
 patchBoxBanks nameLen boxCapacity (bank : remainingBanks) allBoxes bytes =
   let bankCount = bankBoxCount bank
@@ -331,7 +336,7 @@ patchBoxBanks nameLen boxCapacity (bank : remainingBanks) allBoxes bytes =
   in patchBoxBanks nameLen boxCapacity remainingBanks remainingBoxes
        (patchByte (bankAllChecksum bank) bankChecksum withBoxChecksums)
 
-patchBoxData :: Int -> Int -> BoxBankInfo -> ByteString -> (Int, RawGen1Box) -> ByteString
+patchBoxData :: NameLength -> BoxCapacity -> BoxBankInfo -> ByteString -> (Int, RawGen1Box) -> ByteString
 patchBoxData nameLen boxCapacity bank current (boxIndex, box) =
   let boxOffset = bankStartOffset bank + boxIndex * bankBoxDataSize bank
       originalRegion = ByteString.take (bankBoxDataSize bank)

@@ -51,6 +51,7 @@ import Cinnabar.Save.Gen1.Raw
   )
 import Cinnabar.Save.Layout
   ( CartridgeLayout (..)
+  , NameLength (..), BoxCapacity (..)
   , SaveOffsets (..)
   , Gen1SaveOffsets (..)
   , BoxBankInfo (..)
@@ -256,8 +257,8 @@ parseGen1Save layout offsets bytes =
       nameLen     = layoutNameLen layout
       boxCapacity = layoutBoxCapacity layout
 
-      (playerName, _) = readBytes nameLen (seekTo (g1PlayerName offsets) cursor)
-      (rivalName, _)  = readBytes nameLen (seekTo (g1RivalName offsets) cursor)
+      (playerName, _) = readBytes (unNameLength nameLen) (seekTo (g1PlayerName offsets) cursor)
+      (rivalName, _)  = readBytes (unNameLength nameLen) (seekTo (g1RivalName offsets) cursor)
       (party, _)      = parseGen1Party nameLen (seekTo (g1PartyData offsets) cursor)
       (currentBox, _) = parseGen1Box nameLen boxCapacity (seekTo (g1CurrentBox offsets) cursor)
 
@@ -362,12 +363,13 @@ parseRawPlayTime cursor0 =
       , rawPlayFrames  = frames
       }
 
-parseRawDaycare :: Int -> Gen1SaveOffsets -> Cursor -> RawDaycare
+parseRawDaycare :: NameLength -> Gen1SaveOffsets -> Cursor -> RawDaycare
 parseRawDaycare nameLen offsets cursor =
-  let (inUse, _)       = readByte (seekTo (g1DaycareInUse offsets) cursor)
+  let nameLenInt       = unNameLength nameLen
+      (inUse, _)       = readByte (seekTo (g1DaycareInUse offsets) cursor)
       (speciesByte, _) = readByte (seekTo (g1DaycareMon offsets) cursor)
-      (nickname, _)    = readBytes nameLen (seekTo (g1DaycareNickname offsets) cursor)
-      (otName, _)      = readBytes nameLen (seekTo (g1DaycareOTName offsets) cursor)
+      (nickname, _)    = readBytes nameLenInt (seekTo (g1DaycareNickname offsets) cursor)
+      (otName, _)      = readBytes nameLenInt (seekTo (g1DaycareOTName offsets) cursor)
   in RawDaycare
       { rawDaycareInUse    = inUse
       , rawDaycareMon      = InternalIndex speciesByte
@@ -495,22 +497,23 @@ parseRawTransient offsets cursor =
 
 -- ── Hall of Fame Parser ─────────────────────────────────────────
 
-parseHallOfFame :: Int -> Cursor -> [RawGen1HoFRecord]
+parseHallOfFame :: NameLength -> Cursor -> [RawGen1HoFRecord]
 parseHallOfFame nameLen cursor0 =
   [ parseHoFRecord nameLen (skip (recordIndex * gen1HoFRecordSize) cursor0) | recordIndex <- [0 .. gen1HoFRecordCount - 1] ]
 
-parseHoFRecord :: Int -> Cursor -> RawGen1HoFRecord
+parseHoFRecord :: NameLength -> Cursor -> RawGen1HoFRecord
 parseHoFRecord nameLen cursor0 =
   let (entries, _) = parseHoFEntries nameLen gen1HoFSlotsPerRecord cursor0
   in RawGen1HoFRecord { rawGen1HoFEntries = entries }
 
-parseHoFEntries :: Int -> Int -> Cursor -> ([RawGen1HoFEntry], Cursor)
+parseHoFEntries :: NameLength -> Int -> Cursor -> ([RawGen1HoFEntry], Cursor)
 parseHoFEntries _ 0 cursor = ([], cursor)
 parseHoFEntries nameLen remaining cursor0 =
-  let paddingLen               = gen1HoFEntrySize - 2 - nameLen
+  let nameLenInt                 = unNameLength nameLen
+      paddingLen               = gen1HoFEntrySize - 2 - nameLenInt
       (speciesByte, cursor1)   = readByte cursor0
       (levelByte, cursor2)     = readByte cursor1
-      (nickname, cursor3)      = readBytes nameLen cursor2
+      (nickname, cursor3)      = readBytes nameLenInt cursor2
       (padding, cursor4)       = readBytes paddingLen cursor3
       entry = RawGen1HoFEntry
         { rawGen1HoFSpecies  = InternalIndex speciesByte
@@ -524,18 +527,19 @@ parseHoFEntries nameLen remaining cursor0 =
 
 -- ── Container Parsers ──────────────────────────────────────────
 
-parseGen1Party :: Int -> Cursor -> (RawGen1Party, Cursor)
+parseGen1Party :: NameLength -> Cursor -> (RawGen1Party, Cursor)
 parseGen1Party nameLen cursor0 =
-  let (count, cursor1)  = readByte cursor0
+  let nameLenInt        = unNameLength nameLen
+      (count, cursor1)  = readByte cursor0
       entryCount        = fromIntegral count
       speciesListSize   = gen1PartyCapacity + 1
       (species, cursor2) = parseSpeciesList gen1PartyCapacity speciesListSize cursor1
       (mons, cursor3)    = parseFixedArray entryCount gen1PartyCapacity
                              gen1PartyMonSize parseGen1PartyMon cursor2
       (otNames, cursor4) = parseFixedArray entryCount gen1PartyCapacity
-                             nameLen (readBytes nameLen) cursor3
+                             nameLenInt (readBytes nameLenInt) cursor3
       (nicks, cursor5)   = parseFixedArray entryCount gen1PartyCapacity
-                             nameLen (readBytes nameLen) cursor4
+                             nameLenInt (readBytes nameLenInt) cursor4
   in ( RawGen1Party
         { rawGen1PartyCount   = count
         , rawGen1PartySpecies = species
@@ -546,18 +550,20 @@ parseGen1Party nameLen cursor0 =
      , cursor5
      )
 
-parseGen1Box :: Int -> Int -> Cursor -> (RawGen1Box, Cursor)
+parseGen1Box :: NameLength -> BoxCapacity -> Cursor -> (RawGen1Box, Cursor)
 parseGen1Box nameLen boxCapacity cursor0 =
-  let (count, cursor1)  = readByte cursor0
+  let nameLenInt        = unNameLength nameLen
+      boxCapInt         = unBoxCapacity boxCapacity
+      (count, cursor1)  = readByte cursor0
       entryCount        = fromIntegral count
-      speciesListSize   = boxCapacity + 1
-      (species, cursor2) = parseSpeciesList boxCapacity speciesListSize cursor1
-      (mons, cursor3)    = parseFixedArray entryCount boxCapacity
+      speciesListSize   = boxCapInt + 1
+      (species, cursor2) = parseSpeciesList boxCapInt speciesListSize cursor1
+      (mons, cursor3)    = parseFixedArray entryCount boxCapInt
                              gen1BoxMonSize parseGen1BoxMon cursor2
-      (otNames, cursor4) = parseFixedArray entryCount boxCapacity
-                             nameLen (readBytes nameLen) cursor3
-      (nicks, cursor5)   = parseFixedArray entryCount boxCapacity
-                             nameLen (readBytes nameLen) cursor4
+      (otNames, cursor4) = parseFixedArray entryCount boxCapInt
+                             nameLenInt (readBytes nameLenInt) cursor3
+      (nicks, cursor5)   = parseFixedArray entryCount boxCapInt
+                             nameLenInt (readBytes nameLenInt) cursor4
   in ( RawGen1Box
         { rawGen1BoxCount   = count
         , rawGen1BoxSpecies = species
@@ -601,12 +607,12 @@ parseFixedArray count capacity slotSize parser cursor0 =
 
 -- ── Box Bank Parsers ─────────────────────────────────────────
 
-parseBoxBanks :: Int -> Int -> ByteString -> [BoxBankInfo] -> ([RawGen1Box], [RawBankValidity])
+parseBoxBanks :: NameLength -> BoxCapacity -> ByteString -> [BoxBankInfo] -> ([RawGen1Box], [RawBankValidity])
 parseBoxBanks nameLen boxCapacity bytes banks =
   let results = map (parseBoxBank nameLen boxCapacity bytes) banks
   in (concatMap fst results, map snd results)
 
-parseBoxBank :: Int -> Int -> ByteString -> BoxBankInfo -> ([RawGen1Box], RawBankValidity)
+parseBoxBank :: NameLength -> BoxCapacity -> ByteString -> BoxBankInfo -> ([RawGen1Box], RawBankValidity)
 parseBoxBank nameLen boxCapacity bytes bank =
   let cursor = mkCursor bytes
 
