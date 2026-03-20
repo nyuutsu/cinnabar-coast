@@ -399,7 +399,12 @@ main = hspec $ do
                     case interpSpecial mon of
                       Unified _ -> pure ()
                       Split _ _ -> expectationFailure "expected Unified special stat"
-                    filter (/= ActiveBoxDesync) (interpWarnings interpreted) `shouldBe` []
+                    let isStarterWarning (UnknownSpeciesIndex PlayerStarter _) = True
+                        isStarterWarning (UnknownSpeciesIndex RivalStarter _) = True
+                        isStarterWarning _ = False
+                    filter (\warning -> warning /= ActiveBoxDesync
+                                     && not (isStarterWarning warning))
+                      (interpWarnings interpreted) `shouldBe` []
             where
               isKnownMove (KnownMove _ _) = True
               isKnownMove _               = False

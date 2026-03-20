@@ -22,9 +22,10 @@ import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
 import Cinnabar.Save.Interpret
   ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
-  , InterpretedSpecies (..), InterpretedMove (..), SaveWarning (..)
+  , InterpretedSpecies (..), InterpretedMove (..)
+  , WarningContext (..), SaveWarning (..)
   , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
-  , InterpretedProgress (..), MapScriptState (..)
+  , InterpretedProgress (..), FlagState (..), MapScriptState (..)
   , InventoryEntry (..), PlayTime (..)
   )
 import Cinnabar.Save.Layout
@@ -330,22 +331,29 @@ renderSaveError (UnimplementedGen gen) =
   "unimplemented: " ++ show gen
 
 
--- | Render a save warning with 1-indexed slot numbers for display.
+renderWarningContext :: WarningContext -> String
+renderWarningContext (PartySlot slot)        = "Party slot " ++ show slot
+renderWarningContext (BoxSlot box slot)      = "Box " ++ show box ++ " slot " ++ show slot
+renderWarningContext (HoFSlot record entry)  = "HoF record " ++ show record ++ " slot " ++ show entry
+renderWarningContext PlayerStarter           = "Player starter"
+renderWarningContext RivalStarter            = "Rival starter"
+renderWarningContext DaycareSlot             = "Daycare"
+
 renderWarning :: SaveWarning -> String
-renderWarning (UnknownSpeciesIndex slot idx) =
-  "Slot " ++ show (slot + 1) ++ ": unknown species index 0x"
+renderWarning (UnknownSpeciesIndex context idx) =
+  renderWarningContext context ++ ": unknown species index 0x"
     ++ showHexByte (unInternalIndex idx)
-renderWarning (UnknownMoveId slot moveSlot byte) =
-  "Slot " ++ show (slot + 1) ++ ", move " ++ show moveSlot
+renderWarning (UnknownMoveId context moveSlot byte) =
+  renderWarningContext context ++ ", move " ++ show moveSlot
     ++ ": unknown move ID 0x" ++ showHexByte byte
-renderWarning (SpeciesListMismatch slot listByte structByte) =
-  "Slot " ++ show (slot + 1) ++ ": species list/struct mismatch (0x"
+renderWarning (SpeciesListMismatch context listByte structByte) =
+  renderWarningContext context ++ ": species list/struct mismatch (0x"
     ++ showHexByte listByte ++ " vs 0x" ++ showHexByte structByte ++ ")"
 renderWarning (ChecksumMismatch stored calculated) =
   "Checksum mismatch: stored 0x" ++ showHexByte stored
     ++ ", calculated 0x" ++ showHexByte calculated
-renderWarning (StatMismatch slot statName stored calculated) =
-  "Slot " ++ show (slot + 1) ++ ": " ++ Text.unpack statName
+renderWarning (StatMismatch context statName stored calculated) =
+  renderWarningContext context ++ ": " ++ Text.unpack statName
     ++ " mismatch (stored " ++ show stored
     ++ ", calculated " ++ show calculated ++ ")"
 renderWarning (BoxBankChecksumMismatch bankIndex stored calculated) =
@@ -393,12 +401,15 @@ printProgressSummary progress = do
 
 printAllFlags :: InterpretedProgress -> IO ()
 printAllFlags progress = do
-  let events = progEventFlags progress
-  putStrLn $ "Event flags (" ++ show (length events)
-    ++ " set of " ++ show (progEventFlagTotal progress) ++ " named):"
+  let events    = progEventFlags progress
+      setCount  = length (filter flagIsSet events)
+      unsetCount = length events - setCount
+  putStrLn $ "Event flags (" ++ show setCount ++ " set, "
+    ++ show unsetCount ++ " unset of " ++ show (length events) ++ " named):"
   if null events
     then putStrLn "  (none)"
-    else mapM_ (\name -> TextIO.putStrLn $ "  " <> name) events
+    else mapM_ (\flag -> TextIO.putStrLn $ "  " <> padRight 40 (flagName flag)
+      <> if flagIsSet flag then "set" else "unset") events
   putStrLn ""
 
   putStrLn "Various flags:"
@@ -410,21 +421,30 @@ printAllFlags progress = do
   putStrLn $ "  Healed at center: " ++ showYesNo (progHealedAtCenter progress)
   putStrLn ""
 
-  let toggles = progToggleFlags progress
-  putStrLn $ "Toggleable objects (" ++ show (length toggles)
-    ++ " hidden of " ++ show (progToggleFlagTotal progress) ++ " named):"
+  let toggles      = progToggleFlags progress
+      hiddenCount  = length (filter flagIsSet toggles)
+      visibleCount = length toggles - hiddenCount
+  putStrLn $ "Toggleable objects (" ++ show hiddenCount ++ " hidden, "
+    ++ show visibleCount ++ " visible of " ++ show (length toggles) ++ " named):"
   if null toggles
     then putStrLn "  (none)"
-    else mapM_ (\name -> TextIO.putStrLn $ "  " <> name) toggles
+    else mapM_ (\flag -> TextIO.putStrLn $ "  " <> padRight 40 (flagName flag)
+      <> if flagIsSet flag then "hidden" else "visible") toggles
   putStrLn ""
 
-  let scripts = progMapScripts progress
-  putStrLn $ "Map script progress (" ++ show (length scripts)
-    ++ " non-zero of " ++ show (progMapScriptTotal progress) ++ " named):"
+  let scripts      = progMapScripts progress
+      nonZeroCount = length (filter (\state -> scriptStep state /= 0) scripts)
+  putStrLn $ "Map script progress (" ++ show nonZeroCount ++ " non-zero of "
+    ++ show (length scripts) ++ " named):"
   if null scripts
     then putStrLn "  (none)"
-    else mapM_ (\state -> TextIO.putStrLn $ "  " <> scriptName state
-      <> ": step " <> Text.pack (show (scriptStep state))) scripts
+    else mapM_ (\state -> TextIO.putStrLn $ "  " <> padRight 40 (scriptName state)
+      <> "step " <> Text.pack (show (scriptStep state))) scripts
+
+padRight :: Int -> Text -> Text
+padRight width text
+  | Text.length text >= width = text <> " "
+  | otherwise = text <> Text.replicate (width - Text.length text) " "
 
 showYesNo :: Bool -> String
 showYesNo True  = "yes"

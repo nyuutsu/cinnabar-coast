@@ -19,6 +19,7 @@ module Cinnabar.Save.Interpret
   , StatOrigin (..)
   , InterpretedMon (..)
   , InterpretedBox (..)
+  , FlagState (..)
   , MapScriptState (..)
   , InterpretedProgress (..)
   , InterpretedHoFEntry (..)
@@ -30,6 +31,7 @@ module Cinnabar.Save.Interpret
   , PlayTime (..)
 
     -- * Warnings
+  , WarningContext (..)
   , SaveWarning (..)
 
     -- * Interpretation
@@ -40,7 +42,8 @@ import Data.Bits (testBit, popCount, shiftR, (.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.List (zip4)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (catMaybes)
+
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -121,6 +124,11 @@ data InterpretedBox = InterpretedBox
   , interpBoxMons   :: ![InterpretedMon]
   } deriving (Eq, Show)
 
+data FlagState = FlagState
+  { flagName  :: !Text
+  , flagIsSet :: !Bool
+  } deriving (Eq, Show)
+
 data MapScriptState = MapScriptState
   { scriptName :: !Text
   , scriptStep :: !Int
@@ -132,8 +140,8 @@ data InterpretedProgress = InterpretedProgress
   , progDefeatedGyms      :: ![Text]
   , progTownsVisited      :: ![Text]
   , progMovementMode      :: !Text
-  , progEventFlags        :: ![Text]
-  , progToggleFlags       :: ![Text]
+  , progEventFlags        :: ![FlagState]
+  , progToggleFlags       :: ![FlagState]
   , progMapScripts        :: ![MapScriptState]
   , progReceivedOldRod    :: !Bool
   , progReceivedGoodRod   :: !Bool
@@ -143,9 +151,6 @@ data InterpretedProgress = InterpretedProgress
   , progHealedAtCenter    :: !Bool
   , progTradesCompleted   :: !Int
   , progActiveBoxSynced   :: !Bool
-  , progEventFlagTotal    :: !Int
-  , progToggleFlagTotal   :: !Int
-  , progMapScriptTotal    :: !Int
   } deriving (Eq, Show)
 
 data InterpretedHoFEntry = InterpretedHoFEntry
@@ -200,14 +205,23 @@ data PlayTime = PlayTime
 
 -- ── Warnings ─────────────────────────────────────────────────
 
+data WarningContext
+  = PartySlot !Int           -- 1-based slot index
+  | BoxSlot !Int !Int        -- 1-based box number, 1-based slot index
+  | HoFSlot !Int !Int        -- 1-based record index, 1-based entry index
+  | PlayerStarter
+  | RivalStarter
+  | DaycareSlot
+  deriving (Eq, Show)
+
 data SaveWarning
-  = UnknownSpeciesIndex !Int !InternalIndex
-  | UnknownMoveId !Int !Int !Word8
-  | SpeciesListMismatch !Int !Word8 !Word8
+  = UnknownSpeciesIndex !WarningContext !InternalIndex
+  | UnknownMoveId !WarningContext !Int !Word8         -- context, move slot (1-based), byte
+  | SpeciesListMismatch !WarningContext !Word8 !Word8
   | ChecksumMismatch !Word8 !Word8
-  | StatMismatch !Int !Text !Int !Int
-  | BoxBankChecksumMismatch !Int !Word8 !Word8       -- bank index, stored, calculated
-  | BoxChecksumMismatch !Int !Int !Word8 !Word8      -- bank index, box-within-bank index, stored, calculated
+  | StatMismatch !WarningContext !Text !Int !Int      -- context, stat name, stored, calculated
+  | BoxBankChecksumMismatch !Int !Word8 !Word8        -- bank index, stored, calculated
+  | BoxChecksumMismatch !Int !Int !Word8 !Word8       -- bank index, box-within-bank index, stored, calculated
   | ActiveBoxDesync
   deriving (Eq, Show)
 
@@ -258,6 +272,7 @@ interpretGen1Save gameData codec rawSave =
 
       rawPlayTimeRecord = rawGen1PlayTime rawSave
       daycareRecord     = rawGen1Daycare rawSave
+      (daycareSpecies, daycareWarnings) = resolveDaycare indexMap speciesMap daycareRecord
 
       -- PC box interpretation (non-empty boxes only)
       (interpretedBoxes, boxMonWarnings) = unzip
@@ -278,15 +293,17 @@ interpretGen1Save gameData codec rawSave =
                 boxNamePairs
               (boxMons, perMonWarnings) = unzip
                 [ interpretGen1BoxMon indexMap speciesMap moveMap codec
-                    idx listSpec mon names
+                    boxNum idx listSpec mon names
                 | (idx, listSpec, mon, names) <- boxSlots
                 ]
         ]
 
       -- Hall of Fame interpretation
       hofCount = fromIntegral (rawGen1HoFCount rawSave) :: Int
-      interpretedHoF = map (interpretHoFRecord indexMap speciesMap codec)
-                         (take hofCount (rawGen1HallOfFame rawSave))
+      (interpretedHoF, hofWarnings) = unzip
+        [ interpretHoFRecord indexMap speciesMap codec recordIndex record
+        | (recordIndex, record) <- zip [1 ..] (take hofCount (rawGen1HallOfFame rawSave))
+        ]
 
       -- Box bank checksum warnings
       boxBankWarnings = case layoutOffsets (rawGen1Layout rawSave) of
@@ -319,7 +336,7 @@ interpretGen1Save gameData codec rawSave =
             ]
 
       -- Progress interpretation
-      progress = interpretProgress gameData rawSave
+      (progress, progressSpeciesWarnings) = interpretProgress gameData rawSave
 
       progressWarnings
         | progActiveBoxSynced progress = []
@@ -341,7 +358,7 @@ interpretGen1Save gameData codec rawSave =
       , interpCurrentBox    = currentBoxNumber
       , interpHoFCount      = fromIntegral (rawGen1HoFCount rawSave)
       , interpPikachuFriend = resolvePikachuFriend gameVariant (rawGen1PikachuFriend rawSave)
-      , interpDaycareSpecies = resolveDaycare indexMap speciesMap daycareRecord
+      , interpDaycareSpecies = daycareSpecies
       , interpOptions       = rawGen1Options rawSave
       , interpParty         = take partyCount interpretedMons
       , interpPCBoxes       = interpretedBoxes
@@ -350,7 +367,8 @@ interpretGen1Save gameData codec rawSave =
       , interpProgress      = progress
       , interpWarnings      = concat monWarnings ++ checksumWarnings
                            ++ concat boxMonWarnings ++ boxBankWarnings
-                           ++ progressWarnings
+                           ++ concat hofWarnings ++ daycareWarnings
+                           ++ progressSpeciesWarnings ++ progressWarnings
       , interpRaw           = RawGen1Save rawSave
       }
 
@@ -382,19 +400,20 @@ interpretGen1Mon indexMap speciesMap moveMap codec
       promotedExp   = promoteStatExp (rawG1StatExp partyMon)
 
       -- Species resolution
-      (interpSpecies, speciesWarnings) = resolveSpecies indexMap speciesMap slotIndex structSpecies
+      context = PartySlot (slotIndex + 1)
+      (interpSpecies, speciesWarnings) = resolveSpecies indexMap speciesMap context structSpecies
 
       -- Species list cross-check (compare raw bytes)
       listByte   = unInternalIndex listSpecies
       structByte = unInternalIndex structSpecies
       listWarnings
         | listByte == structByte = []
-        | otherwise = [SpeciesListMismatch slotIndex listByte structByte]
+        | otherwise = [SpeciesListMismatch context listByte structByte]
 
       -- Move resolution
       rawMoveBytes = [rawG1Move1 partyMon, rawG1Move2 partyMon,
                       rawG1Move3 partyMon, rawG1Move4 partyMon]
-      (interpMoves, moveWarnings) = resolveMoves moveMap slotIndex rawMoveBytes
+      (interpMoves, moveWarnings) = resolveMoves moveMap context rawMoveBytes
 
       -- Stat cross-check
       storedStats = StoredStats
@@ -405,7 +424,7 @@ interpretGen1Mon indexMap speciesMap moveMap codec
         , storedSpecial = Unified (fromIntegral (rawG1Special partyMon))
         }
       statWarnings = case interpSpecies of
-        KnownSpecies _ species -> checkStats slotIndex species dvs promotedExp level storedStats
+        KnownSpecies _ species -> checkStats context species dvs promotedExp level storedStats
         _                      -> []
 
   in ( InterpretedMon
@@ -438,13 +457,14 @@ interpretGen1BoxMon
   -> Map.Map DexNumber Species
   -> Map.Map MoveId Move
   -> TextCodec
+  -> Int                              -- box number (1-based)
   -> Int                              -- slot index within the box
   -> InternalIndex                    -- species list byte
   -> RawGen1BoxMon                    -- struct data
   -> RawNamePair                      -- OT name and nickname bytes
   -> (InterpretedMon, [SaveWarning])
 interpretGen1BoxMon indexMap speciesMap moveMap codec
-                    slotIndex listSpecies boxMon namePair =
+                    boxNumber slotIndex listSpecies boxMon namePair =
   let otNameBytes = rawOTNameBytes namePair
       nickBytes   = rawNickBytes namePair
       structSpecies = rawG1BoxSpeciesIndex boxMon
@@ -453,19 +473,20 @@ interpretGen1BoxMon indexMap speciesMap moveMap codec
       promotedExp   = promoteStatExp (rawG1BoxStatExp boxMon)
 
       -- Species resolution
-      (resolvedSpecies, speciesWarnings) = resolveSpecies indexMap speciesMap slotIndex structSpecies
+      context = BoxSlot boxNumber (slotIndex + 1)
+      (resolvedSpecies, speciesWarnings) = resolveSpecies indexMap speciesMap context structSpecies
 
       -- Species list cross-check
       listByte   = unInternalIndex listSpecies
       structByte = unInternalIndex structSpecies
       listWarnings
         | listByte == structByte = []
-        | otherwise = [SpeciesListMismatch slotIndex listByte structByte]
+        | otherwise = [SpeciesListMismatch context listByte structByte]
 
       -- Move resolution
       rawMoveBytes = [rawG1BoxMove1 boxMon, rawG1BoxMove2 boxMon,
                       rawG1BoxMove3 boxMon, rawG1BoxMove4 boxMon]
-      (resolvedMoves, moveWarnings) = resolveMoves moveMap slotIndex rawMoveBytes
+      (resolvedMoves, moveWarnings) = resolveMoves moveMap context rawMoveBytes
 
       -- Compute stats from base stats + DVs + stat exp + level
       calculatedStats = case resolvedSpecies of
@@ -503,37 +524,37 @@ interpretGen1BoxMon indexMap speciesMap moveMap codec
 resolveSpecies
   :: Map.Map InternalIndex DexNumber
   -> Map.Map DexNumber Species
-  -> Int
+  -> WarningContext
   -> InternalIndex
   -> (InterpretedSpecies, [SaveWarning])
-resolveSpecies indexMap speciesMap slotIndex internalIdx =
+resolveSpecies indexMap speciesMap context internalIdx =
   case Map.lookup internalIdx indexMap of
-    Nothing  -> (UnknownSpecies internalIdx, [UnknownSpeciesIndex slotIndex internalIdx])
+    Nothing  -> (UnknownSpecies internalIdx, [UnknownSpeciesIndex context internalIdx])
     Just dex -> case Map.lookup dex speciesMap of
-      Nothing      -> (UnknownSpecies internalIdx, [UnknownSpeciesIndex slotIndex internalIdx])
+      Nothing      -> (UnknownSpecies internalIdx, [UnknownSpeciesIndex context internalIdx])
       Just species -> (KnownSpecies dex species, [])
 
 resolveMoves
   :: Map.Map MoveId Move
-  -> Int
+  -> WarningContext
   -> [Word8]
   -> ([InterpretedMove], [SaveWarning])
-resolveMoves moveMap slotIndex rawBytes =
-  let results = zipWith (resolveOneMove moveMap slotIndex) [1 ..] rawBytes
+resolveMoves moveMap context rawBytes =
+  let results = zipWith (resolveOneMove moveMap context) [1 ..] rawBytes
   in (map fst results, concatMap snd results)
 
 resolveOneMove
   :: Map.Map MoveId Move
-  -> Int           -- party slot index
+  -> WarningContext
   -> Int           -- move slot (1-4)
   -> Word8         -- raw move byte
   -> (InterpretedMove, [SaveWarning])
-resolveOneMove _moveMap _slotIndex _moveSlot 0x00 = (EmptyMove, [])
-resolveOneMove moveMap slotIndex moveSlot rawByte =
+resolveOneMove _moveMap _context _moveSlot 0x00 = (EmptyMove, [])
+resolveOneMove moveMap context moveSlot rawByte =
   let moveId = MoveId (fromIntegral rawByte)
   in case Map.lookup moveId moveMap of
     Just move -> (KnownMove moveId move, [])
-    Nothing   -> (UnknownMove rawByte, [UnknownMoveId slotIndex moveSlot rawByte])
+    Nothing   -> (UnknownMove rawByte, [UnknownMoveId context moveSlot rawByte])
 
 promoteStatExp :: RawStatExp -> StatExp
 promoteStatExp raw = StatExp
@@ -621,14 +642,12 @@ resolveDaycare
   :: Map.Map InternalIndex DexNumber
   -> Map.Map DexNumber Species
   -> RawDaycare
-  -> Maybe InterpretedSpecies
+  -> (Maybe InterpretedSpecies, [SaveWarning])
 resolveDaycare indexMap speciesMap daycare
-  | rawDaycareInUse daycare == 0 = Nothing
-  | otherwise = Just $ case Map.lookup (rawDaycareMon daycare) indexMap of
-      Nothing  -> UnknownSpecies (rawDaycareMon daycare)
-      Just dex -> case Map.lookup dex speciesMap of
-        Nothing      -> UnknownDexSpecies dex
-        Just species -> KnownSpecies dex species
+  | rawDaycareInUse daycare == 0 = (Nothing, [])
+  | otherwise =
+      let (species, warnings) = resolveSpecies indexMap speciesMap DaycareSlot (rawDaycareMon daycare)
+      in (Just species, warnings)
 
 promotePlayTime :: RawPlayTime -> PlayTime
 promotePlayTime raw = PlayTime
@@ -648,39 +667,37 @@ interpretHoFRecord
   :: Map.Map InternalIndex DexNumber
   -> Map.Map DexNumber Species
   -> TextCodec
+  -> Int                              -- record index (1-based)
   -> RawGen1HoFRecord
-  -> InterpretedHoFRecord
-interpretHoFRecord indexMap speciesMap codec record =
-  InterpretedHoFRecord
-    { hofEntries = mapMaybe (interpretHoFEntry indexMap speciesMap codec)
-                     (rawGen1HoFEntries record)
-    }
+  -> (InterpretedHoFRecord, [SaveWarning])
+interpretHoFRecord indexMap speciesMap codec recordIndex record =
+  let results = zipWith
+        (interpretHoFEntry indexMap speciesMap codec recordIndex)
+        [1 ..] (rawGen1HoFEntries record)
+      (maybeEntries, warningLists) = unzip results
+      entries = catMaybes maybeEntries
+  in (InterpretedHoFRecord { hofEntries = entries }, concat warningLists)
 
 interpretHoFEntry
   :: Map.Map InternalIndex DexNumber
   -> Map.Map DexNumber Species
   -> TextCodec
+  -> Int                              -- record index (1-based)
+  -> Int                              -- entry index (1-based)
   -> RawGen1HoFEntry
-  -> Maybe InterpretedHoFEntry
-interpretHoFEntry indexMap speciesMap codec entry
-  | unInternalIndex (rawGen1HoFSpecies entry) == 0x00 = Nothing
-  | otherwise = Just InterpretedHoFEntry
-      { hofSpecies  = resolveHoFSpecies indexMap speciesMap (rawGen1HoFSpecies entry)
-      , hofLevel    = Level (fromIntegral (rawGen1HoFLevel entry))
-      , hofNickname = decodeText codec (rawGen1HoFNickname entry)
-      }
-
-resolveHoFSpecies
-  :: Map.Map InternalIndex DexNumber
-  -> Map.Map DexNumber Species
-  -> InternalIndex
-  -> InterpretedSpecies
-resolveHoFSpecies indexMap speciesMap internalIdx =
-  case Map.lookup internalIdx indexMap of
-    Nothing  -> UnknownSpecies internalIdx
-    Just dex -> case Map.lookup dex speciesMap of
-      Nothing      -> UnknownSpecies internalIdx
-      Just species -> KnownSpecies dex species
+  -> (Maybe InterpretedHoFEntry, [SaveWarning])
+interpretHoFEntry indexMap speciesMap codec recordIndex entryIndex entry
+  | unInternalIndex (rawGen1HoFSpecies entry) == 0x00 = (Nothing, [])
+  | otherwise =
+      let context = HoFSlot recordIndex entryIndex
+          (species, warnings) = resolveSpecies indexMap speciesMap context (rawGen1HoFSpecies entry)
+      in ( Just InterpretedHoFEntry
+            { hofSpecies  = species
+            , hofLevel    = Level (fromIntegral (rawGen1HoFLevel entry))
+            , hofNickname = decodeText codec (rawGen1HoFNickname entry)
+            }
+         , warnings
+         )
 
 
 -- ── Stat Cross-Check ─────────────────────────────────────────
@@ -693,8 +710,8 @@ data StoredStats = StoredStats
   , storedSpecial :: !Special
   }
 
-checkStats :: Int -> Species -> DVs -> StatExp -> Level -> StoredStats -> [SaveWarning]
-checkStats slotIndex species dvs statExp level stored =
+checkStats :: WarningContext -> Species -> DVs -> StatExp -> Level -> StoredStats -> [SaveWarning]
+checkStats context species dvs statExp level stored =
   let calculated = calcAllStats species dvs statExp level
       checks =
         [ ("HP",      storedMaxHP stored,   statHP calculated)
@@ -702,7 +719,7 @@ checkStats slotIndex species dvs statExp level stored =
         , ("Defense", storedDefense stored, statDefense calculated)
         , ("Speed",   storedSpeed stored,   statSpeed calculated)
         ] ++ specialChecks (storedSpecial stored) (statSpecial calculated)
-  in [ StatMismatch slotIndex name storedValue calculatedValue
+  in [ StatMismatch context name storedValue calculatedValue
      | (name, storedValue, calculatedValue) <- checks
      , storedValue /= calculatedValue
      ]
@@ -721,15 +738,17 @@ specialChecks (Split storedAtk _storedDef) (Unified calculatedValue) =
 
 -- ── Progress Interpretation ───────────────────────────────────
 
-interpretProgress :: GameData -> RawGen1SaveFile -> InterpretedProgress
+interpretProgress :: GameData -> RawGen1SaveFile -> (InterpretedProgress, [SaveWarning])
 interpretProgress gameData rawSave =
   let indexMap    = gameInternalIndex (gameSpeciesGraph gameData)
       speciesMap  = gameSpecies (gameSpeciesGraph gameData)
       flagNames  = gameGen1FlagNames gameData
       progress   = rawGen1Progress rawSave
 
-      playerStarter = resolveHoFSpecies indexMap speciesMap (rawPlayerStarter progress)
-      rivalStarter  = resolveHoFSpecies indexMap speciesMap (rawRivalStarter progress)
+      (playerStarter, playerStarterWarnings) =
+        resolveSpecies indexMap speciesMap PlayerStarter (rawPlayerStarter progress)
+      (rivalStarter, rivalStarterWarnings) =
+        resolveSpecies indexMap speciesMap RivalStarter (rawRivalStarter progress)
 
       defeatedGyms = decodeDefeatedGyms (rawDefeatedGyms progress)
       townsVisited = decodeTownsVisited (rawTownsVisited progress)
@@ -755,27 +774,28 @@ interpretProgress gameData rawSave =
       varFlags1 = rawVarFlags1 progress
       varFlags4 = rawVarFlags4 progress
 
-  in InterpretedProgress
-      { progPlayerStarter     = playerStarter
-      , progRivalStarter      = rivalStarter
-      , progDefeatedGyms      = defeatedGyms
-      , progTownsVisited      = townsVisited
-      , progMovementMode      = movementMode
-      , progEventFlags        = eventFlagList
-      , progToggleFlags       = toggleFlagList
-      , progMapScripts        = mapScriptList
-      , progReceivedOldRod    = testBit varFlags1 3
-      , progReceivedGoodRod   = testBit varFlags1 4
-      , progReceivedSuperRod  = testBit varFlags1 5
-      , progReceivedLapras    = testBit varFlags4 0
-      , progReceivedStarter   = testBit varFlags4 3
-      , progHealedAtCenter    = testBit varFlags4 2
-      , progTradesCompleted   = popCount (rawInGameTrades progress)
-      , progActiveBoxSynced   = checkActiveBoxSync rawSave
-      , progEventFlagTotal    = maybe 0 (Map.size . eventFlagNames) flagNames
-      , progToggleFlagTotal   = maybe 0 (Map.size . toggleFlagNames) flagNames
-      , progMapScriptTotal    = maybe 0 (Map.size . mapScriptNames) flagNames
-      }
+      starterWarnings = playerStarterWarnings ++ rivalStarterWarnings
+
+  in ( InterpretedProgress
+        { progPlayerStarter     = playerStarter
+        , progRivalStarter      = rivalStarter
+        , progDefeatedGyms      = defeatedGyms
+        , progTownsVisited      = townsVisited
+        , progMovementMode      = movementMode
+        , progEventFlags        = eventFlagList
+        , progToggleFlags       = toggleFlagList
+        , progMapScripts        = mapScriptList
+        , progReceivedOldRod    = testBit varFlags1 3
+        , progReceivedGoodRod   = testBit varFlags1 4
+        , progReceivedSuperRod  = testBit varFlags1 5
+        , progReceivedLapras    = testBit varFlags4 0
+        , progReceivedStarter   = testBit varFlags4 3
+        , progHealedAtCenter    = testBit varFlags4 2
+        , progTradesCompleted   = popCount (rawInGameTrades progress)
+        , progActiveBoxSynced   = checkActiveBoxSync rawSave
+        }
+     , starterWarnings
+     )
 
 
 -- ── Progress Decoders ─────────────────────────────────────────
@@ -805,32 +825,27 @@ decodeTownsVisited word =
       , "Cinnabar Island", "Indigo Plateau", "Saffron City"
       ]
 
--- | Walk a bit-packed byte string and collect names for set bits.
+-- | Walk a bit-packed byte string and produce a FlagState for every named bit.
 -- LSB-first within each byte, same layout as decodePokedexFlags.
-decodeNamedBitFlags :: Map.Map Int Text -> ByteString -> [Text]
+decodeNamedBitFlags :: Map.Map Int Text -> ByteString -> [FlagState]
 decodeNamedBitFlags nameMap bytes =
-  mapMaybe lookupFlag
-    [ byteIndex * 8 + bitOffset
-    | (byteIndex, byte) <- zip [0 ..] (ByteString.unpack bytes)
-    , bitOffset <- [0 .. 7]
-    , testBit byte bitOffset
-    ]
-  where
-    lookupFlag bitIndex = Map.lookup bitIndex nameMap
+  [ FlagState { flagName = name, flagIsSet = isSet }
+  | (bitIndex, name) <- Map.toAscList nameMap
+  , let byteIndex = bitIndex `div` 8
+        bitOffset = bitIndex `mod` 8
+        isSet     = byteIndex < ByteString.length bytes
+                 && testBit (ByteString.index bytes byteIndex) bitOffset
+  ]
 
--- | Walk a byte array and collect named non-zero entries as script states.
+-- | Produce a MapScriptState for every named script offset, including step 0.
 decodeMapScripts :: Map.Map Int Text -> ByteString -> [MapScriptState]
 decodeMapScripts nameMap bytes =
-  mapMaybe decodeEntry (zip [0 ..] (ByteString.unpack bytes))
-  where
-    decodeEntry (offset, byte)
-      | byte == 0 = Nothing
-      | otherwise = case Map.lookup offset nameMap of
-          Nothing   -> Nothing
-          Just name -> Just MapScriptState
-            { scriptName = name
-            , scriptStep = fromIntegral byte
-            }
+  [ MapScriptState { scriptName = name, scriptStep = stepValue }
+  | (offset, name) <- Map.toAscList nameMap
+  , let stepValue
+          | offset < ByteString.length bytes = fromIntegral (ByteString.index bytes offset)
+          | otherwise                        = 0
+  ]
 
 
 -- ── Active Box Sync Check ─────────────────────────────────────
