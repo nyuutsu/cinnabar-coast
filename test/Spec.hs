@@ -374,6 +374,9 @@ main = hspec $ do
                           $ patchByte otNameStart 0x50                 -- OT name terminator
                           $ patchByte nickStart 0x50                   -- nickname terminator
                           $ patchByte (g1CurrentBox offsets + 1) 0xFF  -- empty box terminator
+                          -- Box bank checksums (complement of all-zeroes = 0xFF)
+                          $ patchBytes 0x5A4C (ByteString.replicate 7 0xFF)
+                          $ patchBytes 0x7A4C (ByteString.replicate 7 0xFF)
                           $ base
                 checksum = calculateGen1Checksum withParty
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
@@ -446,6 +449,39 @@ main = hspec $ do
                 length (rawGen1PCBoxes save) `shouldBe` 12
                 map bankChecksumValid (rawGen1BoxBankValid save) `shouldBe` [True, True]
                 serializeGen1Save save `shouldBe` bytes
+
+  -- ── PC box interpretation ────────────────────────────────
+
+  describe "PC box interpretation" $ do
+    boxCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+
+    it "interprets PC boxes with valid checksums from a real Yellow save" $ do
+      let hasKnownSpecies mon = case interpSpecies mon of
+            KnownSpecies _ _ -> True
+            _                -> False
+          isBoxWarning (BoxBankChecksumMismatch {}) = True
+          isBoxWarning (BoxChecksumMismatch {})     = True
+          isBoxWarning _                            = False
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save rawSave) -> do
+                let interpreted = interpretGen1Save gen1Data boxCodec rawSave
+                interpPCBoxes interpreted `shouldSatisfy` (not . null)
+                case interpPCBoxes interpreted of
+                  [] -> expectationFailure "expected non-empty PC boxes"
+                  (firstBox : _) ->
+                    any hasKnownSpecies (interpBoxMons firstBox) `shouldBe` True
+                let boxWarnings = filter isBoxWarning (interpWarnings interpreted)
+                boxWarnings `shouldBe` []
 
   -- ── Serialization round-trip ──────────────────────────────
 

@@ -16,7 +16,9 @@ module Cinnabar.Save.Interpret
     InterpretedSpecies (..)
   , InterpretedMove (..)
   , InterpretedGenFields (..)
+  , StatOrigin (..)
   , InterpretedMon (..)
+  , InterpretedBox (..)
   , InterpretedSave (..)
 
     -- * Decoded sub-records
@@ -46,12 +48,15 @@ import Cinnabar.Stats (CalcStats (..), calcAllStats)
 import Cinnabar.TextCodec (TextCodec, decodeText, showHexByte)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Layout
-  (CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), GameVariant (..))
+  ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), GameVariant (..)
+  , BoxBankInfo (..)
+  )
 import Cinnabar.Save.Raw
   ( RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..)
+  , RawGen1Box (..), RawBankValidity (..)
   , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
   )
-import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawStatExp (..))
+import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 
 
 -- ── Interpreted Types ────────────────────────────────────────
@@ -80,6 +85,9 @@ data InterpretedGenFields
       }
   deriving (Eq, Show)
 
+data StatOrigin = StoredFromSave | ComputedFromBase
+  deriving (Eq, Show)
+
 data InterpretedMon = InterpretedMon
   { interpSpecies    :: !InterpretedSpecies
   , interpNickname   :: !GameText
@@ -97,7 +105,13 @@ data InterpretedMon = InterpretedMon
   , interpDefense    :: !Int
   , interpSpeed      :: !Int
   , interpSpecial    :: !Special
+  , interpStatOrigin :: !StatOrigin
   , interpGenFields  :: !InterpretedGenFields
+  } deriving (Eq, Show)
+
+data InterpretedBox = InterpretedBox
+  { interpBoxNumber :: !Int
+  , interpBoxMons   :: ![InterpretedMon]
   } deriving (Eq, Show)
 
 data InterpretedSave = InterpretedSave
@@ -119,6 +133,8 @@ data InterpretedSave = InterpretedSave
   , interpDaycareSpecies :: !(Maybe InterpretedSpecies)
   , interpOptions       :: !Word8
   , interpParty         :: ![InterpretedMon]
+  , interpPCBoxes       :: ![InterpretedBox]
+  , interpActiveBoxNum  :: !Int
   , interpWarnings      :: ![SaveWarning]
   , interpRaw           :: !RawSaveFile
   }
@@ -191,8 +207,64 @@ interpretGen1Save gameData codec rawSave =
                   Gen2Offsets _ -> stored
             in [ChecksumMismatch stored calculated]
 
+      currentBoxNumber = fromIntegral (rawGen1CurrentBoxNum rawSave .&. 0x7F) + 1
+
       rawPlayTimeRecord = rawGen1PlayTime rawSave
       daycareRecord     = rawGen1Daycare rawSave
+
+      -- PC box interpretation (non-empty boxes only)
+      (interpretedBoxes, boxMonWarnings) = unzip
+        [ ( InterpretedBox { interpBoxNumber = boxNum, interpBoxMons = boxMons }
+          , concat perMonWarnings
+          )
+        | (boxIdx, rawBox) <- zip [0 :: Int ..] (rawGen1PCBoxes rawSave)
+        , let boxNum   = boxIdx + 1
+              boxCount = fromIntegral (rawGen1BoxCount rawBox) :: Int
+        , boxCount > 0
+        , let boxNamePairs = zipWith RawNamePair
+                (rawGen1BoxOTNames rawBox)
+                (rawGen1BoxNicks rawBox)
+              boxSlots = zip4
+                [0 ..]
+                (rawGen1BoxSpecies rawBox)
+                (rawGen1BoxMons rawBox)
+                boxNamePairs
+              (boxMons, perMonWarnings) = unzip
+                [ interpretGen1BoxMon indexMap speciesMap moveMap codec
+                    idx listSpec mon names
+                | (idx, listSpec, mon, names) <- boxSlots
+                ]
+        ]
+
+      -- Box bank checksum warnings
+      boxBankWarnings = case layoutOffsets (rawGen1Layout rawSave) of
+        Gen2Offsets _ -> []
+        Gen1Offsets offsets ->
+          let bankInfos   = g1BoxBanks offsets
+              bankResults = rawGen1BoxBankValid rawSave
+              saveBytes   = rawGen1Bytes rawSave
+          in concat
+            [ bankWarning ++ perBoxWarnings
+            | (bankIdx, bankInfo, validity) <- zip3 [0 :: Int ..] bankInfos bankResults
+            , let bankWarning
+                    | bankChecksumValid validity = []
+                    | otherwise =
+                        let stored     = ByteString.index saveBytes (bankAllChecksum bankInfo)
+                            calculated = calculateGen1Checksum saveBytes
+                                           (bankStartOffset bankInfo)
+                                           (bankAllChecksum bankInfo - 1)
+                        in [BoxBankChecksumMismatch bankIdx stored calculated]
+                  perBoxWarnings =
+                    [ BoxChecksumMismatch bankIdx boxInBankIdx
+                        (ByteString.index saveBytes (bankBoxChecksums bankInfo + boxInBankIdx))
+                        (calculateGen1Checksum saveBytes boxOffset
+                           (boxOffset + bankBoxDataSize bankInfo - 1))
+                    | (boxInBankIdx, valid) <- zip [0 :: Int ..] (boxChecksumsValid validity)
+                    , not valid
+                    , let boxOffset = bankStartOffset bankInfo
+                                    + boxInBankIdx * bankBoxDataSize bankInfo
+                    ]
+            ]
 
   in InterpretedSave
       { interpPlayerName    = decodeText codec (rawGen1PlayerName rawSave)
@@ -207,13 +279,16 @@ interpretGen1Save gameData codec rawSave =
       , interpBoxItems      = resolveItems itemMap machineMap moveMap (rawGen1BoxItems rawSave)
       , interpPlayTime      = promotePlayTime rawPlayTimeRecord
       , interpPlayTimeMaxed = rawPlayMaxed rawPlayTimeRecord /= 0
-      , interpCurrentBox    = fromIntegral (rawGen1CurrentBoxNum rawSave .&. 0x7F) + 1
+      , interpCurrentBox    = currentBoxNumber
       , interpHoFCount      = fromIntegral (rawGen1HoFCount rawSave)
       , interpPikachuFriend = resolvePikachuFriend gameVariant (rawGen1PikachuFriend rawSave)
       , interpDaycareSpecies = resolveDaycare indexMap speciesMap daycareRecord
       , interpOptions       = rawGen1Options rawSave
       , interpParty         = take partyCount interpretedMons
+      , interpPCBoxes       = interpretedBoxes
+      , interpActiveBoxNum  = currentBoxNumber
       , interpWarnings      = concat monWarnings ++ checksumWarnings
+                           ++ concat boxMonWarnings ++ boxBankWarnings
       , interpRaw           = RawGen1Save rawSave
       }
 
@@ -288,11 +363,76 @@ interpretGen1Mon indexMap speciesMap moveMap codec
         , interpDefense    = fromIntegral (rawG1Defense partyMon)
         , interpSpeed      = fromIntegral (rawG1Speed partyMon)
         , interpSpecial    = Unified (fromIntegral (rawG1Special partyMon))
+        , interpStatOrigin = StoredFromSave
         , interpGenFields  = InterpGen1Fields
             { interpCatchRate = rawG1CatchRate partyMon
             }
         }
      , speciesWarnings ++ listWarnings ++ moveWarnings ++ statWarnings
+     )
+
+interpretGen1BoxMon
+  :: Map.Map InternalIndex DexNumber
+  -> Map.Map DexNumber Species
+  -> Map.Map MoveId Move
+  -> TextCodec
+  -> Int                              -- slot index within the box
+  -> InternalIndex                    -- species list byte
+  -> RawGen1BoxMon                    -- struct data
+  -> RawNamePair                      -- OT name and nickname bytes
+  -> (InterpretedMon, [SaveWarning])
+interpretGen1BoxMon indexMap speciesMap moveMap codec
+                    slotIndex listSpecies boxMon namePair =
+  let otNameBytes = rawOTNameBytes namePair
+      nickBytes   = rawNickBytes namePair
+      structSpecies = rawG1BoxSpeciesIndex boxMon
+      dvs           = unpackDVs (rawG1BoxDVBytes boxMon)
+      level         = Level (fromIntegral (rawG1BoxBoxLevel boxMon))
+      promotedExp   = promoteStatExp (rawG1BoxStatExp boxMon)
+
+      -- Species resolution
+      (resolvedSpecies, speciesWarnings) = resolveSpecies indexMap speciesMap slotIndex structSpecies
+
+      -- Species list cross-check
+      listByte   = unInternalIndex listSpecies
+      structByte = unInternalIndex structSpecies
+      listWarnings
+        | listByte == structByte = []
+        | otherwise = [SpeciesListMismatch slotIndex listByte structByte]
+
+      -- Move resolution
+      rawMoveBytes = [rawG1BoxMove1 boxMon, rawG1BoxMove2 boxMon,
+                      rawG1BoxMove3 boxMon, rawG1BoxMove4 boxMon]
+      (resolvedMoves, moveWarnings) = resolveMoves moveMap slotIndex rawMoveBytes
+
+      -- Compute stats from base stats + DVs + stat exp + level
+      calculatedStats = case resolvedSpecies of
+        KnownSpecies _ species -> Just (calcAllStats species dvs promotedExp level)
+        _                      -> Nothing
+
+  in ( InterpretedMon
+        { interpSpecies    = resolvedSpecies
+        , interpNickname   = decodeText codec nickBytes
+        , interpOTName     = decodeText codec otNameBytes
+        , interpOTID       = TrainerId (fromIntegral (rawG1BoxOTID boxMon))
+        , interpLevel      = level
+        , interpMoves      = resolvedMoves
+        , interpDVs        = dvs
+        , interpStatExp    = promotedExp
+        , interpExp        = rawG1BoxExp boxMon
+        , interpStatus     = rawG1BoxStatus boxMon
+        , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP boxMon)
+        , interpMaxHP      = maybe 0 statHP calculatedStats
+        , interpAttack     = maybe 0 statAttack calculatedStats
+        , interpDefense    = maybe 0 statDefense calculatedStats
+        , interpSpeed      = maybe 0 statSpeed calculatedStats
+        , interpSpecial    = maybe (Unified 0) statSpecial calculatedStats
+        , interpStatOrigin = ComputedFromBase
+        , interpGenFields  = InterpGen1Fields
+            { interpCatchRate = rawG1BoxCatchRate boxMon
+            }
+        }
+     , speciesWarnings ++ listWarnings ++ moveWarnings
      )
 
 

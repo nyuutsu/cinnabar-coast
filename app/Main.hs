@@ -23,10 +23,13 @@ import Cinnabar.Legality (classifyMove)
 import Cinnabar.Save.Interpret
   ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
   , InterpretedSpecies (..), InterpretedMove (..), SaveWarning (..)
+  , InterpretedBox (..)
   , InventoryEntry (..), PlayTime (..)
   )
-import Cinnabar.Save.Layout (cartridgeLayout, GameVariant (..), SaveRegion (..))
-import Cinnabar.Save.Raw (parseRawSave, SaveError (..), RawSaveFile (..))
+import Cinnabar.Save.Layout
+  (cartridgeLayout, CartridgeLayout (..), GameVariant (..), SaveRegion (..))
+import Cinnabar.Save.Raw
+  (parseRawSave, SaveError (..), RawSaveFile (..), RawGen1SaveFile (..))
 import Cinnabar.Stats
 import Cinnabar.TextCodec
   (TextCodec (..), NamingScreen (..), loadCodec, encodeText, decodeText,
@@ -37,9 +40,10 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    ["demo"]           -> runDemo
-    ["read", savePath] -> runReadCommand savePath
-    _                  -> usage
+    ["demo"]            -> runDemo
+    ["read", savePath]  -> runReadCommand savePath
+    ["boxes", savePath] -> runBoxesCommand savePath
+    _                   -> usage
 
 
 usage :: IO ()
@@ -49,13 +53,14 @@ usage = do
   hPutStrLn stderr "Commands:"
   hPutStrLn stderr "  demo            Run demo output"
   hPutStrLn stderr "  read <file>     Read a Gen 1 save file"
+  hPutStrLn stderr "  boxes <file>    Show PC box contents"
   exitFailure
 
 
--- ── Read Command ──────────────────────────────────────────────
+-- ── Save Loading ────────────────────────────────────────────────
 
-runReadCommand :: FilePath -> IO ()
-runReadCommand savePath = do
+loadGen1Save :: FilePath -> IO InterpretedSave
+loadGen1Save savePath = do
   gen1Data <- loadOrDie =<< loadGameData Gen1
   (codec, _) <- loadOrDie =<< loadCodec Gen1 English
 
@@ -84,8 +89,23 @@ runReadCommand savePath = do
       hPutStrLn stderr "Expected Gen 1 save file"
       exitFailure
 
-  let interpreted = interpretGen1Save gen1Data codec rawGen1
+  pure (interpretGen1Save gen1Data codec rawGen1)
+
+
+-- ── Read Command ──────────────────────────────────────────────
+
+runReadCommand :: FilePath -> IO ()
+runReadCommand savePath = do
+  interpreted <- loadGen1Save savePath
   printSaveSummary interpreted
+
+
+-- ── Boxes Command ───────────────────────────────────────────────
+
+runBoxesCommand :: FilePath -> IO ()
+runBoxesCommand savePath = do
+  interpreted <- loadGen1Save savePath
+  printAllBoxes interpreted
 
 
 -- ── Save Display ──────────────────────────────────────────────
@@ -138,6 +158,9 @@ printSaveSummary interpreted = do
   putStrLn $ "Hall of Fame entries: " ++ show (interpHoFCount interpreted)
   putStrLn ""
 
+  printBoxSummary interpreted
+  putStrLn ""
+
   let party = interpParty interpreted
   putStrLn $ "Party (" ++ show (length party) ++ "):"
   mapM_ (uncurry printPartyMon) (zip [1 ..] party)
@@ -168,6 +191,47 @@ printPartyMon slotNumber mon = do
   putStrLn $ "     HP: " ++ show (interpCurrentHP mon)
     ++ "/" ++ show (interpMaxHP mon)
   putStrLn ""
+
+
+printBoxSummary :: InterpretedSave -> IO ()
+printBoxSummary interpreted = do
+  let activeBoxNum = interpActiveBoxNum interpreted
+      boxCapacity = case interpRaw interpreted of
+        RawGen1Save raw -> layoutBoxCapacity (rawGen1Layout raw)
+        _ -> 20
+      boxes = interpPCBoxes interpreted
+      nonEmptyNums = Set.fromList (map interpBoxNumber boxes)
+      displayNums = Set.toAscList (Set.insert activeBoxNum nonEmptyNums)
+      boxCountMap = Map.fromList
+        [(interpBoxNumber box, length (interpBoxMons box)) | box <- boxes]
+  putStrLn "PC Boxes:"
+  mapM_ (\boxNum -> do
+    let count = Map.findWithDefault 0 boxNum boxCountMap
+        activeLabel = if boxNum == activeBoxNum then " (active)" else ""
+    if count == 0
+      then putStrLn $ "  Box " ++ show boxNum ++ ": (empty)" ++ activeLabel
+      else putStrLn $ "  Box " ++ show boxNum ++ ": " ++ show count
+             ++ "/" ++ show boxCapacity ++ activeLabel
+    ) displayNums
+
+
+printAllBoxes :: InterpretedSave -> IO ()
+printAllBoxes interpreted = do
+  let boxes = interpPCBoxes interpreted
+      boxCapacity = case interpRaw interpreted of
+        RawGen1Save raw -> layoutBoxCapacity (rawGen1Layout raw)
+        _ -> 20
+  if null boxes
+    then putStrLn "No Pokémon in PC boxes."
+    else mapM_ (printBoxDetail boxCapacity) boxes
+
+
+printBoxDetail :: Int -> InterpretedBox -> IO ()
+printBoxDetail boxCapacity box = do
+  let count = length (interpBoxMons box)
+  putStrLn $ "Box " ++ show (interpBoxNumber box)
+    ++ " (" ++ show count ++ "/" ++ show boxCapacity ++ "):"
+  mapM_ (uncurry printPartyMon) (zip [1 ..] (interpBoxMons box))
 
 
 printInventoryEntry :: InventoryEntry -> IO ()
