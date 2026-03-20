@@ -126,8 +126,8 @@ printSaveSummary interpreted = do
     <> " (ID: " <> Text.pack (show (unTrainerId (interpPlayerID interpreted))) <> ")"
   TextIO.putStrLn $ "Rival: " <> displayText (interpRivalName interpreted)
   let time = interpPlayTime interpreted
-      timeStr = show (playHours time) ++ ":" ++ pad2 (playMinutes time)
-                  ++ ":" ++ pad2 (playSeconds time)
+      timeStr = show (playHours time) ++ ":" ++ zeroPadTwo (playMinutes time)
+                  ++ ":" ++ zeroPadTwo (playSeconds time)
       maxedStr = if interpPlayTimeMaxed interpreted then " (maxed)" else ""
   putStrLn $ "Time: " ++ timeStr ++ maxedStr
   putStrLn $ "Money: " ++ formatMoney (interpMoney interpreted)
@@ -282,16 +282,16 @@ formatMoney :: Int -> String
 formatMoney amount = "$" ++ formatWithCommas amount
 
 formatWithCommas :: Int -> String
-formatWithCommas n
-  | n < 1000  = show n
-  | otherwise = formatWithCommas (n `div` 1000) ++ "," ++ padThree (n `mod` 1000)
+formatWithCommas amount
+  | amount < 1000  = show amount
+  | otherwise = formatWithCommas (amount `div` 1000) ++ "," ++ zeroPadThree (amount `mod` 1000)
   where
-    padThree x = let s = show x in replicate (3 - length s) '0' ++ s
+    zeroPadThree x = let s = show x in replicate (3 - length s) '0' ++ s
 
-pad2 :: Int -> String
-pad2 n
-  | n < 10    = "0" ++ show n
-  | otherwise = show n
+zeroPadTwo :: Int -> String
+zeroPadTwo value
+  | value < 10    = "0" ++ show value
+  | otherwise = show value
 
 
 renderSpecies :: InterpretedSpecies -> String

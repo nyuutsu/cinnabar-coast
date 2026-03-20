@@ -572,9 +572,9 @@ resolveMachineItem machineMap moveMap byte
           Nothing   -> label
 
     padMachineNumber :: Int -> String
-    padMachineNumber n
-      | n < 10    = "0" ++ show n
-      | otherwise = show n
+    padMachineNumber machineNumber
+      | machineNumber < 10    = "0" ++ show machineNumber
+      | otherwise = show machineNumber
 
 resolveDaycare
   :: Map.Map InternalIndex DexNumber

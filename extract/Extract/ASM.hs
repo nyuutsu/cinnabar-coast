@@ -21,7 +21,7 @@ module Extract.ASM
   , identifier
   , integer
   , hexInteger
-  , number
+  , numericLiteral
   , horizontalSpace
   , endOfLine
   , lineComment
@@ -120,8 +120,8 @@ hexInteger = lexeme $ do
   L.hexadecimal :: Parser Int
 
 -- | A number that may be decimal or $hex.
-number :: Parser Int
-number = try hexInteger <|> integer
+numericLiteral :: Parser Int
+numericLiteral = try hexInteger <|> integer
 
 -- | Skip a ; comment through end of line.
 lineComment :: Parser ()
@@ -222,7 +222,7 @@ parseConstBlock = do
     parseConstDef :: Parser ConstLineResult
     parseConstDef = do
       _ <- keyword "const_def"
-      startValue <- option 0 number
+      startValue <- option 0 numericLiteral
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
       pure (ConstDef startValue)
@@ -230,7 +230,7 @@ parseConstBlock = do
     parseConstNext :: Parser ConstLineResult
     parseConstNext = do
       _ <- keyword "const_next"
-      nextValue <- number
+      nextValue <- numericLiteral
       _ <- takeWhileP Nothing (/= '\n')
       endOfLine
       pure (ConstNext nextValue)
@@ -341,9 +341,9 @@ dbArgs = do
 -- Each argument is stripped of whitespace.
 commaSeparated :: Parser [Text]
 commaSeparated = do
-  args <- sepBy1 arg (lexeme (single ','))
+  args <- sepBy1 singleArgument (lexeme (single ','))
   _ <- takeWhileP Nothing (/= '\n')
   endOfLine
   pure args
   where
-    arg = Text.strip <$> takeWhile1P (Just "argument") (\char -> char /= ',' && char /= ';' && char /= '\n')
+    singleArgument = Text.strip <$> takeWhile1P (Just "argument") (\char -> char /= ',' && char /= ';' && char /= '\n')

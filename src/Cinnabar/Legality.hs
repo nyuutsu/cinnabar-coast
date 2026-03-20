@@ -99,8 +99,8 @@ checkMachine machineData dex moveId =
       , machineMoveId == moveId
       , Set.member machine compatibleMachines
       , let (method, label) = case machine of
-              TM (MachineNumber number) -> (TMMachine, "TM" ++ padNum number)
-              HM (MachineNumber number) -> (HMMachine, "HM" ++ padNum number)
+              TM (MachineNumber machineNumber) -> (TMMachine, "TM" ++ padMachineNumber machineNumber)
+              HM (MachineNumber machineNumber) -> (HMMachine, "HM" ++ padMachineNumber machineNumber)
       ]
 
 
@@ -212,10 +212,10 @@ allPreEvolutions graph dex = collectAncestors (Set.singleton dex) dex []
 -- ── Helpers ────────────────────────────────────────────────────
 
 -- | Zero-pad a machine number to 2 digits: 1 → "01", 24 → "24".
-padNum :: Int -> String
-padNum number
-  | number < 10    = "0" ++ show number
-  | otherwise = show number
+padMachineNumber :: Int -> String
+padMachineNumber machineNumber
+  | machineNumber < 10    = "0" ++ show machineNumber
+  | otherwise = show machineNumber
 
 -- | Look up a species name for display, falling back to dex number.
 speciesLabel :: SpeciesGraph -> DexNumber -> Text

@@ -56,20 +56,20 @@ parseDirective = choice
   where
     parseConstDef = do
       _ <- keyword "const_def"
-      startValue <- option 0 number
+      startValue <- option 0 numericLiteral
       restOfLine
       pure (ResetCounter startValue)
 
     parseConstNext = do
       _ <- keyword "const_next"
-      baseValue <- number
+      baseValue <- numericLiteral
       -- Handle simple arithmetic: $F0 - 2, $100 + 3, etc.
       finalValue <- option baseValue $ do
         horizontalSpace
-        op <- single '-' <|> single '+'
+        operator <- single '-' <|> single '+'
         horizontalSpace
-        offset <- number
-        pure $ case op of
+        offset <- numericLiteral
+        pure $ case operator of
           '-' -> baseValue - offset
           '+' -> baseValue + offset
           _   -> baseValue  -- unreachable, but total
@@ -79,7 +79,7 @@ parseDirective = choice
     parseConstSkip = do
       _ <- keyword "const_skip"
       -- Bare const_skip means skip 1; const_skip N means skip N
-      skipAmount <- option 1 (try number)
+      skipAmount <- option 1 (try numericLiteral)
       restOfLine
       pure (SkipCounter skipAmount)
 
@@ -177,7 +177,7 @@ parseMapScripts = do
     -- ds N
     parseDs = do
       _ <- keyword "ds"
-      gapSize <- number
+      gapSize <- numericLiteral
       pure (UnnamedGap gapSize)
 
     -- Parse a label name: identifier followed by ::
