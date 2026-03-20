@@ -26,7 +26,7 @@ import Cinnabar.Save.Layout
   )
 import Cinnabar.Save.Raw
   ( RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..)
-  , RawPlayTime (..), RawDaycare (..)
+  , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
   )
 import Cinnabar.Types (InternalIndex (..))
 
@@ -194,10 +194,10 @@ serializeRawStatExp statExp =
   <> writeWord16BE (rawExpSpeed statExp)
   <> writeWord16BE (rawExpSpecial statExp)
 
-serializeItemList :: [(Word8, Word8)] -> ByteString
+serializeItemList :: [RawItemEntry] -> ByteString
 serializeItemList items =
   let count = fromIntegral (length items) :: Word8
-      entryBytes = concatMap (\(itemId, quantity) -> [itemId, quantity]) items
+      entryBytes = concatMap (\entry -> [rawItemId entry, rawItemQuantity entry]) items
   in ByteString.pack (count : entryBytes ++ [0xFF])
 
 serializeRawPlayTime :: RawPlayTime -> ByteString

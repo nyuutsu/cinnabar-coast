@@ -48,7 +48,9 @@ import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Layout
   (CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), GameVariant (..))
 import Cinnabar.Save.Raw
-  (RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..), RawPlayTime (..), RawDaycare (..))
+  ( RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..)
+  , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
+  )
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawStatExp (..))
 
 
@@ -160,11 +162,15 @@ interpretGen1Save gameData codec rawSave =
       partyCount     = fromIntegral (rawGen1PartyCount party)
       gameVariant    = layoutGame (rawGen1Layout rawSave)
 
+      namePairs = zipWith RawNamePair
+        (rawGen1PartyOTNames party)
+        (rawGen1PartyNicks party)
+
       indexedSlots = zip4
         [0 ..]
         (rawGen1PartySpecies party)
         (rawGen1PartyMons party)
-        (zip (rawGen1PartyOTNames party) (rawGen1PartyNicks party))
+        namePairs
 
       (interpretedMons, monWarnings) = unzip
         [ interpretGen1Mon indexMap speciesMap moveMap codec
@@ -212,6 +218,11 @@ interpretGen1Save gameData codec rawSave =
 
 -- ── Per-Mon Interpretation ───────────────────────────────────
 
+data RawNamePair = RawNamePair
+  { rawOTNameBytes :: !ByteString
+  , rawNickBytes   :: !ByteString
+  } deriving (Eq, Show)
+
 interpretGen1Mon
   :: Map.Map InternalIndex DexNumber
   -> Map.Map DexNumber Species
@@ -220,11 +231,13 @@ interpretGen1Mon
   -> Int                              -- slot index
   -> InternalIndex                    -- species list byte
   -> RawGen1PartyMon                  -- struct data
-  -> (ByteString, ByteString)         -- (OT name bytes, nickname bytes)
+  -> RawNamePair                      -- OT name and nickname bytes
   -> (InterpretedMon, [SaveWarning])
 interpretGen1Mon indexMap speciesMap moveMap codec
-                 slotIndex listSpecies partyMon (otNameBytes, nickBytes) =
-  let structSpecies = rawG1SpeciesIndex partyMon
+                 slotIndex listSpecies partyMon namePair =
+  let otNameBytes = rawOTNameBytes namePair
+      nickBytes   = rawNickBytes namePair
+      structSpecies = rawG1SpeciesIndex partyMon
       dvs           = unpackDVs (rawG1DVBytes partyMon)
       level         = Level (fromIntegral (rawG1Level partyMon))
       promotedExp   = promoteStatExp (rawG1StatExp partyMon)
@@ -364,16 +377,17 @@ resolveItems
   :: Map.Map ItemId Text
   -> Map.Map Machine MoveId
   -> Map.Map MoveId Move
-  -> [(Word8, Word8)]
+  -> [RawItemEntry]
   -> [InventoryEntry]
 resolveItems itemMap machineMap moveMap = map resolveEntry
   where
-    resolveEntry (itemByte, quantity) =
-      let itemId = ItemId (fromIntegral itemByte)
+    resolveEntry entry =
+      let itemByte = rawItemId entry
+          itemId = ItemId (fromIntegral itemByte)
           itemName = case Map.lookup itemId itemMap of
             Just name -> name
             Nothing   -> resolveMachineItem machineMap moveMap itemByte
-      in InventoryEntry { entryName = itemName, entryQuantity = fromIntegral quantity }
+      in InventoryEntry { entryName = itemName, entryQuantity = fromIntegral (rawItemQuantity entry) }
 
 -- | Try to resolve an item byte as a TM/HM. Falls back to "Unknown"
 -- for bytes outside the machine range.

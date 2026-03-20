@@ -16,6 +16,7 @@ module Cinnabar.Save.Raw
   , RawGen2SaveFile (..)
 
     -- * Sub-record types
+  , RawItemEntry (..)
   , RawPlayTime (..)
   , RawDaycare (..)
 
@@ -73,8 +74,8 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1ChecksumValid    :: !Bool
   , rawGen1PokedexOwned     :: !ByteString
   , rawGen1PokedexSeen      :: !ByteString
-  , rawGen1BagItems         :: ![(Word8, Word8)]
-  , rawGen1BoxItems         :: ![(Word8, Word8)]
+  , rawGen1BagItems         :: ![RawItemEntry]
+  , rawGen1BoxItems         :: ![RawItemEntry]
   , rawGen1Money            :: !ByteString
   , rawGen1CasinoCoins      :: !ByteString
   , rawGen1Badges           :: !Word8
@@ -92,6 +93,11 @@ data RawGen2SaveFile = RawGen2SaveFile
 
 
 -- ── Sub-Record Types ─────────────────────────────────────────
+
+data RawItemEntry = RawItemEntry
+  { rawItemId       :: !Word8
+  , rawItemQuantity :: !Word8
+  } deriving (Eq, Show)
 
 data RawPlayTime = RawPlayTime
   { rawPlayHours   :: !Word8
@@ -205,7 +211,7 @@ parseGen1Save layout offsets bytes =
 
 -- | Parse a Gen 1 item list: 1 byte count, count x (item ID, quantity)
 -- pairs, then a 0xFF terminator.
-parseItemList :: Cursor -> ([(Word8, Word8)], Cursor)
+parseItemList :: Cursor -> ([RawItemEntry], Cursor)
 parseItemList cursor0 =
   let (count, cursor1) = readByte cursor0
       itemCount        = fromIntegral count :: Int
@@ -213,13 +219,14 @@ parseItemList cursor0 =
       (_terminator, cursor3) = readByte cursor2
   in (items, cursor3)
   where
-    readItemPairs :: Int -> Cursor -> ([(Word8, Word8)], Cursor)
+    readItemPairs :: Int -> Cursor -> ([RawItemEntry], Cursor)
     readItemPairs 0 cursor = ([], cursor)
     readItemPairs remaining cursor =
-      let (itemId, cursor1)   = readByte cursor
-          (quantity, cursor2) = readByte cursor1
-          (rest, cursor3)     = readItemPairs (remaining - 1) cursor2
-      in ((itemId, quantity) : rest, cursor3)
+      let (itemByte, cursor1)    = readByte cursor
+          (quantityByte, cursor2) = readByte cursor1
+          entry = RawItemEntry { rawItemId = itemByte, rawItemQuantity = quantityByte }
+          (rest, cursor3)        = readItemPairs (remaining - 1) cursor2
+      in (entry : rest, cursor3)
 
 
 -- ── Play Time / Daycare Parsers ─────────────────────────────
