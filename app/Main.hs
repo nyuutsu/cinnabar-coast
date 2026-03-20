@@ -300,7 +300,7 @@ formatWithCommas amount
   | amount < 1000  = show amount
   | otherwise = formatWithCommas (amount `div` 1000) ++ "," ++ zeroPadThree (amount `mod` 1000)
   where
-    zeroPadThree x = let s = show x in replicate (3 - length s) '0' ++ s
+    zeroPadThree value = let digits = show value in replicate (3 - length digits) '0' ++ digits
 
 zeroPadTwo :: Int -> String
 zeroPadTwo value

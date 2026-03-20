@@ -619,16 +619,16 @@ resolveItems itemMap machineMap moveMap = map resolveEntry
 resolveMachineItem :: Map.Map Machine MoveId -> Map.Map MoveId Move -> Word8 -> Text
 resolveMachineItem machineMap moveMap byte
   | byte >= 0xC4, byte <= 0xC8 =
-      let number = fromIntegral byte - 0xC4 + 1
-      in formatMachine "HM" number (HM (MachineNumber number))
+      let machineNumber = fromIntegral byte - 0xC4 + 1
+      in formatMachine "HM" machineNumber (HM (MachineNumber machineNumber))
   | byte >= 0xC9, byte <= 0xFA =
-      let number = fromIntegral byte - 0xC9 + 1
-      in formatMachine "TM" number (TM (MachineNumber number))
+      let machineNumber = fromIntegral byte - 0xC9 + 1
+      in formatMachine "TM" machineNumber (TM (MachineNumber machineNumber))
   | otherwise = Text.pack ("Unknown [0x" ++ showHexByte byte ++ "]")
   where
     formatMachine :: Text -> Int -> Machine -> Text
-    formatMachine prefix number machine =
-      let label = prefix <> Text.pack (padMachineNumber number)
+    formatMachine prefix machineNumber machine =
+      let label = prefix <> Text.pack (padMachineNumber machineNumber)
       in case Map.lookup machine machineMap >>= (`Map.lookup` moveMap) of
           Just move -> label <> " \xFF0F " <> moveName move
           Nothing   -> label

@@ -23,6 +23,7 @@ import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStat
 import Cinnabar.Save.Layout
   ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
+  , gen1HoFRecordCount, gen1HoFRecordSize, gen1HoFEntrySize
   )
 import Cinnabar.Save.Raw
   ( RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..)
@@ -55,7 +56,7 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
         originalBoxRegion = ByteString.take boxRegionSize
                           $ ByteString.drop (g1CurrentBox offsets) originalBytes
 
-        hofRegionSize = 50 * 6 * 16
+        hofRegionSize = gen1HoFRecordCount * gen1HoFRecordSize
         originalHoFRegion = ByteString.take hofRegionSize
                           $ ByteString.drop (g1HallOfFame offsets) originalBytes
 
@@ -262,7 +263,7 @@ serializeHallOfFame original records =
         (zip [0 ..] (rawGen1HoFEntries record))
 
     patchEntry recordIndex region (entryIndex, entry) =
-      let offset = recordIndex * 96 + entryIndex * 16
+      let offset = recordIndex * gen1HoFRecordSize + entryIndex * gen1HoFEntrySize
       in patchByte offset (unInternalIndex (rawGen1HoFSpecies entry))
        $ patchByte (offset + 1) (rawGen1HoFLevel entry)
        $ patchBytes (offset + 2) (rawGen1HoFNickname entry)

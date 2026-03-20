@@ -22,6 +22,10 @@ module Cinnabar.Save.Layout
   , gen1PartyCapacity
   , gen1PartyMonSize
   , gen1BoxMonSize
+  , gen1HoFRecordCount
+  , gen1HoFSlotsPerRecord
+  , gen1HoFEntrySize
+  , gen1HoFRecordSize
 
     -- * Lookup
   , cartridgeLayout
@@ -153,6 +157,18 @@ gen1PartyMonSize = 44
 
 gen1BoxMonSize :: Int
 gen1BoxMonSize = 33
+
+gen1HoFRecordCount :: Int
+gen1HoFRecordCount = 50
+
+gen1HoFSlotsPerRecord :: Int
+gen1HoFSlotsPerRecord = 6
+
+gen1HoFEntrySize :: Int
+gen1HoFEntrySize = 16
+
+gen1HoFRecordSize :: Int
+gen1HoFRecordSize = gen1HoFSlotsPerRecord * gen1HoFEntrySize
 
 
 -- ── Layout Lookup ───────────────────────────────────────────────

@@ -51,6 +51,7 @@ import Cinnabar.Save.Layout
   , Gen1SaveOffsets (..)
   , BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
+  , gen1HoFRecordCount, gen1HoFSlotsPerRecord, gen1HoFRecordSize
   )
 import Cinnabar.Types (Gen (..), InternalIndex (..))
 
@@ -358,11 +359,11 @@ parseRawProgress offsets cursor =
 
 parseHallOfFame :: Cursor -> [RawGen1HoFRecord]
 parseHallOfFame cursor0 =
-  [ parseHoFRecord (skip (recordIndex * 96) cursor0) | recordIndex <- [0 .. 49] ]
+  [ parseHoFRecord (skip (recordIndex * gen1HoFRecordSize) cursor0) | recordIndex <- [0 .. gen1HoFRecordCount - 1] ]
 
 parseHoFRecord :: Cursor -> RawGen1HoFRecord
 parseHoFRecord cursor0 =
-  let (entries, _) = parseHoFEntries 6 cursor0
+  let (entries, _) = parseHoFEntries gen1HoFSlotsPerRecord cursor0
   in RawGen1HoFRecord { rawGen1HoFEntries = entries }
 
 parseHoFEntries :: Int -> Cursor -> ([RawGen1HoFEntry], Cursor)
