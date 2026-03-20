@@ -2,19 +2,31 @@
 
 module Main where
 
+import Control.Exception (IOException, try)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
+import Data.List (intercalate)
+import Data.Maybe (mapMaybe)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import System.Environment (getArgs)
+import System.Exit (exitFailure)
+import System.IO (hPutStrLn, stderr)
 
 import Cinnabar.Types
-import Cinnabar.Data (loadAllGameData)
+import Cinnabar.Data (loadGameData, loadAllGameData)
 import Cinnabar.Error (loadOrDie)
-import Cinnabar.Stats
 import Cinnabar.Legality (classifyMove)
+import Cinnabar.Save.Interpret
+  ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
+  , InterpretedSpecies (..), InterpretedMove (..), SaveWarning (..)
+  )
+import Cinnabar.Save.Layout (cartridgeLayout, GameVariant (..), SaveRegion (..))
+import Cinnabar.Save.Raw (parseRawSave, SaveError (..), RawSaveFile (..))
+import Cinnabar.Stats
 import Cinnabar.TextCodec
   (TextCodec (..), NamingScreen (..), loadCodec, encodeText, decodeText,
    displayText, showHexByte, lookupChar, lookupLigature)
@@ -22,6 +34,145 @@ import Cinnabar.TextCodec
 
 main :: IO ()
 main = do
+  args <- getArgs
+  case args of
+    ["demo"]           -> runDemo
+    ["read", savePath] -> runReadCommand savePath
+    _                  -> usage
+
+
+usage :: IO ()
+usage = do
+  hPutStrLn stderr "Usage: cinnabar <command>"
+  hPutStrLn stderr ""
+  hPutStrLn stderr "Commands:"
+  hPutStrLn stderr "  demo            Run demo output"
+  hPutStrLn stderr "  read <file>     Read a Gen 1 save file"
+  exitFailure
+
+
+-- ── Read Command ──────────────────────────────────────────────
+
+runReadCommand :: FilePath -> IO ()
+runReadCommand savePath = do
+  gen1Data <- loadOrDie =<< loadGameData Gen1
+  (codec, _) <- loadOrDie =<< loadCodec Gen1 English
+
+  readResult <- try (ByteString.readFile savePath)
+  saveBytes <- case (readResult :: Either IOException ByteString) of
+    Left readError -> do
+      hPutStrLn stderr $ "Error reading file: " ++ show readError
+      exitFailure
+    Right bytes -> pure bytes
+
+  layout <- case cartridgeLayout Yellow RegionWestern of
+    Left errorMessage -> do
+      hPutStrLn stderr $ "Layout error: " ++ Text.unpack errorMessage
+      exitFailure
+    Right cartLayout -> pure cartLayout
+
+  rawSave <- case parseRawSave layout saveBytes of
+    Left saveError -> do
+      hPutStrLn stderr $ "Parse error: " ++ renderSaveError saveError
+      exitFailure
+    Right parsed -> pure parsed
+
+  rawGen1 <- case rawSave of
+    RawGen1Save raw -> pure raw
+    _ -> do
+      hPutStrLn stderr "Expected Gen 1 save file"
+      exitFailure
+
+  let interpreted = interpretGen1Save gen1Data codec rawGen1
+  printSaveSummary interpreted
+
+
+-- ── Save Display ──────────────────────────────────────────────
+
+printSaveSummary :: InterpretedSave -> IO ()
+printSaveSummary interpreted = do
+  TextIO.putStrLn $ "Player: " <> displayText (interpPlayerName interpreted)
+  TextIO.putStrLn $ "Rival: " <> displayText (interpRivalName interpreted)
+  putStrLn ""
+  let party = interpParty interpreted
+  putStrLn $ "Party (" ++ show (length party) ++ "):"
+  mapM_ (uncurry printPartyMon) (zip [1 ..] party)
+  case interpWarnings interpreted of
+    [] -> pure ()
+    warnings -> do
+      putStrLn $ "Warnings (" ++ show (length warnings) ++ "):"
+      mapM_ (putStrLn . ("  " ++) . renderWarning) warnings
+
+
+printPartyMon :: Int -> InterpretedMon -> IO ()
+printPartyMon slotNumber mon = do
+  let speciesLabel  = renderSpecies (interpSpecies mon)
+      levelValue    = unLevel (interpLevel mon)
+      nicknameLabel = Text.unpack (displayText (interpNickname mon))
+      moveLabels    = mapMaybe renderMove (interpMoves mon)
+      dvs           = interpDVs mon
+      shinyLabel    = if isShiny dvs then "shiny" else "not shiny"
+  putStrLn $ "  " ++ show slotNumber ++ ". " ++ speciesLabel
+    ++ " (Lv " ++ show levelValue ++ ") \"" ++ nicknameLabel ++ "\""
+  putStrLn $ "     Moves: " ++ intercalate ", " moveLabels
+  putStrLn $ "     DVs: Atk=" ++ show (dvAttack dvs)
+    ++ " Def=" ++ show (dvDefense dvs)
+    ++ " Spd=" ++ show (dvSpeed dvs)
+    ++ " Spc=" ++ show (dvSpecial dvs)
+    ++ " (HP=" ++ show (dvHP dvs) ++ ")"
+    ++ " \xFF0F " ++ shinyLabel
+  putStrLn $ "     HP: " ++ show (interpCurrentHP mon)
+    ++ "/" ++ show (interpMaxHP mon)
+  putStrLn ""
+
+
+renderSpecies :: InterpretedSpecies -> String
+renderSpecies (KnownSpecies _ species) = Text.unpack (speciesName species)
+renderSpecies (UnknownSpecies idx) =
+  "Unknown [0x" ++ showHexByte (unInternalIndex idx) ++ "]"
+renderSpecies (UnknownDexSpecies dex) =
+  "Unknown [#" ++ show (unDex dex) ++ "]"
+
+
+renderMove :: InterpretedMove -> Maybe String
+renderMove EmptyMove          = Nothing
+renderMove (KnownMove _ move) = Just (Text.unpack (moveName move))
+renderMove (UnknownMove byte) = Just ("Unknown [0x" ++ showHexByte byte ++ "]")
+
+
+renderSaveError :: SaveError -> String
+renderSaveError (WrongFileSize expected actual) =
+  "wrong file size: expected " ++ show expected ++ " bytes, got " ++ show actual
+renderSaveError (UnsupportedLayout description) =
+  "unsupported layout: " ++ Text.unpack description
+renderSaveError (UnimplementedGen gen) =
+  "unimplemented: " ++ show gen
+
+
+-- | Render a save warning with 1-indexed slot numbers for display.
+renderWarning :: SaveWarning -> String
+renderWarning (UnknownSpeciesIndex slot idx) =
+  "Slot " ++ show (slot + 1) ++ ": unknown species index 0x"
+    ++ showHexByte (unInternalIndex idx)
+renderWarning (UnknownMoveId slot moveSlot byte) =
+  "Slot " ++ show (slot + 1) ++ ", move " ++ show moveSlot
+    ++ ": unknown move ID 0x" ++ showHexByte byte
+renderWarning (SpeciesListMismatch slot listByte structByte) =
+  "Slot " ++ show (slot + 1) ++ ": species list/struct mismatch (0x"
+    ++ showHexByte listByte ++ " vs 0x" ++ showHexByte structByte ++ ")"
+renderWarning (ChecksumMismatch stored calculated) =
+  "Checksum mismatch: stored 0x" ++ showHexByte stored
+    ++ ", calculated 0x" ++ showHexByte calculated
+renderWarning (StatMismatch slot statName stored calculated) =
+  "Slot " ++ show (slot + 1) ++ ": " ++ Text.unpack statName
+    ++ " mismatch (stored " ++ show stored
+    ++ ", calculated " ++ show calculated ++ ")"
+
+
+-- ── Demo Command ──────────────────────────────────────────────
+
+runDemo :: IO ()
+runDemo = do
   putStrLn "Loading game data..."
   (gen1Data, gen2Data) <- loadOrDie =<< loadAllGameData
   putStrLn $ "  Gen 1: " ++ show (Map.size (gameSpecies (gameSpeciesGraph gen1Data))) ++ " species, "
@@ -43,7 +194,7 @@ main = do
   demoTextCodec
 
 
--- ── Helpers ─────────────────────────────────────────────────────
+-- ── Demo Helpers ──────────────────────────────────────────────
 
 section :: String -> IO ()
 section title = putStrLn $
@@ -64,7 +215,7 @@ findMove gameData name = do
   pure (matchedMoveId, move)
 
 
--- ── Stat Calculation Demo ───────────────────────────────────────
+-- ── Stat Calculation Demo ─────────────────────────────────────
 
 demoStats :: GameData -> GameData -> IO ()
 demoStats gen1Data gen2Data = do
@@ -105,7 +256,7 @@ showStats stats =
   ++ "  " ++ showSpecial (statSpecial stats)
 
 showSpecial :: Special -> String
-showSpecial (Unified specialValue)       = "Spc " ++ show specialValue
+showSpecial (Unified specialValue)     = "Spc " ++ show specialValue
 showSpecial (Split spAttack spDefense) = "SpA " ++ show spAttack ++ "  SpD " ++ show spDefense
 
 showDVs :: DVs -> String
@@ -113,7 +264,7 @@ showDVs dvs = "{Atk=" ++ show (dvAttack dvs) ++ " Def=" ++ show (dvDefense dvs)
            ++ " Spd=" ++ show (dvSpeed dvs) ++ " Spc=" ++ show (dvSpecial dvs) ++ "}"
 
 
--- ── Move Legality Demo ──────────────────────────────────────────
+-- ── Move Legality Demo ────────────────────────────────────────
 
 demoLegality :: GameData -> GameData -> IO ()
 demoLegality gen1Data gen2Data = do
@@ -179,7 +330,7 @@ methodLabel EventMove  = "Event"
 methodLabel PreEvo     = "Pre-evo"
 
 
--- ── Text Codec Demo ─────────────────────────────────────────────
+-- ── Text Codec Demo ───────────────────────────────────────────
 
 demoTextCodec :: IO ()
 demoTextCodec = do

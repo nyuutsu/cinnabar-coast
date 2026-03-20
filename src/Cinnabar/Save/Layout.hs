@@ -139,7 +139,7 @@ westernGen1Layout game = CartridgeLayout
 westernGen1Offsets :: Gen1SaveOffsets
 westernGen1Offsets = Gen1SaveOffsets
   { g1PlayerName    = 0x2598
-  , g1RivalName     = 0x25A3
+  , g1RivalName     = 0x25F6
   , g1PartyData     = 0x2F2C
   , g1CurrentBox    = 0x30C0
   , g1Checksum      = 0x3523
