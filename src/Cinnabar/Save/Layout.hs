@@ -194,6 +194,8 @@ gen1HoFRecordCount = 50
 gen1HoFSlotsPerRecord :: Int
 gen1HoFSlotsPerRecord = 6
 
+-- | HoF entry size in bytes. May differ for Japanese saves —
+-- needs verification when adding that layout.
 gen1HoFEntrySize :: Int
 gen1HoFEntrySize = 16
 

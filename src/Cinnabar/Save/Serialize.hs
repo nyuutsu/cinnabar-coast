@@ -68,7 +68,7 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                           $ ByteString.drop (g1HallOfFame offsets) originalBytes
 
         patched     = patchBytes (g1HallOfFame offsets)
-                        (serializeHallOfFame originalHoFRegion
+                        (serializeHallOfFame nameLen originalHoFRegion
                           (rawGen1HallOfFame save))
                     $ patchBytes (g1PlayerName offsets) (rawGen1PlayerName save)
                     $ patchBytes (g1RivalName offsets)  (rawGen1RivalName save)
@@ -299,8 +299,8 @@ serializeRawPlayTime playTime = ByteString.pack
 
 -- ── Hall of Fame Serialization ──────────────────────────────────
 
-serializeHallOfFame :: ByteString -> [RawGen1HoFRecord] -> ByteString
-serializeHallOfFame original records =
+serializeHallOfFame :: Int -> ByteString -> [RawGen1HoFRecord] -> ByteString
+serializeHallOfFame nameLen original records =
   foldl' patchRecord original (zip [0 ..] records)
   where
     patchRecord region (recordIndex, record) =
@@ -312,7 +312,7 @@ serializeHallOfFame original records =
       in patchByte offset (unInternalIndex (rawGen1HoFSpecies entry))
        $ patchByte (offset + 1) (rawGen1HoFLevel entry)
        $ patchBytes (offset + 2) (rawGen1HoFNickname entry)
-       $ patchBytes (offset + 13) (rawGen1HoFPadding entry)
+       $ patchBytes (offset + 2 + nameLen) (rawGen1HoFPadding entry)
          region
 
 

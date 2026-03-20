@@ -55,7 +55,7 @@ import Cinnabar.Save.Layout
   , Gen1SaveOffsets (..)
   , BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
-  , gen1HoFRecordCount, gen1HoFSlotsPerRecord, gen1HoFRecordSize
+  , gen1HoFRecordCount, gen1HoFSlotsPerRecord, gen1HoFEntrySize, gen1HoFRecordSize
   )
 import Cinnabar.Types (Gen (..), InternalIndex (..))
 
@@ -274,14 +274,14 @@ parseGen1Save layout offsets bytes =
       (hofCount, _)     = readByte (seekTo (g1HoFCount offsets) cursor)
       playTime          = parseRawPlayTime (seekTo (g1PlayTime offsets) cursor)
       (pikachuFriend, _) = readByte (seekTo (g1PikachuFriendship offsets) cursor)
-      daycare           = parseRawDaycare offsets cursor
+      daycare           = parseRawDaycare nameLen offsets cursor
       progress          = parseRawProgress offsets cursor
       playerPosition    = parseRawPlayerPosition offsets cursor
       safari            = parseRawSafari offsets cursor
       fossil            = parseRawFossil offsets cursor
       transient         = parseRawTransient offsets cursor
 
-      hallOfFame = parseHallOfFame (seekTo (g1HallOfFame offsets) cursor)
+      hallOfFame = parseHallOfFame nameLen (seekTo (g1HallOfFame offsets) cursor)
 
       (pcBoxes, boxBankValidity) = parseBoxBanks nameLen boxCapacity bytes (g1BoxBanks offsets)
 
@@ -362,12 +362,12 @@ parseRawPlayTime cursor0 =
       , rawPlayFrames  = frames
       }
 
-parseRawDaycare :: Gen1SaveOffsets -> Cursor -> RawDaycare
-parseRawDaycare offsets cursor =
+parseRawDaycare :: Int -> Gen1SaveOffsets -> Cursor -> RawDaycare
+parseRawDaycare nameLen offsets cursor =
   let (inUse, _)       = readByte (seekTo (g1DaycareInUse offsets) cursor)
       (speciesByte, _) = readByte (seekTo (g1DaycareMon offsets) cursor)
-      (nickname, _)    = readBytes 11 (seekTo (g1DaycareNickname offsets) cursor)
-      (otName, _)      = readBytes 11 (seekTo (g1DaycareOTName offsets) cursor)
+      (nickname, _)    = readBytes nameLen (seekTo (g1DaycareNickname offsets) cursor)
+      (otName, _)      = readBytes nameLen (seekTo (g1DaycareOTName offsets) cursor)
   in RawDaycare
       { rawDaycareInUse    = inUse
       , rawDaycareMon      = InternalIndex speciesByte
@@ -495,29 +495,30 @@ parseRawTransient offsets cursor =
 
 -- ── Hall of Fame Parser ─────────────────────────────────────────
 
-parseHallOfFame :: Cursor -> [RawGen1HoFRecord]
-parseHallOfFame cursor0 =
-  [ parseHoFRecord (skip (recordIndex * gen1HoFRecordSize) cursor0) | recordIndex <- [0 .. gen1HoFRecordCount - 1] ]
+parseHallOfFame :: Int -> Cursor -> [RawGen1HoFRecord]
+parseHallOfFame nameLen cursor0 =
+  [ parseHoFRecord nameLen (skip (recordIndex * gen1HoFRecordSize) cursor0) | recordIndex <- [0 .. gen1HoFRecordCount - 1] ]
 
-parseHoFRecord :: Cursor -> RawGen1HoFRecord
-parseHoFRecord cursor0 =
-  let (entries, _) = parseHoFEntries gen1HoFSlotsPerRecord cursor0
+parseHoFRecord :: Int -> Cursor -> RawGen1HoFRecord
+parseHoFRecord nameLen cursor0 =
+  let (entries, _) = parseHoFEntries nameLen gen1HoFSlotsPerRecord cursor0
   in RawGen1HoFRecord { rawGen1HoFEntries = entries }
 
-parseHoFEntries :: Int -> Cursor -> ([RawGen1HoFEntry], Cursor)
-parseHoFEntries 0 cursor = ([], cursor)
-parseHoFEntries remaining cursor0 =
-  let (speciesByte, cursor1) = readByte cursor0
-      (levelByte, cursor2)   = readByte cursor1
-      (nickname, cursor3)    = readBytes 11 cursor2
-      (padding, cursor4)     = readBytes 3 cursor3
+parseHoFEntries :: Int -> Int -> Cursor -> ([RawGen1HoFEntry], Cursor)
+parseHoFEntries _ 0 cursor = ([], cursor)
+parseHoFEntries nameLen remaining cursor0 =
+  let paddingLen               = gen1HoFEntrySize - 2 - nameLen
+      (speciesByte, cursor1)   = readByte cursor0
+      (levelByte, cursor2)     = readByte cursor1
+      (nickname, cursor3)      = readBytes nameLen cursor2
+      (padding, cursor4)       = readBytes paddingLen cursor3
       entry = RawGen1HoFEntry
         { rawGen1HoFSpecies  = InternalIndex speciesByte
         , rawGen1HoFLevel    = levelByte
         , rawGen1HoFNickname = nickname
         , rawGen1HoFPadding  = padding
         }
-      (rest, finalCursor) = parseHoFEntries (remaining - 1) cursor4
+      (rest, finalCursor) = parseHoFEntries nameLen (remaining - 1) cursor4
   in (entry : rest, finalCursor)
 
 
