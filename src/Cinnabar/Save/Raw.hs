@@ -75,19 +75,19 @@ data RawGen2SaveFile = RawGen2SaveFile
 -- ── Container Types ────────────────────────────────────────────
 
 data RawGen1Party = RawGen1Party
-  { rawPartyCount   :: !Word8
-  , rawPartySpecies :: ![InternalIndex]
-  , rawPartyMons    :: ![RawGen1PartyMon]
-  , rawPartyOTNames :: ![ByteString]
-  , rawPartyNicks   :: ![ByteString]
+  { rawGen1PartyCount   :: !Word8
+  , rawGen1PartySpecies :: ![InternalIndex]
+  , rawGen1PartyMons    :: ![RawGen1PartyMon]
+  , rawGen1PartyOTNames :: ![ByteString]
+  , rawGen1PartyNicks   :: ![ByteString]
   } deriving (Eq, Show)
 
 data RawGen1Box = RawGen1Box
-  { rawBoxCount   :: !Word8
-  , rawBoxSpecies :: ![InternalIndex]
-  , rawBoxMons    :: ![RawGen1BoxMon]
-  , rawBoxOTNames :: ![ByteString]
-  , rawBoxNicks   :: ![ByteString]
+  { rawGen1BoxCount   :: !Word8
+  , rawGen1BoxSpecies :: ![InternalIndex]
+  , rawGen1BoxMons    :: ![RawGen1BoxMon]
+  , rawGen1BoxOTNames :: ![ByteString]
+  , rawGen1BoxNicks   :: ![ByteString]
   } deriving (Eq, Show)
 
 
@@ -161,11 +161,11 @@ parseGen1Party nameLen cursor0 =
       (nicks, cursor5)   = parseFixedArray entryCount gen1PartyCapacity
                              nameLen (readBytes nameLen) cursor4
   in ( RawGen1Party
-        { rawPartyCount   = count
-        , rawPartySpecies = species
-        , rawPartyMons    = mons
-        , rawPartyOTNames = otNames
-        , rawPartyNicks   = nicks
+        { rawGen1PartyCount   = count
+        , rawGen1PartySpecies = species
+        , rawGen1PartyMons    = mons
+        , rawGen1PartyOTNames = otNames
+        , rawGen1PartyNicks   = nicks
         }
      , cursor5
      )
@@ -183,11 +183,11 @@ parseGen1Box nameLen boxCapacity cursor0 =
       (nicks, cursor5)   = parseFixedArray entryCount boxCapacity
                              nameLen (readBytes nameLen) cursor4
   in ( RawGen1Box
-        { rawBoxCount   = count
-        , rawBoxSpecies = species
-        , rawBoxMons    = mons
-        , rawBoxOTNames = otNames
-        , rawBoxNicks   = nicks
+        { rawGen1BoxCount   = count
+        , rawGen1BoxSpecies = species
+        , rawGen1BoxMons    = mons
+        , rawGen1BoxOTNames = otNames
+        , rawGen1BoxNicks   = nicks
         }
      , cursor5
      )

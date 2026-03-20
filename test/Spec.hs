@@ -275,10 +275,10 @@ main = hspec $ do
               Right (RawGen1Save save) -> do
                 rawGen1ChecksumValid save `shouldBe` True
                 let party = rawGen1Party save
-                    count = fromIntegral (rawPartyCount party)
+                    count = fromIntegral (rawGen1PartyCount party)
                 count `shouldSatisfy` (\n -> n >= 1 && n <= (6 :: Int))
-                length (rawPartySpecies party) `shouldBe` count
-                length (rawPartyMons party) `shouldBe` count
+                length (rawGen1PartySpecies party) `shouldBe` count
+                length (rawGen1PartyMons party) `shouldBe` count
 
     it "parses an empty party without crashing" $
       case cartridgeLayout Yellow RegionWestern of
@@ -298,6 +298,6 @@ main = hspec $ do
               Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
               Right (RawGen1Save save) -> do
                 let party = rawGen1Party save
-                rawPartyCount party `shouldBe` 0
-                rawPartySpecies party `shouldBe` []
-                rawPartyMons party `shouldBe` []
+                rawGen1PartyCount party `shouldBe` 0
+                rawGen1PartySpecies party `shouldBe` []
+                rawGen1PartyMons party `shouldBe` []
