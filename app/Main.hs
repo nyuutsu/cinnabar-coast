@@ -23,6 +23,7 @@ import Cinnabar.Legality (classifyMove)
 import Cinnabar.Save.Interpret
   ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
   , InterpretedSpecies (..), InterpretedMove (..)
+  , InterpretedDaycare (..)
   , WarningContext (..), SaveWarning (..)
   , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
   , InterpretedProgress (..), FlagState (..), MapScriptState (..)
@@ -177,8 +178,25 @@ printSaveSummary interpreted = do
   case interpPikachuFriend interpreted of
     Just friendship -> putStrLn $ "Pikachu Friendship: " ++ show friendship
     Nothing -> pure ()
-  case interpDaycareSpecies interpreted of
-    Just species -> putStrLn $ "Daycare: " ++ renderSpecies species
+  putStrLn $ "Position: (" ++ show (interpPlayerY interpreted)
+    ++ ", " ++ show (interpPlayerX interpreted)
+    ++ ") on map " ++ show (interpLastMap interpreted)
+    ++ ", last map " ++ show (interpLastBlackoutMap interpreted)
+  if interpInSafari interpreted
+    then putStrLn $ "Safari Zone: " ++ show (interpSafariSteps interpreted)
+      ++ " steps remaining, " ++ show (interpSafariBallCount interpreted) ++ " balls"
+    else pure ()
+  case interpFossilItem interpreted of
+    Just itemName -> TextIO.putStrLn $ "Fossil: given " <> itemName
+      <> case interpFossilResult interpreted of
+           Just species -> ", result " <> Text.pack (renderSpecies species)
+           Nothing      -> ""
+    Nothing -> pure ()
+  case interpDaycare interpreted of
+    Just daycare -> TextIO.putStrLn $ "Daycare: "
+      <> Text.pack (renderSpecies (daycareSpecies daycare))
+      <> " \"" <> displayText (daycareNickname daycare)
+      <> "\" (OT: " <> displayText (daycareOTName daycare) <> ")"
     Nothing -> pure ()
   putStrLn $ "Current Box: " ++ show (interpCurrentBox interpreted)
   let hofCount = interpHoFCount interpreted
@@ -340,6 +358,7 @@ renderWarningContext (HoFSlot record entry)  = "HoF record " ++ show record ++ "
 renderWarningContext PlayerStarter           = "Player starter"
 renderWarningContext RivalStarter            = "Rival starter"
 renderWarningContext DaycareSlot             = "Daycare"
+renderWarningContext FossilSlot              = "Fossil"
 
 renderWarning :: SaveWarning -> String
 renderWarning (UnknownSpeciesIndex context idx) =
@@ -421,6 +440,16 @@ printAllFlags progress = do
   putStrLn $ "  Received Lapras: " ++ showYesNo (progReceivedLapras progress)
   putStrLn $ "  Received starter: " ++ showYesNo (progReceivedStarter progress)
   putStrLn $ "  Healed at center: " ++ showYesNo (progHealedAtCenter progress)
+  putStrLn $ "  Test battle: " ++ showYesNo (progTestBattle progress)
+  putStrLn $ "  Prevent music change: " ++ showYesNo (progPreventMusicChange progress)
+  putStrLn $ "  Trainer wants battle: " ++ showYesNo (progTrainerWantsBattle progress)
+  putStrLn $ "  Used Fly: " ++ showYesNo (progUsedFly progress)
+  putStrLn $ "  Standing on door: " ++ showYesNo (progStandingOnDoor progress)
+  putStrLn $ "  Stepping from door: " ++ showYesNo (progSteppingFromDoor progress)
+  putStrLn $ "  Standing on warp: " ++ showYesNo (progStandingOnWarp progress)
+  putStrLn $ "  Jumping ledge: " ++ showYesNo (progJumpingLedge progress)
+  putStrLn $ "  Spinning: " ++ showYesNo (progSpinning progress)
+  putStrLn $ "  Beaten Lorelei (E4 run): " ++ showYesNo (progBeatenLorelei progress)
   putStrLn ""
 
   let toggles      = progToggleFlags progress

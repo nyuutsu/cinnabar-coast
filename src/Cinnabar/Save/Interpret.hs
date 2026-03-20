@@ -23,6 +23,8 @@ module Cinnabar.Save.Interpret
   , MapScriptState (..)
   , InterpretedProgress (..)
   , InterpretedHoFEntry (..)
+  , InterpretedDaycare (..)
+  , InterpretedTransient (..)
   , InterpretedHoFRecord (..)
   , InterpretedSave (..)
 
@@ -65,6 +67,8 @@ import Cinnabar.Save.Raw
   , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
   , RawGen1HoFEntry (..), RawGen1HoFRecord (..)
   , RawProgressFlags (..)
+  , RawPlayerPosition (..), RawSafariState (..), RawFossilState (..)
+  , RawTransientState (..)
   )
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 
@@ -124,6 +128,12 @@ data InterpretedBox = InterpretedBox
   , interpBoxMons   :: ![InterpretedMon]
   } deriving (Eq, Show)
 
+data InterpretedDaycare = InterpretedDaycare
+  { daycareSpecies  :: !InterpretedSpecies
+  , daycareNickname :: !GameText
+  , daycareOTName   :: !GameText
+  } deriving (Eq, Show)
+
 data FlagState = FlagState
   { flagName  :: !Text
   , flagIsSet :: !Bool
@@ -150,7 +160,17 @@ data InterpretedProgress = InterpretedProgress
   , progReceivedStarter   :: !Bool
   , progHealedAtCenter    :: !Bool
   , progTradesCompleted   :: !Int
-  , progActiveBoxSynced   :: !Bool
+  , progTestBattle          :: !Bool
+  , progPreventMusicChange  :: !Bool
+  , progTrainerWantsBattle  :: !Bool
+  , progUsedFly             :: !Bool
+  , progStandingOnDoor      :: !Bool
+  , progSteppingFromDoor    :: !Bool
+  , progStandingOnWarp      :: !Bool
+  , progJumpingLedge        :: !Bool
+  , progSpinning            :: !Bool
+  , progBeatenLorelei       :: !Bool
+  , progActiveBoxSynced     :: !Bool
   } deriving (Eq, Show)
 
 data InterpretedHoFEntry = InterpretedHoFEntry
@@ -161,6 +181,24 @@ data InterpretedHoFEntry = InterpretedHoFEntry
 
 data InterpretedHoFRecord = InterpretedHoFRecord
   { hofEntries :: ![InterpretedHoFEntry]
+  } deriving (Eq, Show)
+
+data InterpretedTransient = InterpretedTransient
+  { transLetterDelay        :: !Int
+  , transMusicId            :: !Int
+  , transMusicBank          :: !Int
+  , transContrastId         :: !Int
+  , transEnemyTrainerClass  :: !Int
+  , transBoulderSpriteIndex :: !Int
+  , transDungeonWarpDest    :: !Int
+  , transDungeonWarpUsed    :: !Int
+  , transWarpedFromWarp     :: !Int
+  , transWarpedFromMap      :: !Int
+  , transCardKeyDoorY       :: !Int
+  , transCardKeyDoorX       :: !Int
+  , transTrashCanLock1      :: !Int
+  , transTrashCanLock2      :: !Int
+  , transCurrentMapScript   :: !Int
   } deriving (Eq, Show)
 
 data InterpretedSave = InterpretedSave
@@ -178,9 +216,19 @@ data InterpretedSave = InterpretedSave
   , interpPlayTimeMaxed :: !Bool
   , interpCurrentBox    :: !Int
   , interpHoFCount      :: !Int
-  , interpPikachuFriend :: !(Maybe Int)
-  , interpDaycareSpecies :: !(Maybe InterpretedSpecies)
-  , interpOptions       :: !Word8
+  , interpPikachuFriend   :: !(Maybe Int)
+  , interpDaycare         :: !(Maybe InterpretedDaycare)
+  , interpPlayerY         :: !Int
+  , interpPlayerX         :: !Int
+  , interpLastMap         :: !Int
+  , interpLastBlackoutMap :: !Int
+  , interpSafariSteps     :: !Int
+  , interpSafariBallCount :: !Int
+  , interpInSafari        :: !Bool
+  , interpFossilItem      :: !(Maybe Text)
+  , interpFossilResult    :: !(Maybe InterpretedSpecies)
+  , interpTransient       :: !InterpretedTransient
+  , interpOptions         :: !Word8
   , interpParty         :: ![InterpretedMon]
   , interpPCBoxes       :: ![InterpretedBox]
   , interpHallOfFame    :: ![InterpretedHoFRecord]
@@ -212,6 +260,7 @@ data WarningContext
   | PlayerStarter
   | RivalStarter
   | DaycareSlot
+  | FossilSlot
   deriving (Eq, Show)
 
 data SaveWarning
@@ -272,7 +321,21 @@ interpretGen1Save gameData codec rawSave =
 
       rawPlayTimeRecord = rawGen1PlayTime rawSave
       daycareRecord     = rawGen1Daycare rawSave
-      (daycareSpecies, daycareWarnings) = resolveDaycare indexMap speciesMap daycareRecord
+      (interpretedDaycare, daycareWarnings) = resolveDaycare indexMap speciesMap codec daycareRecord
+
+      -- Player position
+      positionRecord = rawGen1PlayerPosition rawSave
+
+      -- Safari state
+      safariRecord = rawGen1Safari rawSave
+
+      -- Fossil resolution
+      fossilRecord = rawGen1Fossil rawSave
+      (fossilItemName, fossilSpecies, fossilWarnings) =
+        resolveFossil indexMap speciesMap itemMap fossilRecord
+
+      -- Transient state
+      transientRecord = rawGen1Transient rawSave
 
       -- PC box interpretation (non-empty boxes only)
       (interpretedBoxes, boxMonWarnings) = unzip
@@ -357,9 +420,20 @@ interpretGen1Save gameData codec rawSave =
       , interpPlayTimeMaxed = rawPlayMaxed rawPlayTimeRecord /= 0
       , interpCurrentBox    = currentBoxNumber
       , interpHoFCount      = fromIntegral (rawGen1HoFCount rawSave)
-      , interpPikachuFriend = resolvePikachuFriend gameVariant (rawGen1PikachuFriend rawSave)
-      , interpDaycareSpecies = daycareSpecies
-      , interpOptions       = rawGen1Options rawSave
+      , interpPikachuFriend   = resolvePikachuFriend gameVariant (rawGen1PikachuFriend rawSave)
+      , interpDaycare         = interpretedDaycare
+      , interpPlayerY         = fromIntegral (rawPlayerY positionRecord)
+      , interpPlayerX         = fromIntegral (rawPlayerX positionRecord)
+      , interpLastMap         = fromIntegral (rawLastMap positionRecord)
+      , interpLastBlackoutMap = fromIntegral (rawLastBlackoutMap positionRecord)
+      , interpSafariSteps     = fromIntegral (rawSafariSteps safariRecord)
+      , interpSafariBallCount = fromIntegral (rawSafariBallCount safariRecord)
+      , interpInSafari        = rawSafariGameOver safariRecord == 0
+                             && rawSafariSteps safariRecord > 0
+      , interpFossilItem      = fossilItemName
+      , interpFossilResult    = fossilSpecies
+      , interpTransient       = promoteTransient transientRecord
+      , interpOptions         = rawGen1Options rawSave
       , interpParty         = take partyCount interpretedMons
       , interpPCBoxes       = interpretedBoxes
       , interpHallOfFame    = interpretedHoF
@@ -368,6 +442,7 @@ interpretGen1Save gameData codec rawSave =
       , interpWarnings      = concat monWarnings ++ checksumWarnings
                            ++ concat boxMonWarnings ++ boxBankWarnings
                            ++ concat hofWarnings ++ daycareWarnings
+                           ++ fossilWarnings
                            ++ progressSpeciesWarnings ++ progressWarnings
       , interpRaw           = RawGen1Save rawSave
       }
@@ -641,13 +716,20 @@ resolveMachineItem machineMap moveMap byte
 resolveDaycare
   :: Map.Map InternalIndex DexNumber
   -> Map.Map DexNumber Species
+  -> TextCodec
   -> RawDaycare
-  -> (Maybe InterpretedSpecies, [SaveWarning])
-resolveDaycare indexMap speciesMap daycare
+  -> (Maybe InterpretedDaycare, [SaveWarning])
+resolveDaycare indexMap speciesMap codec daycare
   | rawDaycareInUse daycare == 0 = (Nothing, [])
   | otherwise =
       let (species, warnings) = resolveSpecies indexMap speciesMap DaycareSlot (rawDaycareMon daycare)
-      in (Just species, warnings)
+      in ( Just InterpretedDaycare
+            { daycareSpecies  = species
+            , daycareNickname = decodeText codec (rawDaycareNickname daycare)
+            , daycareOTName   = decodeText codec (rawDaycareOTName daycare)
+            }
+         , warnings
+         )
 
 promotePlayTime :: RawPlayTime -> PlayTime
 promotePlayTime raw = PlayTime
@@ -659,6 +741,47 @@ promotePlayTime raw = PlayTime
 resolvePikachuFriend :: GameVariant -> Word8 -> Maybe Int
 resolvePikachuFriend Yellow byte = Just (fromIntegral byte)
 resolvePikachuFriend _      _    = Nothing
+
+resolveFossil
+  :: Map.Map InternalIndex DexNumber
+  -> Map.Map DexNumber Species
+  -> Map.Map ItemId Text
+  -> RawFossilState
+  -> (Maybe Text, Maybe InterpretedSpecies, [SaveWarning])
+resolveFossil indexMap speciesMap itemMap fossil
+  | rawFossilItemGiven fossil == 0 = (Nothing, Nothing, [])
+  | otherwise =
+      let itemByte = rawFossilItemGiven fossil
+          itemName = case Map.lookup (ItemId (fromIntegral itemByte)) itemMap of
+            Just name -> name
+            Nothing   -> Text.pack ("Unknown [0x" ++ showHexByte itemByte ++ "]")
+          speciesByte = ByteString.index (rawFossilResult fossil) 0
+          (resolvedSpecies, speciesWarnings)
+            | speciesByte == 0 = (Nothing, [])
+            | otherwise =
+                let (species, warnings) =
+                      resolveSpecies indexMap speciesMap FossilSlot (InternalIndex speciesByte)
+                in (Just species, warnings)
+      in (Just itemName, resolvedSpecies, speciesWarnings)
+
+promoteTransient :: RawTransientState -> InterpretedTransient
+promoteTransient raw = InterpretedTransient
+  { transLetterDelay        = fromIntegral (rawLetterDelay raw)
+  , transMusicId            = fromIntegral (rawMusicId raw)
+  , transMusicBank          = fromIntegral (rawMusicBank raw)
+  , transContrastId         = fromIntegral (rawContrastId raw)
+  , transEnemyTrainerClass  = fromIntegral (rawEnemyTrainerClass raw)
+  , transBoulderSpriteIndex = fromIntegral (rawBoulderSpriteIndex raw)
+  , transDungeonWarpDest    = fromIntegral (rawDungeonWarpDest raw)
+  , transDungeonWarpUsed    = fromIntegral (rawDungeonWarpUsed raw)
+  , transWarpedFromWarp     = fromIntegral (rawWarpedFromWarp raw)
+  , transWarpedFromMap      = fromIntegral (rawWarpedFromMap raw)
+  , transCardKeyDoorY       = fromIntegral (rawCardKeyDoorY raw)
+  , transCardKeyDoorX       = fromIntegral (rawCardKeyDoorX raw)
+  , transTrashCanLock1      = fromIntegral (rawTrashCanLock1 raw)
+  , transTrashCanLock2      = fromIntegral (rawTrashCanLock2 raw)
+  , transCurrentMapScript   = fromIntegral (rawCurrentMapScript raw)
+  }
 
 
 -- ── Hall of Fame Interpretation ──────────────────────────────
@@ -773,6 +896,8 @@ interpretProgress gameData rawSave =
 
       varFlags1 = rawVarFlags1 progress
       varFlags4 = rawVarFlags4 progress
+      varFlags7 = rawVarFlags7 progress
+      varFlags8 = rawVarFlags8 progress
 
       starterWarnings = playerStarterWarnings ++ rivalStarterWarnings
 
@@ -791,8 +916,18 @@ interpretProgress gameData rawSave =
         , progReceivedLapras    = testBit varFlags4 0
         , progReceivedStarter   = testBit varFlags4 3
         , progHealedAtCenter    = testBit varFlags4 2
-        , progTradesCompleted   = popCount (rawInGameTrades progress)
-        , progActiveBoxSynced   = checkActiveBoxSync rawSave
+        , progTradesCompleted     = popCount (rawInGameTrades progress)
+        , progTestBattle          = testBit varFlags7 0
+        , progPreventMusicChange  = testBit varFlags7 1
+        , progTrainerWantsBattle  = testBit varFlags7 3
+        , progUsedFly             = testBit varFlags7 7
+        , progStandingOnDoor      = testBit varFlags8 0
+        , progSteppingFromDoor    = testBit varFlags8 1
+        , progStandingOnWarp      = testBit varFlags8 2
+        , progJumpingLedge        = testBit varFlags8 6
+        , progSpinning            = testBit varFlags8 7
+        , progBeatenLorelei       = testBit (rawDefeatedLorelei progress) 1
+        , progActiveBoxSynced     = checkActiveBoxSync rawSave
         }
      , starterWarnings
      )

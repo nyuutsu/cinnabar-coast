@@ -18,7 +18,7 @@ import Cinnabar.Stats
 import Cinnabar.Data (loadAllGameData)
 import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
-import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
+import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, displayText, terminator)
 import Cinnabar.Binary (mkCursor, cursorOffset, patchByte, patchBytes)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
@@ -554,6 +554,31 @@ main = hspec $ do
               Right (RawGen1Save save) -> do
                 rawPlayerY (rawGen1PlayerPosition save) `shouldSatisfy` (/= 0)
                 ByteString.length (rawDaycareNickname (rawGen1Daycare save)) `shouldBe` 11
+
+  -- ── Interpreted remaining fields ─────────────────────────
+
+  describe "Interpreted remaining fields" $ do
+    remainingCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+
+    it "interprets player position and daycare from a real Yellow save" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save rawSave) -> do
+                let interpreted = interpretGen1Save gen1Data remainingCodec rawSave
+                interpPlayerY interpreted `shouldSatisfy` (> 0)
+                case interpDaycare interpreted of
+                  Just daycare ->
+                    displayText (daycareNickname daycare) `shouldSatisfy` (not . Text.null)
+                  Nothing -> pure ()
 
   -- ── Progress interpretation ──────────────────────────────
 
