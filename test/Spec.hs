@@ -7,12 +7,10 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Word (Word8)
 
 import Cinnabar.Types
 import Cinnabar.Stats
@@ -20,7 +18,7 @@ import Cinnabar.Data (loadAllGameData)
 import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
 import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, terminator)
-import Cinnabar.Binary (mkCursor, cursorOffset)
+import Cinnabar.Binary (mkCursor, cursorOffset, patchByte, patchBytes)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
 import Cinnabar.Save.Layout
@@ -50,17 +48,6 @@ instance Arbitrary Level where
   arbitrary = Level <$> choose (1, 100)
 
 
--- ── Helpers ───────────────────────────────────────────────────────
-
-setByte :: Int -> Word8 -> ByteString -> ByteString
-setByte offset byte bytes =
-  let (prefix, suffix) = ByteString.splitAt offset bytes
-  in prefix <> ByteString.singleton byte <> ByteString.drop 1 suffix
-
-writeBytes :: Int -> ByteString -> ByteString -> ByteString
-writeBytes offset chunk bytes =
-  let (prefix, suffix) = ByteString.splitAt offset bytes
-  in prefix <> chunk <> ByteString.drop (ByteString.length chunk) suffix
 
 
 -- ── Main ────────────────────────────────────────────────────────
@@ -293,12 +280,12 @@ main = hspec $ do
           Gen2Offsets _ -> expectationFailure "expected Gen 1 offsets"
           Gen1Offsets offsets -> do
             let zeroes = ByteString.replicate 32768 0x00
-                withTerminators = setByte (g1PartyData offsets + 1) 0xFF
-                                $ setByte (g1CurrentBox offsets + 1) 0xFF
+                withTerminators = patchByte (g1PartyData offsets + 1) 0xFF
+                                $ patchByte (g1CurrentBox offsets + 1) 0xFF
                                 $ zeroes
                 checksum = calculateGen1Checksum withTerminators
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
-                saveBytes = setByte (g1Checksum offsets) checksum withTerminators
+                saveBytes = patchByte (g1Checksum offsets) checksum withTerminators
             case parseRawSave layout saveBytes of
               Left err -> expectationFailure (show err)
               Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
@@ -349,17 +336,17 @@ main = hspec $ do
                 nickStart   = otNameStart + 6 * 11   -- past 6 OT names
 
                 base = ByteString.replicate 32768 0x00
-                withParty = setByte partyOffset 0x01                 -- count: 1
-                          $ setByte (partyOffset + 1) 0x54           -- species list: Pikachu
-                          $ setByte (partyOffset + 2) 0xFF           -- species list terminator
-                          $ writeBytes structStart pikachuStruct
-                          $ setByte otNameStart 0x50                 -- OT name terminator
-                          $ setByte nickStart 0x50                   -- nickname terminator
-                          $ setByte (g1CurrentBox offsets + 1) 0xFF  -- empty box terminator
+                withParty = patchByte partyOffset 0x01                 -- count: 1
+                          $ patchByte (partyOffset + 1) 0x54           -- species list: Pikachu
+                          $ patchByte (partyOffset + 2) 0xFF           -- species list terminator
+                          $ patchBytes structStart pikachuStruct
+                          $ patchByte otNameStart 0x50                 -- OT name terminator
+                          $ patchByte nickStart 0x50                   -- nickname terminator
+                          $ patchByte (g1CurrentBox offsets + 1) 0xFF  -- empty box terminator
                           $ base
                 checksum = calculateGen1Checksum withParty
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
-                saveBytes = setByte (g1Checksum offsets) checksum withParty
+                saveBytes = patchByte (g1Checksum offsets) checksum withParty
 
             case parseRawSave layout saveBytes of
               Left err -> expectationFailure (show err)

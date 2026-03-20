@@ -16,6 +16,10 @@ module Cinnabar.Binary
   , readWord24BE
   , readBytes
 
+    -- * Patching
+  , patchByte
+  , patchBytes
+
     -- * Navigation
   , seekTo
   , skip
@@ -80,6 +84,24 @@ readBytes count cursor =
 
 
 -- ── Navigation ──────────────────────────────────────────────────
+
+-- ── Patching ──────────────────────────────────────────────────
+
+-- | Replace a single byte at the given offset.
+patchByte :: Int -> Word8 -> ByteString -> ByteString
+patchByte offset byte bytes =
+  let (prefix, suffix) = ByteString.splitAt offset bytes
+  in prefix <> ByteString.singleton byte <> ByteString.drop 1 suffix
+
+-- | Splice a chunk into a ByteString at the given offset,
+-- replacing the same number of bytes.
+patchBytes :: Int -> ByteString -> ByteString -> ByteString
+patchBytes offset chunk bytes =
+  let (prefix, suffix) = ByteString.splitAt offset bytes
+  in prefix <> chunk <> ByteString.drop (ByteString.length chunk) suffix
+
+
+-- ── Navigation ────────────────────────────────────────────────
 
 -- | Jump to an absolute offset.
 seekTo :: Int -> Cursor -> Cursor
