@@ -2,7 +2,7 @@
 
 A 👶 nascent 👶 Pokémon Gen 1 & 2 save editor.
 
-Libraryesque: ask structural questions about gen 1 data & get an answer.
+Libraryesque: ask structural questions about gen 1 data & get an answer. Some questions you can ask:
 
 * What moves can this species learn, how, and in which gen?
 
@@ -31,7 +31,13 @@ RAICHU + THUNDER_WAVE (Gen 2, L100):
             └── TM (TM45)
 ```
 
-Save file parsing and editing is next.
+Save file parsing and editing is being built right now.
+
+We've started by implementing *reading* of *english*, *gen 1* saves.
+
+The architecture is region & encoding-agnostic. So, once the above feature has been nailed we expect it to be trivial to plug in the other charsets and/or save encoding style as needed & thus work for all regions.
+
+Said architecture is also *supposed* to be generation-agnostic. We will find out how true that is when we implement more gen 2 functionality.
 
 ## Building
 

@@ -7,3 +7,4 @@ dist-newstyle/
 __pycache__/
 pret/
 test/data/*.sav
+test/data/*.gb
