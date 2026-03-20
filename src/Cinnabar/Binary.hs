@@ -24,6 +24,7 @@ module Cinnabar.Binary
     -- * Patching
   , patchByte
   , patchBytes
+  , patchSlots
 
     -- * Navigation
   , seekTo
@@ -119,6 +120,14 @@ patchBytes :: Int -> ByteString -> ByteString -> ByteString
 patchBytes offset chunk bytes =
   let (prefix, suffix) = ByteString.splitAt offset bytes
   in prefix <> chunk <> ByteString.drop (ByteString.length chunk) suffix
+
+-- | Patch a list of items at evenly-spaced positions within a region.
+-- Each item is placed at start + index * stride, leaving all other
+-- bytes in the region untouched.
+patchSlots :: Int -> Int -> [ByteString] -> ByteString -> ByteString
+patchSlots start stride items bytes =
+  foldr (\(index, item) acc -> patchBytes (start + index * stride) item acc)
+    bytes (zip [0..] items)
 
 
 -- ── Navigation ────────────────────────────────────────────────

@@ -16,7 +16,7 @@ module Cinnabar.Save.Serialize
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 
-import Cinnabar.Binary (writeByte, writeWord16BE, writeWord24BE, patchBytes, patchByte)
+import Cinnabar.Binary (writeByte, writeWord16BE, writeWord24BE, patchByte, patchBytes, patchSlots)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 import Cinnabar.Save.Layout
@@ -35,13 +35,29 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
   Gen1Offsets offsets ->
     let nameLen     = layoutNameLen (rawGen1Layout save)
         boxCapacity = layoutBoxCapacity (rawGen1Layout save)
+        originalBytes = rawGen1Bytes save
+
+        partyRegionSize = 1 + (gen1PartyCapacity + 1)
+                        + gen1PartyCapacity * gen1PartyMonSize
+                        + gen1PartyCapacity * nameLen * 2
+        originalPartyRegion = ByteString.take partyRegionSize
+                            $ ByteString.drop (g1PartyData offsets) originalBytes
+
+        boxRegionSize = 1 + (boxCapacity + 1)
+                      + boxCapacity * gen1BoxMonSize
+                      + boxCapacity * nameLen * 2
+        originalBoxRegion = ByteString.take boxRegionSize
+                          $ ByteString.drop (g1CurrentBox offsets) originalBytes
+
         patched     = patchBytes (g1PlayerName offsets) (rawGen1PlayerName save)
                     $ patchBytes (g1RivalName offsets)  (rawGen1RivalName save)
                     $ patchBytes (g1PartyData offsets)
-                        (serializeGen1Party nameLen (rawGen1Party save))
+                        (serializeGen1Party nameLen originalPartyRegion
+                          (rawGen1Party save))
                     $ patchBytes (g1CurrentBox offsets)
-                        (serializeGen1Box nameLen boxCapacity (rawGen1CurrentBox save))
-                    $ rawGen1Bytes save
+                        (serializeGen1Box nameLen boxCapacity originalBoxRegion
+                          (rawGen1CurrentBox save))
+                    $ originalBytes
         checksum    = calculateGen1Checksum patched
                         (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
     in patchByte (g1Checksum offsets) checksum patched
@@ -49,27 +65,39 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
 
 -- ── Container Serializers ────────────────────────────────────
 
-serializeGen1Party :: Int -> RawGen1Party -> ByteString
-serializeGen1Party nameLen party =
-  writeByte (rawGen1PartyCount party)
-  <> serializeSpeciesList gen1PartyCapacity (rawGen1PartySpecies party)
-  <> serializeFixedSlots gen1PartyCapacity
-       gen1PartyMonSize serializeGen1PartyMon (rawGen1PartyMons party)
-  <> serializeNameSlots gen1PartyCapacity
-       nameLen (rawGen1PartyOTNames party)
-  <> serializeNameSlots gen1PartyCapacity
-       nameLen (rawGen1PartyNicks party)
+serializeGen1Party :: Int -> ByteString -> RawGen1Party -> ByteString
+serializeGen1Party nameLen original party =
+  let count        = fromIntegral (rawGen1PartyCount party) :: Int
+      speciesStart = 1
+      structsStart = 1 + gen1PartyCapacity + 1
+      otStart      = structsStart + gen1PartyCapacity * gen1PartyMonSize
+      nicksStart   = otStart + gen1PartyCapacity * nameLen
+  in patchSlots nicksStart nameLen (rawGen1PartyNicks party)
+   $ patchSlots otStart nameLen (rawGen1PartyOTNames party)
+   $ patchSlots structsStart gen1PartyMonSize
+       (map serializeGen1PartyMon (rawGen1PartyMons party))
+   $ patchByte (speciesStart + count) 0xFF
+   $ patchSlots speciesStart 1
+       (map (ByteString.singleton . unInternalIndex) (rawGen1PartySpecies party))
+   $ patchByte 0 (rawGen1PartyCount party)
+     original
 
-serializeGen1Box :: Int -> Int -> RawGen1Box -> ByteString
-serializeGen1Box nameLen boxCapacity box =
-  writeByte (rawGen1BoxCount box)
-  <> serializeSpeciesList boxCapacity (rawGen1BoxSpecies box)
-  <> serializeFixedSlots boxCapacity
-       gen1BoxMonSize serializeGen1BoxMon (rawGen1BoxMons box)
-  <> serializeNameSlots boxCapacity
-       nameLen (rawGen1BoxOTNames box)
-  <> serializeNameSlots boxCapacity
-       nameLen (rawGen1BoxNicks box)
+serializeGen1Box :: Int -> Int -> ByteString -> RawGen1Box -> ByteString
+serializeGen1Box nameLen boxCapacity original box =
+  let count        = fromIntegral (rawGen1BoxCount box) :: Int
+      speciesStart = 1
+      structsStart = 1 + boxCapacity + 1
+      otStart      = structsStart + boxCapacity * gen1BoxMonSize
+      nicksStart   = otStart + boxCapacity * nameLen
+  in patchSlots nicksStart nameLen (rawGen1BoxNicks box)
+   $ patchSlots otStart nameLen (rawGen1BoxOTNames box)
+   $ patchSlots structsStart gen1BoxMonSize
+       (map serializeGen1BoxMon (rawGen1BoxMons box))
+   $ patchByte (speciesStart + count) 0xFF
+   $ patchSlots speciesStart 1
+       (map (ByteString.singleton . unInternalIndex) (rawGen1BoxSpecies box))
+   $ patchByte 0 (rawGen1BoxCount box)
+     original
 
 
 -- ── Struct Serializers ───────────────────────────────────────
@@ -141,33 +169,3 @@ serializeRawStatExp statExp =
   <> writeWord16BE (rawExpSpeed statExp)
   <> writeWord16BE (rawExpSpecial statExp)
 
--- | Species list: entries + 0xFF terminator + zero padding to
--- fill (capacity + 1) bytes total.
-serializeSpeciesList :: Int -> [InternalIndex] -> ByteString
-serializeSpeciesList capacity species =
-  let totalSize   = capacity + 1
-      entryBytes  = ByteString.pack (map unInternalIndex species)
-      terminator  = ByteString.singleton 0xFF
-      paddingSize = totalSize - ByteString.length entryBytes - 1
-  in entryBytes <> terminator <> ByteString.replicate paddingSize 0x00
-
--- | Serialize populated entries, then zero-fill unused slots.
-serializeFixedSlots :: Int -> Int -> (a -> ByteString) -> [a] -> ByteString
-serializeFixedSlots capacity slotSize serializer entries =
-  let populated = mconcat (map serializer entries)
-      unused    = capacity - length entries
-  in populated <> ByteString.replicate (unused * slotSize) 0x00
-
--- | Serialize name bytestrings for populated slots, then zero-fill unused.
-serializeNameSlots :: Int -> Int -> [ByteString] -> ByteString
-serializeNameSlots capacity nameLen names =
-  let populated = mconcat (map (padName nameLen) names)
-      unused    = capacity - length names
-  in populated <> ByteString.replicate (unused * nameLen) 0x00
-
--- | Ensure a name is exactly nameLen bytes, padding with zeroes
--- if shorter (shouldn't happen with well-formed data, but safe).
-padName :: Int -> ByteString -> ByteString
-padName nameLen nameBytes
-  | ByteString.length nameBytes >= nameLen = ByteString.take nameLen nameBytes
-  | otherwise = nameBytes <> ByteString.replicate (nameLen - ByteString.length nameBytes) 0x00
