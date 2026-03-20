@@ -19,6 +19,10 @@ module Cinnabar.Save.Interpret
   , InterpretedMon (..)
   , InterpretedSave (..)
 
+    -- * Decoded sub-records
+  , InventoryEntry (..)
+  , PlayTime (..)
+
     -- * Warnings
   , SaveWarning (..)
 
@@ -26,18 +30,25 @@ module Cinnabar.Save.Interpret
   , interpretGen1Save
   ) where
 
+import Data.Bits (testBit, shiftR, (.&.))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as ByteString
 import Data.List (zip4)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Map.Strict as Map
 import Data.Word (Word8, Word16)
 
 import Cinnabar.Types
 import Cinnabar.Stats (CalcStats (..), calcAllStats)
-import Cinnabar.TextCodec (TextCodec, decodeText)
+import Cinnabar.TextCodec (TextCodec, decodeText, showHexByte)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
-import Cinnabar.Save.Layout (CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..))
-import Cinnabar.Save.Raw (RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..))
+import Cinnabar.Save.Layout
+  (CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), GameVariant (..))
+import Cinnabar.Save.Raw
+  (RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..), RawPlayTime (..), RawDaycare (..))
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawStatExp (..))
 
 
@@ -88,12 +99,39 @@ data InterpretedMon = InterpretedMon
   } deriving (Eq, Show)
 
 data InterpretedSave = InterpretedSave
-  { interpPlayerName :: !GameText
-  , interpRivalName  :: !GameText
-  , interpParty      :: ![InterpretedMon]
-  , interpWarnings   :: ![SaveWarning]
-  , interpRaw        :: !RawSaveFile
+  { interpPlayerName    :: !GameText
+  , interpRivalName     :: !GameText
+  , interpPlayerID      :: !TrainerId
+  , interpMoney         :: !Int
+  , interpCasinoCoins   :: !Int
+  , interpBadges        :: ![Text]
+  , interpPokedexOwned  :: !(Set DexNumber)
+  , interpPokedexSeen   :: !(Set DexNumber)
+  , interpBagItems      :: ![InventoryEntry]
+  , interpBoxItems      :: ![InventoryEntry]
+  , interpPlayTime      :: !PlayTime
+  , interpPlayTimeMaxed :: !Bool
+  , interpCurrentBox    :: !Int
+  , interpHoFCount      :: !Int
+  , interpPikachuFriend :: !(Maybe Int)
+  , interpDaycareSpecies :: !(Maybe InterpretedSpecies)
+  , interpOptions       :: !Word8
+  , interpParty         :: ![InterpretedMon]
+  , interpWarnings      :: ![SaveWarning]
+  , interpRaw           :: !RawSaveFile
   }
+
+-- | Resolved inventory item.
+data InventoryEntry = InventoryEntry
+  { entryName     :: !Text
+  , entryQuantity :: !Int
+  } deriving (Eq, Show)
+
+data PlayTime = PlayTime
+  { playHours   :: !Int
+  , playMinutes :: !Int
+  , playSeconds :: !Int
+  } deriving (Eq, Show)
 
 
 -- ── Warnings ─────────────────────────────────────────────────
@@ -116,8 +154,11 @@ interpretGen1Save gameData codec rawSave =
       indexMap       = gameInternalIndex speciesGraph
       speciesMap     = gameSpecies speciesGraph
       moveMap        = gameMoves lookupTables
+      itemMap        = gameItems lookupTables
+      machineMap     = gameMachines (gameMachineData gameData)
       party          = rawGen1Party rawSave
       partyCount     = fromIntegral (rawGen1PartyCount party)
+      gameVariant    = layoutGame (rawGen1Layout rawSave)
 
       indexedSlots = zip4
         [0 ..]
@@ -142,12 +183,30 @@ interpretGen1Save gameData codec rawSave =
                   Gen2Offsets _ -> stored
             in [ChecksumMismatch stored calculated]
 
+      rawPlayTimeRecord = rawGen1PlayTime rawSave
+      daycareRecord     = rawGen1Daycare rawSave
+
   in InterpretedSave
-      { interpPlayerName = decodeText codec (rawGen1PlayerName rawSave)
-      , interpRivalName  = decodeText codec (rawGen1RivalName rawSave)
-      , interpParty      = take partyCount interpretedMons
-      , interpWarnings   = concat monWarnings ++ checksumWarnings
-      , interpRaw        = RawGen1Save rawSave
+      { interpPlayerName    = decodeText codec (rawGen1PlayerName rawSave)
+      , interpRivalName     = decodeText codec (rawGen1RivalName rawSave)
+      , interpPlayerID      = TrainerId (fromIntegral (rawGen1PlayerID rawSave))
+      , interpMoney         = decodeBCD (rawGen1Money rawSave)
+      , interpCasinoCoins   = decodeBCD (rawGen1CasinoCoins rawSave)
+      , interpBadges        = decodeBadges (rawGen1Badges rawSave)
+      , interpPokedexOwned  = decodePokedexFlags (rawGen1PokedexOwned rawSave)
+      , interpPokedexSeen   = decodePokedexFlags (rawGen1PokedexSeen rawSave)
+      , interpBagItems      = resolveItems itemMap machineMap moveMap (rawGen1BagItems rawSave)
+      , interpBoxItems      = resolveItems itemMap machineMap moveMap (rawGen1BoxItems rawSave)
+      , interpPlayTime      = promotePlayTime rawPlayTimeRecord
+      , interpPlayTimeMaxed = rawPlayMaxed rawPlayTimeRecord /= 0
+      , interpCurrentBox    = fromIntegral (rawGen1CurrentBoxNum rawSave .&. 0x7F) + 1
+      , interpHoFCount      = fromIntegral (rawGen1HoFCount rawSave)
+      , interpPikachuFriend = resolvePikachuFriend gameVariant (rawGen1PikachuFriend rawSave)
+      , interpDaycareSpecies = resolveDaycare indexMap speciesMap daycareRecord
+      , interpOptions       = rawGen1Options rawSave
+      , interpParty         = take partyCount interpretedMons
+      , interpWarnings      = concat monWarnings ++ checksumWarnings
+      , interpRaw           = RawGen1Save rawSave
       }
 
 
@@ -267,6 +326,102 @@ promoteStatExp raw = StatExp
   , expSpeed   = fromIntegral (rawExpSpeed raw)
   , expSpecial = fromIntegral (rawExpSpecial raw)
   }
+
+
+-- ── Decoders ───────────────────────────────────────────────────
+
+-- | Decode a big-endian Binary-Coded Decimal byte string.
+-- Each nybble is one decimal digit.
+decodeBCD :: ByteString -> Int
+decodeBCD = ByteString.foldl' addByte 0
+  where
+    addByte acc byte =
+      acc * 100 + fromIntegral (byte `shiftR` 4) * 10 + fromIntegral (byte .&. 0x0F)
+
+-- | Decode a bit-packed Pokédex byte string into the set of flagged
+-- dex numbers. Bit N (0-indexed, LSB-first within each byte) maps
+-- to species N+1.
+decodePokedexFlags :: ByteString -> Set DexNumber
+decodePokedexFlags bytes = Set.fromList
+  [ DexNumber (bitIndex + 1)
+  | (byteIndex, byte) <- zip [0 ..] (ByteString.unpack bytes)
+  , bitOffset <- [0 .. 7]
+  , let bitIndex = byteIndex * 8 + bitOffset
+  , testBit byte bitOffset
+  ]
+
+-- | Decode the badge bitfield into a list of badge names.
+-- Bit order MSB→LSB: Boulder, Cascade, Thunder, Rainbow, Soul,
+-- Marsh, Volcano, Earth.
+decodeBadges :: Word8 -> [Text]
+decodeBadges byte =
+  [ name | (bitPosition, name) <- zip [7, 6 .. 0] badgeNames, testBit byte bitPosition ]
+  where
+    badgeNames =
+      ["Boulder", "Cascade", "Thunder", "Rainbow", "Soul", "Marsh", "Volcano", "Earth"]
+
+resolveItems
+  :: Map.Map ItemId Text
+  -> Map.Map Machine MoveId
+  -> Map.Map MoveId Move
+  -> [(Word8, Word8)]
+  -> [InventoryEntry]
+resolveItems itemMap machineMap moveMap = map resolveEntry
+  where
+    resolveEntry (itemByte, quantity) =
+      let itemId = ItemId (fromIntegral itemByte)
+          itemName = case Map.lookup itemId itemMap of
+            Just name -> name
+            Nothing   -> resolveMachineItem machineMap moveMap itemByte
+      in InventoryEntry { entryName = itemName, entryQuantity = fromIntegral quantity }
+
+-- | Try to resolve an item byte as a TM/HM. Falls back to "Unknown"
+-- for bytes outside the machine range.
+resolveMachineItem :: Map.Map Machine MoveId -> Map.Map MoveId Move -> Word8 -> Text
+resolveMachineItem machineMap moveMap byte
+  | byte >= 0xC4, byte <= 0xC8 =
+      let number = fromIntegral byte - 0xC4 + 1
+      in formatMachine "HM" number (HM (MachineNumber number))
+  | byte >= 0xC9, byte <= 0xFA =
+      let number = fromIntegral byte - 0xC9 + 1
+      in formatMachine "TM" number (TM (MachineNumber number))
+  | otherwise = Text.pack ("Unknown [0x" ++ showHexByte byte ++ "]")
+  where
+    formatMachine :: Text -> Int -> Machine -> Text
+    formatMachine prefix number machine =
+      let label = prefix <> Text.pack (padMachineNumber number)
+      in case Map.lookup machine machineMap >>= (`Map.lookup` moveMap) of
+          Just move -> label <> " \xFF0F " <> moveName move
+          Nothing   -> label
+
+    padMachineNumber :: Int -> String
+    padMachineNumber n
+      | n < 10    = "0" ++ show n
+      | otherwise = show n
+
+resolveDaycare
+  :: Map.Map InternalIndex DexNumber
+  -> Map.Map DexNumber Species
+  -> RawDaycare
+  -> Maybe InterpretedSpecies
+resolveDaycare indexMap speciesMap daycare
+  | rawDaycareInUse daycare == 0 = Nothing
+  | otherwise = Just $ case Map.lookup (rawDaycareMon daycare) indexMap of
+      Nothing  -> UnknownSpecies (rawDaycareMon daycare)
+      Just dex -> case Map.lookup dex speciesMap of
+        Nothing      -> UnknownDexSpecies dex
+        Just species -> KnownSpecies dex species
+
+promotePlayTime :: RawPlayTime -> PlayTime
+promotePlayTime raw = PlayTime
+  { playHours   = fromIntegral (rawPlayHours raw)
+  , playMinutes = fromIntegral (rawPlayMinutes raw)
+  , playSeconds = fromIntegral (rawPlaySeconds raw)
+  }
+
+resolvePikachuFriend :: GameVariant -> Word8 -> Maybe Int
+resolvePikachuFriend Yellow byte = Just (fromIntegral byte)
+resolvePikachuFriend _      _    = Nothing
 
 
 -- ── Stat Cross-Check ─────────────────────────────────────────

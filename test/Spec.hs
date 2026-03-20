@@ -10,6 +10,7 @@ import Test.QuickCheck
 import qualified Data.ByteString as ByteString
 import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 import Cinnabar.Types
@@ -399,6 +400,32 @@ main = hspec $ do
             where
               isKnownMove (KnownMove _ _) = True
               isKnownMove _               = False
+
+  -- ── Interpreted trainer profile ──────────────────────────
+
+  describe "Interpreted trainer profile" $ do
+    profileCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+
+    it "decodes profile fields from a real Yellow save" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save rawSave) -> do
+                let interpreted = interpretGen1Save gen1Data profileCodec rawSave
+                interpMoney interpreted `shouldSatisfy` (>= 0)
+                interpBadges interpreted `shouldSatisfy` (not . null)
+                Set.size (interpPokedexOwned interpreted) `shouldSatisfy` (> 0)
+                case interpPikachuFriend interpreted of
+                  Just _  -> pure ()
+                  Nothing -> expectationFailure "expected Pikachu friendship for Yellow save"
 
   -- ── Serialization round-trip ──────────────────────────────
 

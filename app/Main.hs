@@ -23,6 +23,7 @@ import Cinnabar.Legality (classifyMove)
 import Cinnabar.Save.Interpret
   ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
   , InterpretedSpecies (..), InterpretedMove (..), SaveWarning (..)
+  , InventoryEntry (..), PlayTime (..)
   )
 import Cinnabar.Save.Layout (cartridgeLayout, GameVariant (..), SaveRegion (..))
 import Cinnabar.Save.Raw (parseRawSave, SaveError (..), RawSaveFile (..))
@@ -92,8 +93,51 @@ runReadCommand savePath = do
 printSaveSummary :: InterpretedSave -> IO ()
 printSaveSummary interpreted = do
   TextIO.putStrLn $ "Player: " <> displayText (interpPlayerName interpreted)
+    <> " (ID: " <> Text.pack (show (unTrainerId (interpPlayerID interpreted))) <> ")"
   TextIO.putStrLn $ "Rival: " <> displayText (interpRivalName interpreted)
+  let time = interpPlayTime interpreted
+      timeStr = show (playHours time) ++ ":" ++ pad2 (playMinutes time)
+                  ++ ":" ++ pad2 (playSeconds time)
+      maxedStr = if interpPlayTimeMaxed interpreted then " (maxed)" else ""
+  putStrLn $ "Time: " ++ timeStr ++ maxedStr
+  putStrLn $ "Money: " ++ formatMoney (interpMoney interpreted)
+  putStrLn $ "Coins: " ++ show (interpCasinoCoins interpreted)
   putStrLn ""
+
+  case interpBadges interpreted of
+    [] -> putStrLn "Badges: (none)"
+    badges -> TextIO.putStrLn $ "Badges: " <> Text.intercalate ", " badges
+  let ownedCount = Set.size (interpPokedexOwned interpreted)
+      seenCount  = Set.size (interpPokedexSeen interpreted)
+  putStrLn $ "Pokédex: " ++ show ownedCount ++ " owned, " ++ show seenCount ++ " seen"
+  putStrLn ""
+
+  let bagItems = interpBagItems interpreted
+  case bagItems of
+    [] -> pure ()
+    _  -> do
+      putStrLn $ "Bag (" ++ show (length bagItems) ++ " items):"
+      mapM_ printInventoryEntry bagItems
+      putStrLn ""
+
+  let boxItems = interpBoxItems interpreted
+  case boxItems of
+    [] -> pure ()
+    _  -> do
+      putStrLn $ "PC Storage (" ++ show (length boxItems) ++ " items):"
+      mapM_ printInventoryEntry boxItems
+      putStrLn ""
+
+  case interpPikachuFriend interpreted of
+    Just friendship -> putStrLn $ "Pikachu Friendship: " ++ show friendship
+    Nothing -> pure ()
+  case interpDaycareSpecies interpreted of
+    Just species -> putStrLn $ "Daycare: " ++ renderSpecies species
+    Nothing -> pure ()
+  putStrLn $ "Current Box: " ++ show (interpCurrentBox interpreted)
+  putStrLn $ "Hall of Fame entries: " ++ show (interpHoFCount interpreted)
+  putStrLn ""
+
   let party = interpParty interpreted
   putStrLn $ "Party (" ++ show (length party) ++ "):"
   mapM_ (uncurry printPartyMon) (zip [1 ..] party)
@@ -124,6 +168,27 @@ printPartyMon slotNumber mon = do
   putStrLn $ "     HP: " ++ show (interpCurrentHP mon)
     ++ "/" ++ show (interpMaxHP mon)
   putStrLn ""
+
+
+printInventoryEntry :: InventoryEntry -> IO ()
+printInventoryEntry entry =
+  TextIO.putStrLn $ "  " <> entryName entry <> " \xD7" <> Text.pack (show (entryQuantity entry))
+
+
+formatMoney :: Int -> String
+formatMoney amount = "$" ++ formatWithCommas amount
+
+formatWithCommas :: Int -> String
+formatWithCommas n
+  | n < 1000  = show n
+  | otherwise = formatWithCommas (n `div` 1000) ++ "," ++ padThree (n `mod` 1000)
+  where
+    padThree x = let s = show x in replicate (3 - length s) '0' ++ s
+
+pad2 :: Int -> String
+pad2 n
+  | n < 10    = "0" ++ show n
+  | otherwise = show n
 
 
 renderSpecies :: InterpretedSpecies -> String
