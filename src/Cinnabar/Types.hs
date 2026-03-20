@@ -60,7 +60,7 @@ module Cinnabar.Types
 
     -- * DVs and Stat Exp
   , DVs (..)
-  , dvHP, maxDVs, isShiny
+  , dvHP, maxDVs, isShiny, unpackDVs
   , StatExp (..)
   , zeroStatExp, maxStatExp
 
@@ -104,7 +104,7 @@ module Cinnabar.Types
   , EventMatch (..)
   ) where
 
-import Data.Bits ((.&.), (.|.), shiftL)
+import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
 import Data.Map.Strict (Map)
@@ -331,6 +331,17 @@ isShiny :: DVs -> Bool
 isShiny dvs =
   dvDefense dvs == 10 && dvSpeed dvs == 10 && dvSpecial dvs == 10
   && (dvAttack dvs .&. 2) /= 0
+
+-- | Unpack a 16-bit DV word into individual values.
+-- Packed format: Atk[15:12] Def[11:8] Spd[7:4] Spc[3:0].
+-- Both gens use the same packed layout.
+unpackDVs :: Word16 -> DVs
+unpackDVs packed = DVs
+  { dvAttack  = fromIntegral (packed `shiftR` 12) .&. 0xF
+  , dvDefense = fromIntegral (packed `shiftR` 8)  .&. 0xF
+  , dvSpeed   = fromIntegral (packed `shiftR` 4)  .&. 0xF
+  , dvSpecial = fromIntegral packed               .&. 0xF
+  }
 
 
 -- ── Stat Exp ────────────────────────────────────────────────────

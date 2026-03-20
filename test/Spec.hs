@@ -27,6 +27,7 @@ import Cinnabar.Save.Layout
   ( GameVariant (..), SaveRegion (..), CartridgeLayout (..)
   , SaveOffsets (..), Gen1SaveOffsets (..), cartridgeLayout
   )
+import Cinnabar.Save.Interpret
 import Cinnabar.Save.Raw
 import System.Directory (doesFileExist)
 
@@ -55,6 +56,11 @@ setByte :: Int -> Word8 -> ByteString -> ByteString
 setByte offset byte bytes =
   let (prefix, suffix) = ByteString.splitAt offset bytes
   in prefix <> ByteString.singleton byte <> ByteString.drop 1 suffix
+
+writeBytes :: Int -> ByteString -> ByteString -> ByteString
+writeBytes offset chunk bytes =
+  let (prefix, suffix) = ByteString.splitAt offset bytes
+  in prefix <> chunk <> ByteString.drop (ByteString.length chunk) suffix
 
 
 -- ── Main ────────────────────────────────────────────────────────
@@ -301,3 +307,78 @@ main = hspec $ do
                 rawGen1PartyCount party `shouldBe` 0
                 rawGen1PartySpecies party `shouldBe` []
                 rawGen1PartyMons party `shouldBe` []
+
+  -- ── Save interpretation ─────────────────────────────────────
+
+  describe "Save interpretation" $ do
+    codec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+
+    it "interprets a hand-crafted Gen 1 save correctly" $
+      case cartridgeLayout Yellow RegionWestern of
+        Left msg -> expectationFailure (Text.unpack msg)
+        Right layout -> case layoutOffsets layout of
+          Gen2Offsets _ -> expectationFailure "expected Gen 1 offsets"
+          Gen1Offsets offsets -> do
+            -- Pikachu party struct: level 50, max DVs, zero stat exp
+            -- Stats match the golden test: HP=110, Atk=75, Def=50, Spd=110, Spc=70
+            let pikachuStruct = ByteString.pack
+                  [ 0x54                          -- species: Pikachu internal index
+                  , 0x00, 0x6E                    -- current HP: 110
+                  , 0x32                          -- box level: 50
+                  , 0x00                          -- status: none
+                  , 0x17, 0x17                    -- type1, type2: Electric
+                  , 0xBE                          -- catch rate: 190
+                  , 0x01, 0x00, 0x00, 0x00        -- moves: Pound, empty, empty, empty
+                  , 0x30, 0x39                    -- OT ID: 12345
+                  , 0x01, 0xE8, 0x48              -- experience: 125000
+                  , 0x00, 0x00, 0x00, 0x00, 0x00  -- stat exp: HP, Attack, Defense
+                  , 0x00, 0x00, 0x00, 0x00, 0x00  -- stat exp: Speed, Special
+                  , 0xFF, 0xFF                    -- DVs: all 15s
+                  , 0x23, 0x00, 0x00, 0x00        -- PP: Pound=35, rest empty
+                  -- box struct ends here (33 bytes)
+                  , 0x32                          -- party level: 50
+                  , 0x00, 0x6E                    -- max HP: 110
+                  , 0x00, 0x4B                    -- attack: 75
+                  , 0x00, 0x32                    -- defense: 50
+                  , 0x00, 0x6E                    -- speed: 110
+                  , 0x00, 0x46                    -- special: 70
+                  ]
+                partyOffset = g1PartyData offsets
+                structStart = partyOffset + 1 + 7   -- past count + species list
+                otNameStart = structStart + 6 * 44   -- past 6 mon structs
+                nickStart   = otNameStart + 6 * 11   -- past 6 OT names
+
+                base = ByteString.replicate 32768 0x00
+                withParty = setByte partyOffset 0x01                 -- count: 1
+                          $ setByte (partyOffset + 1) 0x54           -- species list: Pikachu
+                          $ setByte (partyOffset + 2) 0xFF           -- species list terminator
+                          $ writeBytes structStart pikachuStruct
+                          $ setByte otNameStart 0x50                 -- OT name terminator
+                          $ setByte nickStart 0x50                   -- nickname terminator
+                          $ setByte (g1CurrentBox offsets + 1) 0xFF  -- empty box terminator
+                          $ base
+                checksum = calculateGen1Checksum withParty
+                             (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
+                saveBytes = setByte (g1Checksum offsets) checksum withParty
+
+            case parseRawSave layout saveBytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save rawSave) -> do
+                let interpreted = interpretGen1Save gen1Data codec rawSave
+                    monList     = interpParty interpreted
+                length monList `shouldBe` 1
+                case monList of
+                  [] -> expectationFailure "expected one party member"
+                  (mon : _) -> do
+                    case interpSpecies mon of
+                      KnownSpecies (DexNumber dex) _ -> dex `shouldBe` 25
+                      other -> expectationFailure $ "expected KnownSpecies, got: " ++ show other
+                    any isKnownMove (interpMoves mon) `shouldBe` True
+                    case interpSpecial mon of
+                      Unified _ -> pure ()
+                      Split _ _ -> expectationFailure "expected Unified special stat"
+                    interpWarnings interpreted `shouldBe` []
+      where
+        isKnownMove (KnownMove _ _) = True
+        isKnownMove _               = False

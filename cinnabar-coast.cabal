@@ -33,6 +33,7 @@ library
     Cinnabar.Save.Layout
     Cinnabar.Save.Checksum
     Cinnabar.Save.Gen1.Raw
+    Cinnabar.Save.Interpret
     Cinnabar.Save.Raw
   build-depends:
     base       >= 4.18 && < 5,
