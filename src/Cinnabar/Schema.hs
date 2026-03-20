@@ -16,6 +16,7 @@ module Cinnabar.Schema
   , eggGroupNames
   ) where
 
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 
@@ -26,7 +27,7 @@ import Cinnabar.Types
 
 -- | pret ASM type constant name → PokemonType.
 -- PSYCHIC_TYPE is a pret alias that avoids collision with the move name.
-typeNames :: Map.Map Text PokemonType
+typeNames :: Map Text PokemonType
 typeNames = Map.fromList
   [ ("NORMAL",       Normal)
   , ("FIGHTING",     Fighting)
@@ -52,7 +53,7 @@ typeNames = Map.fromList
 -- ── Growth rate names ────────────────────────────────────────────
 
 -- | pret ASM growth rate constant name → GrowthRate.
-growthRateNames :: Map.Map Text GrowthRate
+growthRateNames :: Map Text GrowthRate
 growthRateNames = Map.fromList
   [ ("GROWTH_MEDIUM_FAST", MediumFast)
   , ("GROWTH_MEDIUM_SLOW", MediumSlow)
@@ -64,7 +65,7 @@ growthRateNames = Map.fromList
 -- ── Gender ratio names ──────────────────────────────────────────
 
 -- | pret ASM gender ratio constant name → GenderRatio.
-genderRatioNames :: Map.Map Text GenderRatio
+genderRatioNames :: Map Text GenderRatio
 genderRatioNames = Map.fromList
   [ ("GENDER_F0",      AllMale)
   , ("GENDER_F12_5",   Female12_5)
@@ -79,7 +80,7 @@ genderRatioNames = Map.fromList
 -- ── Egg group names ─────────────────────────────────────────────
 
 -- | pret ASM egg group constant name → EggGroup.
-eggGroupNames :: Map.Map Text EggGroup
+eggGroupNames :: Map Text EggGroup
 eggGroupNames = Map.fromList
   [ ("EGG_MONSTER",       EggMonster)
   , ("EGG_WATER_1",       EggWater1)

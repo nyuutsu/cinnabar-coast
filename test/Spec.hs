@@ -7,6 +7,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
@@ -50,7 +51,7 @@ instance Arbitrary Level where
 
 -- ── Helpers ───────────────────────────────────────────────────────
 
-setByte :: Int -> Word8 -> ByteString.ByteString -> ByteString.ByteString
+setByte :: Int -> Word8 -> ByteString -> ByteString
 setByte offset byte bytes =
   let (prefix, suffix) = ByteString.splitAt offset bytes
   in prefix <> ByteString.singleton byte <> ByteString.drop 1 suffix

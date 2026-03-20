@@ -37,10 +37,14 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as Aeson
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LazyByteString
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Text (Text)
 import qualified Data.Text as Text
 import Control.Exception (IOException, try)
 import Data.Char (toUpper)
@@ -61,15 +65,15 @@ import Cinnabar.Types.Internal (GameChar (Literal, Ligature, UnknownByte))
 data TextCodec = TextCodec
   { codecGen      :: !Gen
   , codecLanguage :: !Language
-  , codecDecode   :: !(Map.Map Word8 GameChar)
+  , codecDecode   :: !(Map Word8 GameChar)
   } deriving (Show)
 
 -- | One game variant's naming screen — the set of characters a
 -- player can type. A (Gen, Language) may have multiple screens
 -- (e.g. German Gen 2 Gold/Silver vs Crystal).
 data NamingScreen = NamingScreen
-  { screenLabel :: !Text.Text
-  , screenChars :: !(Set.Set GameChar)
+  { screenLabel :: !Text
+  , screenChars :: !(Set GameChar)
   } deriving (Show)
 
 
@@ -86,7 +90,7 @@ terminator = 0x50
 -- | Decode raw bytes into GameText. Stops at the terminator byte
 -- (0x50) or end of input. Unrecognized bytes become UnknownByte
 -- values, preserving round-trip fidelity.
-decodeText :: TextCodec -> ByteString.ByteString -> GameText
+decodeText :: TextCodec -> ByteString -> GameText
 decodeText codec bytes = GameText (decodeFrom 0)
   where
     decodeFrom offset
@@ -100,7 +104,7 @@ decodeText codec bytes = GameText (decodeFrom 0)
 -- | Encode GameText into a fixed-length ByteString, padded with
 -- terminators. The byte is extracted directly from each GameChar —
 -- no lookup needed. The output is always exactly @outputLength@ bytes.
-encodeText :: Int -> GameText -> ByteString.ByteString
+encodeText :: Int -> GameText -> ByteString
 encodeText outputLength (GameText chars) =
   let encoded = take (outputLength - 1) (map charByte chars)
       padding = replicate (outputLength - length encoded) terminator
@@ -113,7 +117,7 @@ encodeText outputLength (GameText chars) =
 -- conversion: Literal and Ligature expand to their text
 -- representations, UnknownByte renders as a hex placeholder.
 -- Use this only for final display output.
-displayText :: GameText -> Text.Text
+displayText :: GameText -> Text
 displayText (GameText chars) = Text.concat (map renderChar chars)
   where
     renderChar (Literal _sourceByte char)    = Text.singleton char
@@ -145,7 +149,7 @@ lookupChar codec target =
     []          -> Nothing
 
 -- | Find a Ligature GameChar in the codec by its display text.
-lookupLigature :: TextCodec -> Text.Text -> Maybe GameChar
+lookupLigature :: TextCodec -> Text -> Maybe GameChar
 lookupLigature codec target =
   let matches = [ gameChar
                 | gameChar@(Ligature _sourceByte text) <- Map.elems (codecDecode codec)
@@ -221,7 +225,7 @@ buildFromJSON gen lang jsonValue = do
 
 
 -- | Fail if any byte value appears more than once in a single variant's entries.
-checkDuplicateBytes :: [CharEntry] -> Text.Text -> Either String ()
+checkDuplicateBytes :: [CharEntry] -> Text -> Either String ()
 checkDuplicateBytes entries variantLabel =
   let byteCounts = Map.fromListWith (+)
         [(entryByte entry, 1 :: Int) | entry <- entries]
@@ -242,7 +246,7 @@ data CharEntry = CharEntry
 
 -- | Parse the JSON value into a list of (entries, label) pairs.
 -- Flat JSON → one pair. Variant JSON (gen2-de) → one pair per variant.
-parseCharsets :: Aeson.Value -> Either String [([CharEntry], Text.Text)]
+parseCharsets :: Aeson.Value -> Either String [([CharEntry], Text)]
 parseCharsets = Aeson.parseEither $ \jsonValue -> do
   jsonObject <- Aeson.parseJSON jsonValue
   -- Check for "variants" key (gen2-de.json structure)
@@ -255,7 +259,7 @@ parseCharsets = Aeson.parseEither $ \jsonValue -> do
       entries <- mapM parseCharEntry chars
       label <- do
         gen <- jsonObject Aeson..: "generation" :: Aeson.Parser Int
-        region <- jsonObject Aeson..: "region" :: Aeson.Parser Text.Text
+        region <- jsonObject Aeson..: "region" :: Aeson.Parser Text
         pure $ "Gen " <> Text.pack (show gen) <> " " <> Text.toUpper region
       pure [(entries, label)]
   where
@@ -269,8 +273,8 @@ parseCharsets = Aeson.parseEither $ \jsonValue -> do
 -- | Parse one character entry from the JSON characters array.
 parseCharEntry :: Aeson.Value -> Aeson.Parser CharEntry
 parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
-  hexStr <- jsonObject Aeson..: "hex" :: Aeson.Parser Text.Text
-  glyph  <- jsonObject Aeson..: "glyph" :: Aeson.Parser Text.Text
+  hexStr <- jsonObject Aeson..: "hex" :: Aeson.Parser Text
+  glyph  <- jsonObject Aeson..: "glyph" :: Aeson.Parser Text
   byte   <- parseHexByte hexStr
 
   -- Determine if choosable. Only explicit "choosable": false marks
@@ -295,7 +299,7 @@ parseCharEntry = Aeson.withObject "CharEntry" $ \jsonObject -> do
 
 -- | Parse "0x7F" style hex strings to Word8.
 -- Uses 'fail' so parse errors are captured by the enclosing Aeson parser.
-parseHexByte :: Text.Text -> Aeson.Parser Word8
+parseHexByte :: Text -> Aeson.Parser Word8
 parseHexByte hexText =
   case readHex (Text.unpack (Text.drop 2 hexText)) of
     [(byteValue, "")] -> pure byteValue

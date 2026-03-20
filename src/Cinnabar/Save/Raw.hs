@@ -23,6 +23,7 @@ module Cinnabar.Save.Raw
   , parseRawSave
   ) where
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Text (Text)
 import Data.Word (Word8)
@@ -57,10 +58,10 @@ data RawSaveFile
   | RawGen2Save !RawGen2SaveFile
 
 data RawGen1SaveFile = RawGen1SaveFile
-  { rawGen1Bytes         :: !ByteString.ByteString
+  { rawGen1Bytes         :: !ByteString
   , rawGen1Layout        :: !CartridgeLayout
-  , rawGen1PlayerName    :: !ByteString.ByteString
-  , rawGen1RivalName     :: !ByteString.ByteString
+  , rawGen1PlayerName    :: !ByteString
+  , rawGen1RivalName     :: !ByteString
   , rawGen1Party         :: !RawGen1Party
   , rawGen1CurrentBox    :: !RawGen1Box
   , rawGen1Checksum      :: !Word8
@@ -77,16 +78,16 @@ data RawGen1Party = RawGen1Party
   { rawPartyCount   :: !Word8
   , rawPartySpecies :: ![InternalIndex]
   , rawPartyMons    :: ![RawGen1PartyMon]
-  , rawPartyOTNames :: ![ByteString.ByteString]
-  , rawPartyNicks   :: ![ByteString.ByteString]
+  , rawPartyOTNames :: ![ByteString]
+  , rawPartyNicks   :: ![ByteString]
   } deriving (Eq, Show)
 
 data RawGen1Box = RawGen1Box
   { rawBoxCount   :: !Word8
   , rawBoxSpecies :: ![InternalIndex]
   , rawBoxMons    :: ![RawGen1BoxMon]
-  , rawBoxOTNames :: ![ByteString.ByteString]
-  , rawBoxNicks   :: ![ByteString.ByteString]
+  , rawBoxOTNames :: ![ByteString]
+  , rawBoxNicks   :: ![ByteString]
   } deriving (Eq, Show)
 
 
@@ -95,7 +96,7 @@ data RawGen1Box = RawGen1Box
 gen1FileSize :: Int
 gen1FileSize = 32768
 
-parseRawSave :: CartridgeLayout -> ByteString.ByteString -> Either SaveError RawSaveFile
+parseRawSave :: CartridgeLayout -> ByteString -> Either SaveError RawSaveFile
 parseRawSave layout bytes = case layoutGen layout of
   Gen1
     | ByteString.length bytes /= gen1FileSize ->
@@ -109,7 +110,7 @@ parseRawSave layout bytes = case layoutGen layout of
 
 -- ── Gen 1 Save Parsing ────────────────────────────────────────
 
-parseGen1Save :: CartridgeLayout -> Gen1SaveOffsets -> ByteString.ByteString -> RawGen1SaveFile
+parseGen1Save :: CartridgeLayout -> Gen1SaveOffsets -> ByteString -> RawGen1SaveFile
 parseGen1Save layout offsets bytes =
   let cursor      = mkCursor bytes
       nameLen     = layoutNameLen layout

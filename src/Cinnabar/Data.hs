@@ -18,8 +18,11 @@ module Cinnabar.Data
 
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, except)
 import Data.Foldable (traverse_)
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Text.Read (decimal)
@@ -128,7 +131,7 @@ loadAllGameData = do
 data Row = Row
   { rowFilePath :: !FilePath
   , rowNumber   :: !RowNumber
-  , rowFields   :: !(Map.Map ColumnName Text.Text)
+  , rowFields   :: !(Map ColumnName Text)
   }
 
 -- | A parsed CSV file: source path, column names, and provenance-stamped rows.
@@ -172,7 +175,7 @@ readCSV path = do
 -- | Build a row accessor for a named column. Validates that the column
 -- exists in the header, returning MissingColumn if not. Internal helper
 -- used by the typed accessor functions below.
-column :: CSV -> ColumnName -> Either LoadError (Row -> Text.Text)
+column :: CSV -> ColumnName -> Either LoadError (Row -> Text)
 column csv name
   | name `elem` csvColumnNames csv =
       Right (\row -> Map.findWithDefault "" name (rowFields row))
@@ -193,7 +196,7 @@ intColumn csv name = do
          _ -> Left (UnparseableInt (rowFilePath row) (rowNumber row) name rawValue)
 
 -- | Required text column: empty → EmptyRequiredField.
-textColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError Text.Text)
+textColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError Text)
 textColumn csv name = do
   accessor <- column csv name
   pure $ \row ->
@@ -203,7 +206,7 @@ textColumn csv name = do
        else Right rawValue
 
 -- | Optional text column: empty → Right Nothing.
-maybeTextColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError (Maybe Text.Text))
+maybeTextColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError (Maybe Text))
 maybeTextColumn csv name = do
   accessor <- column csv name
   pure $ \row ->
@@ -216,20 +219,20 @@ maybeTextColumn csv name = do
 -- ── Enum helpers ───────────────────────────────────────────────
 
 -- | Require a name-to-type mapping to succeed, or produce UnknownEnum.
-requireEnum :: Row -> EnumLabel -> Map.Map Text.Text a -> Text.Text -> Either LoadError a
+requireEnum :: Row -> EnumLabel -> Map Text a -> Text -> Either LoadError a
 requireEnum row label names rawValue = case Map.lookup rawValue names of
   Just result -> Right result
   Nothing     -> Left (UnknownEnum (rowFilePath row) (rowNumber row) label rawValue)
 
 -- | Require a name-to-ID mapping to succeed, or produce UnresolvedName.
-requireName :: Row -> ColumnName -> Map.Map Text.Text a -> Text.Text -> Either LoadError a
+requireName :: Row -> ColumnName -> Map Text a -> Text -> Either LoadError a
 requireName row columnName names rawValue = case Map.lookup rawValue names of
   Just result -> Right result
   Nothing     -> Left (UnresolvedName (rowFilePath row) (rowNumber row) columnName rawValue)
 
 -- | Look up a move's type. Checks for CURSE_TYPE first (the ???
 -- type used only by Curse), then delegates to the standard type map.
-lookupMoveType :: Row -> Text.Text -> Either LoadError MoveType
+lookupMoveType :: Row -> Text -> Either LoadError MoveType
 lookupMoveType row rawValue
   | rawValue == "CURSE_TYPE" = Right CurseType
   | otherwise = StandardType <$> requireEnum row "move type" typeNames rawValue
@@ -255,7 +258,7 @@ forGen gen csv = do
 -- | species.csv → (Map dex Species, Map name dex)
 -- Columns use ASM constant names for types, growth rate, etc.
 -- Returns both the species map and a name→dex lookup.
-buildSpecies :: Gen -> CSV -> Either LoadError (Map.Map DexNumber Species, Map.Map Text.Text DexNumber)
+buildSpecies :: Gen -> CSV -> Either LoadError (Map DexNumber Species, Map Text DexNumber)
 buildSpecies gen csv = do
   dexOfRow              <- intColumn csv "dex"
   nameOfRow             <- textColumn csv "name"
@@ -331,7 +334,7 @@ buildSpecies gen csv = do
 -- | moves.csv → (Map moveId Move, Map moveName moveId)
 -- Returns both the move map and a name→ID lookup for use by
 -- other builders that reference moves by constant name.
-buildMoves :: Gen -> CSV -> Either LoadError (Map.Map MoveId Move, Map.Map Text.Text MoveId)
+buildMoves :: Gen -> CSV -> Either LoadError (Map MoveId Move, Map Text MoveId)
 buildMoves gen csv = do
   moveIdOfRow   <- intColumn csv "id"
   nameOfRow     <- textColumn csv "name"
@@ -365,7 +368,7 @@ buildMoves gen csv = do
 -- | tmhm.csv → Map Machine moveId
 -- New schema: gen,number,move_name,kind (kind = "tm"/"hm"/"tutor")
 -- Tutors are skipped — they aren't TMs or HMs.
-buildMachines :: Gen -> Map.Map Text.Text MoveId -> CSV -> Either LoadError (Map.Map Machine MoveId)
+buildMachines :: Gen -> Map Text MoveId -> CSV -> Either LoadError (Map Machine MoveId)
 buildMachines gen moveNameToId csv = do
   numberOfRow   <- intColumn csv "number"
   moveNameOfRow <- textColumn csv "move_name"
@@ -387,7 +390,7 @@ buildMachines gen moveNameToId csv = do
 
 -- | tmhm_compat.csv → Map dex (Set Machine)
 -- Numbers 1–50 are TMs; 51+ are HMs (51=HM01, 52=HM02, etc.)
-buildCompat :: Gen -> CSV -> Either LoadError (Map.Map DexNumber (Set.Set Machine))
+buildCompat :: Gen -> CSV -> Either LoadError (Map DexNumber (Set Machine))
 buildCompat gen csv = do
   dexOfRow    <- intColumn csv "dex"
   numberOfRow <- intColumn csv "number"
@@ -410,7 +413,7 @@ numToMachine number
 
 -- | learnsets.csv → Map dex [LevelUpEntry]
 -- New schema: gen,dex,level,move_name (name resolved via lookup map)
-buildLearnsets :: Gen -> Map.Map Text.Text MoveId -> CSV -> Either LoadError (Map.Map DexNumber [LevelUpEntry])
+buildLearnsets :: Gen -> Map Text MoveId -> CSV -> Either LoadError (Map DexNumber [LevelUpEntry])
 buildLearnsets gen moveNameToId csv = do
   dexOfRow      <- intColumn csv "dex"
   levelOfRow    <- intColumn csv "level"
@@ -432,7 +435,7 @@ buildLearnsets gen moveNameToId csv = do
 -- | egg_moves.csv or tutor.csv → Map dex (Set moveId)
 -- New schema: dex,move_name (no gen column — Gen 2 only).
 -- Move names are resolved to IDs via the lookup map.
-buildNamePairMap :: Map.Map Text.Text MoveId -> CSV -> Either LoadError (Map.Map DexNumber (Set.Set MoveId))
+buildNamePairMap :: Map Text MoveId -> CSV -> Either LoadError (Map DexNumber (Set MoveId))
 buildNamePairMap moveNameToId csv = do
   dexOfRow      <- intColumn csv "dex"
   moveNameOfRow <- textColumn csv "move_name"
@@ -449,7 +452,7 @@ buildNamePairMap moveNameToId csv = do
 
 
 -- | items.csv → Map itemId name
-buildItems :: Gen -> CSV -> Either LoadError (Map.Map ItemId Text.Text)
+buildItems :: Gen -> CSV -> Either LoadError (Map ItemId Text)
 buildItems gen csv = do
   itemIdOfRow <- intColumn csv "id"
   nameOfRow   <- textColumn csv "name"
@@ -464,9 +467,9 @@ buildItems gen csv = do
 
 -- | Raw CSV fields for one evolution row, before parsing into an EvoTrigger.
 data RawEvolution = RawEvolution
-  { rawMethod :: !Text.Text
-  , rawParam1 :: !(Maybe Text.Text)
-  , rawParam2 :: !(Maybe Text.Text)
+  { rawMethod :: !Text
+  , rawParam1 :: !(Maybe Text)
+  , rawParam2 :: !(Maybe Text)
   }
 
 -- | evolutions.csv → [EvolutionStep]
@@ -504,7 +507,7 @@ buildEvolutions gen csv = do
 -- | Parse an evolution trigger from ASM constant names.
 -- EVOLVE_TRADE and EVOLVE_TRADE_ITEM are distinct in the CSV
 -- (normalized at extraction time), so no heuristic is needed.
-parseTrigger :: RawEvolution -> Either Text.Text EvoTrigger
+parseTrigger :: RawEvolution -> Either Text EvoTrigger
 parseTrigger RawEvolution{rawMethod, rawParam1, rawParam2} =
   case rawMethod of
     "EVOLVE_LEVEL" -> do
@@ -536,11 +539,11 @@ parseTrigger RawEvolution{rawMethod, rawParam1, rawParam2} =
         unrecognized -> Left $ "unknown stat comparison: " <> unrecognized
     unrecognized -> Left $ "unknown evolution method: " <> unrecognized
 
-requireParam :: Text.Text -> Maybe Text.Text -> Either Text.Text Text.Text
+requireParam :: Text -> Maybe Text -> Either Text Text
 requireParam label Nothing      = Left $ "missing " <> label
 requireParam _     (Just value) = Right value
 
-parseIntField :: Text.Text -> Either Text.Text Int
+parseIntField :: Text -> Either Text Int
 parseIntField rawValue = case decimal rawValue of
   Right (parsed, remainder) | Text.null remainder -> Right parsed
   _ -> Left $ "unparseable integer: " <> rawValue
@@ -551,7 +554,7 @@ parseIntField rawValue = case decimal rawValue of
 -- | Check that every dex number referenced in evolution steps
 -- exists in the species map. Catches dangling references before
 -- they cause silent Map.lookup failures in the legality engine.
-validateEvolutionDexNumbers :: FilePath -> Map.Map DexNumber Species -> [EvolutionStep] -> Either LoadError ()
+validateEvolutionDexNumbers :: FilePath -> Map DexNumber Species -> [EvolutionStep] -> Either LoadError ()
 validateEvolutionDexNumbers path speciesMap evolutions =
   traverse_ checkStep evolutions
   where
@@ -565,7 +568,7 @@ validateEvolutionDexNumbers path speciesMap evolutions =
 
 -- | internal_index.csv → Map InternalIndex DexNumber
 -- No gen column — this is Gen 1 only.
-buildInternalIndex :: CSV -> Either LoadError (Map.Map InternalIndex DexNumber)
+buildInternalIndex :: CSV -> Either LoadError (Map InternalIndex DexNumber)
 buildInternalIndex csv = do
   internalIndexOfRow <- intColumn csv "internal_index"
   dexOfRow           <- intColumn csv "dex"
@@ -580,7 +583,7 @@ buildInternalIndex csv = do
 -- | Check for cycles in the evolvesFrom map. A cycle means some
 -- species can reach itself by walking backward through evolution
 -- steps, which indicates corrupt evolution data.
-detectEvolutionCycle :: FilePath -> Map.Map DexNumber [EvolutionStep] -> Either LoadError ()
+detectEvolutionCycle :: FilePath -> Map DexNumber [EvolutionStep] -> Either LoadError ()
 detectEvolutionCycle path evolvesFrom =
   traverse_ (walkAncestors Set.empty) (Map.keys evolvesFrom)
   where

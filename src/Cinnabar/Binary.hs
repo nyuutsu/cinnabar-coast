@@ -22,6 +22,7 @@ module Cinnabar.Binary
   ) where
 
 import Data.Bits (shiftL, (.|.))
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Word (Word8, Word16)
 
@@ -31,12 +32,12 @@ import Data.Word (Word8, Word16)
 -- | A position within a ByteString. Tracks the current offset
 -- for sequential reads through fixed-layout binary data.
 data Cursor = Cursor
-  { cursorSource :: !ByteString.ByteString
+  { cursorSource :: !ByteString
   , cursorOffset :: !Int
   }
 
 -- | Create a cursor at the beginning of a ByteString.
-mkCursor :: ByteString.ByteString -> Cursor
+mkCursor :: ByteString -> Cursor
 mkCursor source = Cursor { cursorSource = source, cursorOffset = 0 }
 
 
@@ -72,7 +73,7 @@ readWord24BE cursor =
 
 -- | Read a slice of n bytes and advance. Zero-copy — uses
 -- ByteString's take/drop which share the underlying buffer.
-readBytes :: Int -> Cursor -> (ByteString.ByteString, Cursor)
+readBytes :: Int -> Cursor -> (ByteString, Cursor)
 readBytes count cursor =
   let slice = ByteString.take count (ByteString.drop (cursorOffset cursor) (cursorSource cursor))
   in (slice, cursor { cursorOffset = cursorOffset cursor + count })

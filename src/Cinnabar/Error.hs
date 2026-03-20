@@ -13,6 +13,7 @@ module Cinnabar.Error
   , loadOrDie
   ) where
 
+import Data.Text (Text)
 import qualified Data.Text as Text
 
 import Cinnabar.Types (ColumnName (..), DexNumber (..), EnumLabel (..), RowNumber (..))
@@ -34,7 +35,7 @@ data LoadError
       !FilePath
       !RowNumber
       !ColumnName
-      !Text.Text           -- raw value
+      !Text           -- raw value
   | EmptyRequiredField
       !FilePath
       !RowNumber
@@ -48,15 +49,15 @@ data LoadError
       !FilePath
       !RowNumber
       !EnumLabel         -- what was being parsed (human-readable label)
-      !Text.Text           -- raw value
+      !Text           -- raw value
   | CharsetParseError
       !FilePath
-      !Text.Text           -- description of the parse failure
+      !Text           -- description of the parse failure
   | UnresolvedName
       !FilePath
       !RowNumber
       !ColumnName       -- the column containing the name
-      !Text.Text           -- the name that failed to resolve
+      !Text           -- the name that failed to resolve
   | DanglingEvolution
       !FilePath
       !DexNumber        -- dex number not found in the species map
@@ -70,7 +71,7 @@ data LoadError
 
 -- | Format: filepath:rowNumber: description (row-level)
 --           filepath: description (file-level)
-renderLoadError :: LoadError -> Text.Text
+renderLoadError :: LoadError -> Text
 renderLoadError (EmptyCSV errorFilePath) =
   Text.pack errorFilePath <> ": CSV file is empty"
 
@@ -113,10 +114,10 @@ renderLoadError (EvolutionCycle errorFilePath dex) =
   Text.pack errorFilePath <> ": evolution cycle detected at dex #"
     <> Text.pack (show (unDex dex))
 
-renderRowNumber :: RowNumber -> Text.Text
+renderRowNumber :: RowNumber -> Text
 renderRowNumber = Text.pack . show . unRowNumber
 
-quoteValue :: Text.Text -> Text.Text
+quoteValue :: Text -> Text
 quoteValue value = "\"" <> value <> "\""
 
 

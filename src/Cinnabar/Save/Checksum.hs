@@ -9,6 +9,7 @@ module Cinnabar.Save.Checksum
   ) where
 
 import Data.Bits (complement)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Word (Word8, Word16)
 
@@ -17,7 +18,7 @@ import Data.Word (Word8, Word16)
 
 -- | Gen 1 checksum: sum all bytes in the range, complement the
 -- result. The range is inclusive on both ends.
-calculateGen1Checksum :: ByteString.ByteString -> Int -> Int -> Word8
+calculateGen1Checksum :: ByteString -> Int -> Int -> Word8
 calculateGen1Checksum saveBytes startOffset endOffset =
   let slice = ByteString.take (endOffset - startOffset + 1) (ByteString.drop startOffset saveBytes)
   in complement (ByteString.foldl' (+) 0 slice)
@@ -27,6 +28,6 @@ calculateGen1Checksum saveBytes startOffset endOffset =
 
 -- | Gen 2 checksum. Signature only — implementation comes with
 -- the Gen 2 save parser.
-calculateGen2Checksum :: ByteString.ByteString -> Int -> Int -> Word16
+calculateGen2Checksum :: ByteString -> Int -> Int -> Word16
 calculateGen2Checksum _saveBytes _startOffset _endOffset =
   error "calculateGen2Checksum: not yet implemented"

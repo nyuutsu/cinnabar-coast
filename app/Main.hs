@@ -2,9 +2,11 @@
 
 module Main where
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 
@@ -48,14 +50,14 @@ section title = putStrLn $
   "\x2500\x2500 " ++ title ++ " " ++ replicate (50 - 4 - length title) '\x2500'
 
 -- | Find a species by name in a GameData.
-findSpecies :: GameData -> Text.Text -> Maybe (DexNumber, Species)
+findSpecies :: GameData -> Text -> Maybe (DexNumber, Species)
 findSpecies gameData name = do
   dex <- Map.lookup name (gameSpeciesByName (gameSpeciesGraph gameData))
   species <- Map.lookup dex (gameSpecies (gameSpeciesGraph gameData))
   pure (dex, species)
 
 -- | Find a move by name in a GameData.
-findMove :: GameData -> Text.Text -> Maybe (MoveId, Move)
+findMove :: GameData -> Text -> Maybe (MoveId, Move)
 findMove gameData name = do
   matchedMoveId <- Map.lookup name (gameMoveByName (gameLookupTables gameData))
   move <- Map.lookup matchedMoveId (gameMoves (gameLookupTables gameData))
@@ -134,7 +136,7 @@ demoLegality gen1Data gen2Data = do
   classify gen2Data (Just gen1Data) "PIKACHU"  "THUNDERBOLT"  (Level 10)
 
 
-classify :: GameData -> Maybe GameData -> Text.Text -> Text.Text -> Level -> IO ()
+classify :: GameData -> Maybe GameData -> Text -> Text -> Level -> IO ()
 classify gameData otherGameData targetSpecies targetMove level =
   case (findSpecies gameData targetSpecies, findMove gameData targetMove) of
     (Nothing, _) -> TextIO.putStrLn $ "  " <> targetSpecies <> ": species not found"
@@ -217,5 +219,5 @@ showScreen screen = TextIO.putStrLn $
 
 
 -- | Show a ByteString as space-separated hex pairs.
-showHexBytes :: ByteString.ByteString -> String
+showHexBytes :: ByteString -> String
 showHexBytes bytes = unwords [ showHexByte byte | byte <- ByteString.unpack bytes ]

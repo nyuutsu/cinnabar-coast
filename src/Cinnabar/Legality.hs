@@ -23,6 +23,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Text (Text)
 import qualified Data.Text as Text
 
 import Cinnabar.Types
@@ -217,7 +218,7 @@ padNum number
   | otherwise = show number
 
 -- | Look up a species name for display, falling back to dex number.
-speciesLabel :: SpeciesGraph -> DexNumber -> Text.Text
+speciesLabel :: SpeciesGraph -> DexNumber -> Text
 speciesLabel graph dex =
   case Map.lookup dex (gameSpecies graph) of
     Just species -> speciesName species <> " (#" <> Text.pack (show (unDex dex)) <> ")"
