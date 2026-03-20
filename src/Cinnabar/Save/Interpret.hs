@@ -19,6 +19,8 @@ module Cinnabar.Save.Interpret
   , StatOrigin (..)
   , InterpretedMon (..)
   , InterpretedBox (..)
+  , MapScriptState (..)
+  , InterpretedProgress (..)
   , InterpretedHoFEntry (..)
   , InterpretedHoFRecord (..)
   , InterpretedSave (..)
@@ -34,7 +36,7 @@ module Cinnabar.Save.Interpret
   , interpretGen1Save
   ) where
 
-import Data.Bits (testBit, shiftR, (.&.))
+import Data.Bits (testBit, popCount, shiftR, (.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.List (zip4)
@@ -59,6 +61,7 @@ import Cinnabar.Save.Raw
   , RawGen1Box (..), RawBankValidity (..)
   , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
   , RawGen1HoFEntry (..), RawGen1HoFRecord (..)
+  , RawProgressFlags (..)
   )
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 
@@ -118,6 +121,33 @@ data InterpretedBox = InterpretedBox
   , interpBoxMons   :: ![InterpretedMon]
   } deriving (Eq, Show)
 
+data MapScriptState = MapScriptState
+  { scriptName :: !Text
+  , scriptStep :: !Int
+  } deriving (Eq, Show)
+
+data InterpretedProgress = InterpretedProgress
+  { progPlayerStarter     :: !InterpretedSpecies
+  , progRivalStarter      :: !InterpretedSpecies
+  , progDefeatedGyms      :: ![Text]
+  , progTownsVisited      :: ![Text]
+  , progMovementMode      :: !Text
+  , progEventFlags        :: ![Text]
+  , progToggleFlags       :: ![Text]
+  , progMapScripts        :: ![MapScriptState]
+  , progReceivedOldRod    :: !Bool
+  , progReceivedGoodRod   :: !Bool
+  , progReceivedSuperRod  :: !Bool
+  , progReceivedLapras    :: !Bool
+  , progReceivedStarter   :: !Bool
+  , progHealedAtCenter    :: !Bool
+  , progTradesCompleted   :: !Int
+  , progActiveBoxSynced   :: !Bool
+  , progEventFlagTotal    :: !Int
+  , progToggleFlagTotal   :: !Int
+  , progMapScriptTotal    :: !Int
+  } deriving (Eq, Show)
+
 data InterpretedHoFEntry = InterpretedHoFEntry
   { hofSpecies  :: !InterpretedSpecies
   , hofLevel    :: !Level
@@ -150,6 +180,7 @@ data InterpretedSave = InterpretedSave
   , interpPCBoxes       :: ![InterpretedBox]
   , interpHallOfFame    :: ![InterpretedHoFRecord]
   , interpActiveBoxNum  :: !Int
+  , interpProgress      :: !InterpretedProgress
   , interpWarnings      :: ![SaveWarning]
   , interpRaw           :: !RawSaveFile
   }
@@ -177,6 +208,7 @@ data SaveWarning
   | StatMismatch !Int !Text !Int !Int
   | BoxBankChecksumMismatch !Int !Word8 !Word8       -- bank index, stored, calculated
   | BoxChecksumMismatch !Int !Int !Word8 !Word8      -- bank index, box-within-bank index, stored, calculated
+  | ActiveBoxDesync
   deriving (Eq, Show)
 
 
@@ -286,6 +318,13 @@ interpretGen1Save gameData codec rawSave =
                     ]
             ]
 
+      -- Progress interpretation
+      progress = interpretProgress gameData rawSave
+
+      progressWarnings
+        | progActiveBoxSynced progress = []
+        | otherwise = [ActiveBoxDesync]
+
   in InterpretedSave
       { interpPlayerName    = decodeText codec (rawGen1PlayerName rawSave)
       , interpRivalName     = decodeText codec (rawGen1RivalName rawSave)
@@ -308,8 +347,10 @@ interpretGen1Save gameData codec rawSave =
       , interpPCBoxes       = interpretedBoxes
       , interpHallOfFame    = interpretedHoF
       , interpActiveBoxNum  = currentBoxNumber
+      , interpProgress      = progress
       , interpWarnings      = concat monWarnings ++ checksumWarnings
                            ++ concat boxMonWarnings ++ boxBankWarnings
+                           ++ progressWarnings
       , interpRaw           = RawGen1Save rawSave
       }
 
@@ -676,3 +717,154 @@ specialChecks (Unified storedValue) (Split calcAtk _calcDef) =
   [("Special", storedValue, calcAtk)]
 specialChecks (Split storedAtk _storedDef) (Unified calculatedValue) =
   [("Special", storedAtk, calculatedValue)]
+
+
+-- ── Progress Interpretation ───────────────────────────────────
+
+interpretProgress :: GameData -> RawGen1SaveFile -> InterpretedProgress
+interpretProgress gameData rawSave =
+  let indexMap    = gameInternalIndex (gameSpeciesGraph gameData)
+      speciesMap  = gameSpecies (gameSpeciesGraph gameData)
+      flagNames  = gameGen1FlagNames gameData
+      progress   = rawGen1Progress rawSave
+
+      playerStarter = resolveHoFSpecies indexMap speciesMap (rawPlayerStarter progress)
+      rivalStarter  = resolveHoFSpecies indexMap speciesMap (rawRivalStarter progress)
+
+      defeatedGyms = decodeDefeatedGyms (rawDefeatedGyms progress)
+      townsVisited = decodeTownsVisited (rawTownsVisited progress)
+
+      movementMode = case rawMovementStatus progress of
+        0 -> "Walking"
+        1 -> "Biking"
+        2 -> "Surfing"
+        _ -> "Unknown"
+
+      eventFlagList = case flagNames of
+        Nothing    -> []
+        Just names -> decodeNamedBitFlags (eventFlagNames names) (rawEventFlags progress)
+
+      toggleFlagList = case flagNames of
+        Nothing    -> []
+        Just names -> decodeNamedBitFlags (toggleFlagNames names) (rawToggleFlags progress)
+
+      mapScriptList = case flagNames of
+        Nothing    -> []
+        Just names -> decodeMapScripts (mapScriptNames names) (rawMapScripts progress)
+
+      varFlags1 = rawVarFlags1 progress
+      varFlags4 = rawVarFlags4 progress
+
+  in InterpretedProgress
+      { progPlayerStarter     = playerStarter
+      , progRivalStarter      = rivalStarter
+      , progDefeatedGyms      = defeatedGyms
+      , progTownsVisited      = townsVisited
+      , progMovementMode      = movementMode
+      , progEventFlags        = eventFlagList
+      , progToggleFlags       = toggleFlagList
+      , progMapScripts        = mapScriptList
+      , progReceivedOldRod    = testBit varFlags1 3
+      , progReceivedGoodRod   = testBit varFlags1 4
+      , progReceivedSuperRod  = testBit varFlags1 5
+      , progReceivedLapras    = testBit varFlags4 0
+      , progReceivedStarter   = testBit varFlags4 3
+      , progHealedAtCenter    = testBit varFlags4 2
+      , progTradesCompleted   = popCount (rawInGameTrades progress)
+      , progActiveBoxSynced   = checkActiveBoxSync rawSave
+      , progEventFlagTotal    = maybe 0 (Map.size . eventFlagNames) flagNames
+      , progToggleFlagTotal   = maybe 0 (Map.size . toggleFlagNames) flagNames
+      , progMapScriptTotal    = maybe 0 (Map.size . mapScriptNames) flagNames
+      }
+
+
+-- ── Progress Decoders ─────────────────────────────────────────
+
+-- | Decode gym defeat bitfield. Same MSB→LSB order as badges.
+decodeDefeatedGyms :: Word8 -> [Text]
+decodeDefeatedGyms byte =
+  [ name | (bitPosition, name) <- zip [7, 6 .. 0] gymLeaderNames, testBit byte bitPosition ]
+  where
+    gymLeaderNames =
+      ["Brock", "Misty", "Lt. Surge", "Erika", "Koga", "Sabrina", "Blaine", "Giovanni"]
+
+-- | Decode towns visited from a big-endian Word16.
+-- The game stores bit N in byte (N `div` 8), bit (N `mod` 8).
+-- readWord16BE places byte 0 in the high byte, so game bit N
+-- maps to Word16 bit ((N + 8) `mod` 16).
+decodeTownsVisited :: Word16 -> [Text]
+decodeTownsVisited word =
+  [ name
+  | (gameBit, name) <- zip [0 :: Int ..] townNames
+  , testBit word ((gameBit + 8) `mod` 16)
+  ]
+  where
+    townNames =
+      [ "Pallet Town", "Viridian City", "Pewter City", "Cerulean City"
+      , "Lavender Town", "Vermilion City", "Celadon City", "Fuchsia City"
+      , "Cinnabar Island", "Indigo Plateau", "Saffron City"
+      ]
+
+-- | Walk a bit-packed byte string and collect names for set bits.
+-- LSB-first within each byte, same layout as decodePokedexFlags.
+decodeNamedBitFlags :: Map.Map Int Text -> ByteString -> [Text]
+decodeNamedBitFlags nameMap bytes =
+  mapMaybe lookupFlag
+    [ byteIndex * 8 + bitOffset
+    | (byteIndex, byte) <- zip [0 ..] (ByteString.unpack bytes)
+    , bitOffset <- [0 .. 7]
+    , testBit byte bitOffset
+    ]
+  where
+    lookupFlag bitIndex = Map.lookup bitIndex nameMap
+
+-- | Walk a byte array and collect named non-zero entries as script states.
+decodeMapScripts :: Map.Map Int Text -> ByteString -> [MapScriptState]
+decodeMapScripts nameMap bytes =
+  mapMaybe decodeEntry (zip [0 ..] (ByteString.unpack bytes))
+  where
+    decodeEntry (offset, byte)
+      | byte == 0 = Nothing
+      | otherwise = case Map.lookup offset nameMap of
+          Nothing   -> Nothing
+          Just name -> Just MapScriptState
+            { scriptName = name
+            , scriptStep = fromIntegral byte
+            }
+
+
+-- ── Active Box Sync Check ─────────────────────────────────────
+
+-- | Compare the Bank 1 current box region against the corresponding
+-- PC bank box region. If byte-identical, the active box is synced.
+checkActiveBoxSync :: RawGen1SaveFile -> Bool
+checkActiveBoxSync rawSave =
+  case layoutOffsets (rawGen1Layout rawSave) of
+    Gen2Offsets _ -> True
+    Gen1Offsets offsets ->
+      let bankInfos       = g1BoxBanks offsets
+          boxIndex        = fromIntegral (rawGen1CurrentBoxNum rawSave .&. 0x7F)
+          currentBoxStart = g1CurrentBox offsets
+          bytes           = rawGen1Bytes rawSave
+      in case bankInfos of
+        [] -> True
+        (firstBank : _) ->
+          let boxDataSize      = bankBoxDataSize firstBank
+              currentBoxRegion = sliceBytes currentBoxStart boxDataSize bytes
+          in case findPCBoxOffset bankInfos boxIndex of
+            Nothing        -> False
+            Just pcBoxStart ->
+              let pcBoxRegion = sliceBytes pcBoxStart boxDataSize bytes
+              in currentBoxRegion == pcBoxRegion
+
+sliceBytes :: Int -> Int -> ByteString -> ByteString
+sliceBytes offset len bytes = ByteString.take len (ByteString.drop offset bytes)
+
+findPCBoxOffset :: [BoxBankInfo] -> Int -> Maybe Int
+findPCBoxOffset banks targetBox = searchBanks banks 0
+  where
+    searchBanks [] _ = Nothing
+    searchBanks (bank : rest) baseBox
+      | targetBox < baseBox + bankBoxCount bank =
+          Just (bankStartOffset bank + (targetBox - baseBox) * bankBoxDataSize bank)
+      | otherwise = searchBanks rest (baseBox + bankBoxCount bank)

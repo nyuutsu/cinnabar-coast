@@ -88,6 +88,7 @@ module Cinnabar.Types
   , SpeciesGraph (..)
   , LookupTables (..)
   , GameData (..)
+  , Gen1FlagNames (..)
 
     -- * Text codec
   , Language (..)
@@ -524,11 +525,20 @@ data LookupTables = LookupTables
 -- Immutable. Fields are grouped into subrecords by usage pattern
 -- so function signatures can declare which data they actually need.
 data GameData = GameData
-  { gameGen          :: !Gen
-  , gameMachineData  :: !MachineData
-  , gameLearnsetData :: !LearnsetData
-  , gameSpeciesGraph :: !SpeciesGraph
-  , gameLookupTables :: !LookupTables
+  { gameGen            :: !Gen
+  , gameMachineData    :: !MachineData
+  , gameLearnsetData   :: !LearnsetData
+  , gameSpeciesGraph   :: !SpeciesGraph
+  , gameLookupTables   :: !LookupTables
+  , gameGen1FlagNames  :: !(Maybe Gen1FlagNames)
+  } deriving (Show)
+
+-- | Gen 1 event/toggle flag and map script name mappings.
+-- Loaded from CSVs extracted from pokered disassembly.
+data Gen1FlagNames = Gen1FlagNames
+  { eventFlagNames  :: !(Map Int Text)
+  , toggleFlagNames :: !(Map Int Text)
+  , mapScriptNames  :: !(Map Int Text)
   } deriving (Show)
 
 

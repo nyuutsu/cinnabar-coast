@@ -399,7 +399,7 @@ main = hspec $ do
                     case interpSpecial mon of
                       Unified _ -> pure ()
                       Split _ _ -> expectationFailure "expected Unified special stat"
-                    interpWarnings interpreted `shouldBe` []
+                    filter (/= ActiveBoxDesync) (interpWarnings interpreted) `shouldBe` []
             where
               isKnownMove (KnownMove _ _) = True
               isKnownMove _               = False
@@ -530,6 +530,32 @@ main = hspec $ do
               Right (RawGen1Save save) -> do
                 ByteString.length (rawEventFlags (rawGen1Progress save)) `shouldBe` 320
                 rawPlayerStarter (rawGen1Progress save) `shouldSatisfy` (/= InternalIndex 0)
+
+  -- ── Progress interpretation ──────────────────────────────
+
+  describe "Progress interpretation" $ do
+    progressCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+
+    it "interprets progress flags from a real Yellow save" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save rawSave) -> do
+                let interpreted = interpretGen1Save gen1Data progressCodec rawSave
+                    progress = interpProgress interpreted
+                    isKnownStarterSpecies (KnownSpecies _ _) = True
+                    isKnownStarterSpecies _ = False
+                progPlayerStarter progress `shouldSatisfy` isKnownStarterSpecies
+                progEventFlags progress `shouldSatisfy` (not . null)
+                progReceivedStarter progress `shouldBe` True
 
   -- ── Serialization round-trip ──────────────────────────────
 

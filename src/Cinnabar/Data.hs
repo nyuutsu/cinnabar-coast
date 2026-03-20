@@ -65,8 +65,11 @@ loadAllGameData = do
     itemsCsv      <- ExceptT (readCSV (csvPath "items.csv"))
     evolutionsCsv    <- ExceptT (readCSV (csvPath "evolutions.csv"))
     internalIndexCsv <- ExceptT (readCSV (csvPath "internal_index.csv"))
+    eventFlagsCsv    <- ExceptT (readCSV (csvPath "event_flags.csv"))
+    toggleFlagsCsv   <- ExceptT (readCSV (csvPath "toggle_flags.csv"))
+    mapScriptsCsv    <- ExceptT (readCSV (csvPath "map_scripts.csv"))
 
-    let buildForGen gen = do
+    let buildForGen gen flagNames = do
           (moves, moveNameToId)      <- buildMoves gen movesCsv
           (species, speciesNameToId) <- buildSpecies gen speciesCsv
           machines   <- buildMachines gen moveNameToId machinesCsv
@@ -112,11 +115,13 @@ loadAllGameData = do
                 , gameMoveByName = moveNameToId
                 , gameItems      = items
                 }
+            , gameGen1FlagNames = flagNames
             }
 
     except $ do
-      gen1Data <- buildForGen Gen1
-      gen2Data <- buildForGen Gen2
+      gen1FlagNames <- buildGen1FlagNames eventFlagsCsv toggleFlagsCsv mapScriptsCsv
+      gen1Data <- buildForGen Gen1 (Just gen1FlagNames)
+      gen2Data <- buildForGen Gen2 Nothing
       pure (gen1Data, gen2Data)
 
   pure $ case result of
@@ -576,6 +581,33 @@ buildInternalIndex csv = do
         idx <- internalIndexOfRow row
         dex <- dexOfRow row
         pure (InternalIndex (fromIntegral idx), DexNumber dex)
+  pairs <- traverse parseRow (csvRows csv)
+  pure $ Map.fromList pairs
+
+
+-- ── Flag Name Maps ──────────────────────────────────────────────
+
+-- | Build Gen 1 event/toggle flag and map script name mappings.
+buildGen1FlagNames :: CSV -> CSV -> CSV -> Either LoadError Gen1FlagNames
+buildGen1FlagNames eventCsv toggleCsv mapCsv = do
+  eventFlags  <- buildIndexNameMap eventCsv "bit_index" "event_name"
+  toggleFlags <- buildIndexNameMap toggleCsv "bit_index" "toggle_name"
+  mapScripts  <- buildIndexNameMap mapCsv "byte_offset" "script_name"
+  pure Gen1FlagNames
+    { eventFlagNames  = eventFlags
+    , toggleFlagNames = toggleFlags
+    , mapScriptNames  = mapScripts
+    }
+
+-- | Generic loader for index→name CSVs (no gen column).
+buildIndexNameMap :: CSV -> ColumnName -> ColumnName -> Either LoadError (Map Int Text)
+buildIndexNameMap csv indexColumnName nameColumnName = do
+  indexOfRow <- intColumn csv indexColumnName
+  nameOfRow  <- textColumn csv nameColumnName
+  let parseRow row = do
+        idx  <- indexOfRow row
+        name <- nameOfRow row
+        pure (idx, name)
   pairs <- traverse parseRow (csvRows csv)
   pure $ Map.fromList pairs
 

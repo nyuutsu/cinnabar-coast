@@ -24,6 +24,7 @@ import Cinnabar.Save.Interpret
   ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
   , InterpretedSpecies (..), InterpretedMove (..), SaveWarning (..)
   , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
+  , InterpretedProgress (..), MapScriptState (..)
   , InventoryEntry (..), PlayTime (..)
   )
 import Cinnabar.Save.Layout
@@ -44,6 +45,7 @@ main = do
     ["read", savePath]  -> runReadCommand savePath
     ["boxes", savePath] -> runBoxesCommand savePath
     ["hof", savePath]   -> runHoFCommand savePath
+    ["flags", savePath] -> runFlagsCommand savePath
     _                   -> usage
 
 
@@ -56,6 +58,7 @@ usage = do
   hPutStrLn stderr "  read <file>     Read a Gen 1 save file"
   hPutStrLn stderr "  boxes <file>    Show PC box contents"
   hPutStrLn stderr "  hof <file>      Show Hall of Fame records"
+  hPutStrLn stderr "  flags <file>    Show all event flags and progress"
   exitFailure
 
 
@@ -118,6 +121,14 @@ runHoFCommand savePath = do
   printHallOfFame interpreted
 
 
+-- ── Flags Command ─────────────────────────────────────────────
+
+runFlagsCommand :: FilePath -> IO ()
+runFlagsCommand savePath = do
+  interpreted <- loadGen1Save savePath
+  printAllFlags (interpProgress interpreted)
+
+
 -- ── Save Display ──────────────────────────────────────────────
 
 printSaveSummary :: InterpretedSave -> IO ()
@@ -141,6 +152,8 @@ printSaveSummary interpreted = do
       seenCount  = Set.size (interpPokedexSeen interpreted)
   putStrLn $ "Pokédex: " ++ show ownedCount ++ " owned, " ++ show seenCount ++ " seen"
   putStrLn ""
+
+  printProgressSummary (interpProgress interpreted)
 
   let bagItems = interpBagItems interpreted
   case bagItems of
@@ -342,7 +355,80 @@ renderWarning (BoxChecksumMismatch bankIndex boxIndex stored calculated) =
   "Box bank " ++ show bankIndex ++ ", box " ++ show boxIndex
     ++ ": checksum mismatch (stored 0x" ++ showHexByte stored
     ++ ", calculated 0x" ++ showHexByte calculated ++ ")"
+renderWarning ActiveBoxDesync =
+  "Active box data differs from its PC bank copy (desync)"
 
+
+-- ── Progress Display ──────────────────────────────────────────
+
+printProgressSummary :: InterpretedProgress -> IO ()
+printProgressSummary progress = do
+  putStrLn $ "Starter: " ++ renderSpecies (progPlayerStarter progress)
+    ++ "    Rival's starter: " ++ renderSpecies (progRivalStarter progress)
+
+  case progDefeatedGyms progress of
+    [] -> pure ()
+    gyms -> TextIO.putStrLn $ "Gyms defeated: " <> Text.intercalate ", " gyms
+
+  let rods = concat
+        [ ["Old Rod" | progReceivedOldRod progress]
+        , ["Good Rod" | progReceivedGoodRod progress]
+        , ["Super Rod" | progReceivedSuperRod progress]
+        ]
+  case rods of
+    [] -> pure ()
+    _  -> TextIO.putStrLn $ "Rods: " <> Text.intercalate ", " rods
+
+  if progReceivedLapras progress
+    then putStrLn "Lapras: received"
+    else pure ()
+
+  putStrLn $ "Movement: " ++ Text.unpack (progMovementMode progress)
+
+  if progTradesCompleted progress > 0
+    then putStrLn $ "Trades completed: " ++ show (progTradesCompleted progress)
+    else pure ()
+  putStrLn ""
+
+
+printAllFlags :: InterpretedProgress -> IO ()
+printAllFlags progress = do
+  let events = progEventFlags progress
+  putStrLn $ "Event flags (" ++ show (length events)
+    ++ " set of " ++ show (progEventFlagTotal progress) ++ " named):"
+  if null events
+    then putStrLn "  (none)"
+    else mapM_ (\name -> TextIO.putStrLn $ "  " <> name) events
+  putStrLn ""
+
+  putStrLn "Various flags:"
+  putStrLn $ "  Received Old Rod: " ++ showYesNo (progReceivedOldRod progress)
+  putStrLn $ "  Received Good Rod: " ++ showYesNo (progReceivedGoodRod progress)
+  putStrLn $ "  Received Super Rod: " ++ showYesNo (progReceivedSuperRod progress)
+  putStrLn $ "  Received Lapras: " ++ showYesNo (progReceivedLapras progress)
+  putStrLn $ "  Received starter: " ++ showYesNo (progReceivedStarter progress)
+  putStrLn $ "  Healed at center: " ++ showYesNo (progHealedAtCenter progress)
+  putStrLn ""
+
+  let toggles = progToggleFlags progress
+  putStrLn $ "Toggleable objects (" ++ show (length toggles)
+    ++ " hidden of " ++ show (progToggleFlagTotal progress) ++ " named):"
+  if null toggles
+    then putStrLn "  (none)"
+    else mapM_ (\name -> TextIO.putStrLn $ "  " <> name) toggles
+  putStrLn ""
+
+  let scripts = progMapScripts progress
+  putStrLn $ "Map script progress (" ++ show (length scripts)
+    ++ " non-zero of " ++ show (progMapScriptTotal progress) ++ " named):"
+  if null scripts
+    then putStrLn "  (none)"
+    else mapM_ (\state -> TextIO.putStrLn $ "  " <> scriptName state
+      <> ": step " <> Text.pack (show (scriptStep state))) scripts
+
+showYesNo :: Bool -> String
+showYesNo True  = "yes"
+showYesNo False = "no"
 
 -- ── Demo Command ──────────────────────────────────────────────
 
