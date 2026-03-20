@@ -27,6 +27,7 @@ import Cinnabar.Save.Layout
   )
 import Cinnabar.Save.Interpret
 import Cinnabar.Save.Raw
+import Cinnabar.Save.Serialize (serializeGen1Save)
 import System.Directory (doesFileExist)
 
 
@@ -366,6 +367,24 @@ main = hspec $ do
                       Unified _ -> pure ()
                       Split _ _ -> expectationFailure "expected Unified special stat"
                     interpWarnings interpreted `shouldBe` []
-      where
-        isKnownMove (KnownMove _ _) = True
-        isKnownMove _               = False
+            where
+              isKnownMove (KnownMove _ _) = True
+              isKnownMove _               = False
+
+  -- ── Serialization round-trip ──────────────────────────────
+
+  describe "Gen 1 serialize round-trip" $
+    it "parse then serialize produces identical bytes" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) ->
+                serializeGen1Save save `shouldBe` bytes

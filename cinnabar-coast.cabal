@@ -35,6 +35,7 @@ library
     Cinnabar.Save.Gen1.Raw
     Cinnabar.Save.Interpret
     Cinnabar.Save.Raw
+    Cinnabar.Save.Serialize
   build-depends:
     base       >= 4.18 && < 5,
     aeson      >= 2.1,

@@ -16,6 +16,11 @@ module Cinnabar.Binary
   , readWord24BE
   , readBytes
 
+    -- * Writing
+  , writeByte
+  , writeWord16BE
+  , writeWord24BE
+
     -- * Patching
   , patchByte
   , patchBytes
@@ -25,7 +30,7 @@ module Cinnabar.Binary
   , skip
   ) where
 
-import Data.Bits (shiftL, (.|.))
+import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Word (Word8, Word16)
@@ -83,7 +88,22 @@ readBytes count cursor =
   in (slice, cursor { cursorOffset = cursorOffset cursor + count })
 
 
--- ── Navigation ──────────────────────────────────────────────────
+-- ── Writing ───────────────────────────────────────────────────
+
+-- | Encode one byte. Inverse of readByte.
+writeByte :: Word8 -> ByteString
+writeByte = ByteString.singleton
+
+-- | Encode a 16-bit value as 2 big-endian bytes. Inverse of readWord16BE.
+writeWord16BE :: Word16 -> ByteString
+writeWord16BE value = ByteString.pack
+  [fromIntegral (value `shiftR` 8), fromIntegral value]
+
+-- | Encode a 24-bit value as 3 big-endian bytes. Inverse of readWord24BE.
+writeWord24BE :: Int -> ByteString
+writeWord24BE value = ByteString.pack
+  [fromIntegral (value `shiftR` 16), fromIntegral (value `shiftR` 8), fromIntegral value]
+
 
 -- ── Patching ──────────────────────────────────────────────────
 
