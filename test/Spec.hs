@@ -427,6 +427,26 @@ main = hspec $ do
                   Just _  -> pure ()
                   Nothing -> expectationFailure "expected Pikachu friendship for Yellow save"
 
+  -- ── PC box bank parsing ──────────────────────────────────
+
+  describe "PC box bank parsing" $
+    it "parses all 12 boxes with valid bank checksums and round-trips" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) -> do
+                length (rawGen1PCBoxes save) `shouldBe` 12
+                map bankChecksumValid (rawGen1BoxBankValid save) `shouldBe` [True, True]
+                serializeGen1Save save `shouldBe` bytes
+
   -- ── Serialization round-trip ──────────────────────────────
 
   describe "Gen 1 serialize round-trip" $

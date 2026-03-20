@@ -144,6 +144,8 @@ data SaveWarning
   | SpeciesListMismatch !Int !Word8 !Word8
   | ChecksumMismatch !Word8 !Word8
   | StatMismatch !Int !Text !Int !Int
+  | BoxBankChecksumMismatch !Int !Word8 !Word8       -- bank index, stored, calculated
+  | BoxChecksumMismatch !Int !Int !Word8 !Word8      -- bank index, box-within-bank index, stored, calculated
   deriving (Eq, Show)
 
 

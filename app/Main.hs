@@ -232,6 +232,13 @@ renderWarning (StatMismatch slot statName stored calculated) =
   "Slot " ++ show (slot + 1) ++ ": " ++ Text.unpack statName
     ++ " mismatch (stored " ++ show stored
     ++ ", calculated " ++ show calculated ++ ")"
+renderWarning (BoxBankChecksumMismatch bankIndex stored calculated) =
+  "Box bank " ++ show bankIndex ++ ": checksum mismatch (stored 0x"
+    ++ showHexByte stored ++ ", calculated 0x" ++ showHexByte calculated ++ ")"
+renderWarning (BoxChecksumMismatch bankIndex boxIndex stored calculated) =
+  "Box bank " ++ show bankIndex ++ ", box " ++ show boxIndex
+    ++ ": checksum mismatch (stored 0x" ++ showHexByte stored
+    ++ ", calculated 0x" ++ showHexByte calculated ++ ")"
 
 
 -- ── Demo Command ──────────────────────────────────────────────

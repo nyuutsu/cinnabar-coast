@@ -21,7 +21,7 @@ import Cinnabar.Binary (writeByte, writeWord16BE, writeWord24BE, patchByte, patc
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 import Cinnabar.Save.Layout
-  ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..)
+  ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
   )
 import Cinnabar.Save.Raw
@@ -85,7 +85,9 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                     $ originalBytes
         checksum    = calculateGen1Checksum patched
                         (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
-    in patchByte (g1Checksum offsets) checksum patched
+        withChecksum = patchByte (g1Checksum offsets) checksum patched
+    in patchBoxBanks nameLen boxCapacity
+         (g1BoxBanks offsets) (rawGen1PCBoxes save) withChecksum
 
 
 -- ── Container Serializers ────────────────────────────────────
@@ -208,4 +210,34 @@ serializeRawPlayTime playTime = ByteString.pack
   , rawPlaySeconds playTime
   , rawPlayFrames playTime
   ]
+
+
+-- ── Box Bank Serialization ────────────────────────────────────
+
+patchBoxBanks :: Int -> Int -> [BoxBankInfo] -> [RawGen1Box] -> ByteString -> ByteString
+patchBoxBanks _ _ [] _ bytes = bytes
+patchBoxBanks nameLen boxCapacity (bank : remainingBanks) allBoxes bytes =
+  let bankCount = bankBoxCount bank
+      (bankBoxes, remainingBoxes) = splitAt bankCount allBoxes
+      withBoxData = foldl' (patchBoxData nameLen boxCapacity bank) bytes (zip [0..] bankBoxes)
+      withBoxChecksums = foldl' (patchPerBoxChecksum bank) withBoxData
+                           [0 .. bankCount - 1]
+      bankChecksum = calculateGen1Checksum withBoxChecksums
+                       (bankStartOffset bank) (bankAllChecksum bank - 1)
+  in patchBoxBanks nameLen boxCapacity remainingBanks remainingBoxes
+       (patchByte (bankAllChecksum bank) bankChecksum withBoxChecksums)
+
+patchBoxData :: Int -> Int -> BoxBankInfo -> ByteString -> (Int, RawGen1Box) -> ByteString
+patchBoxData nameLen boxCapacity bank current (boxIndex, box) =
+  let boxOffset = bankStartOffset bank + boxIndex * bankBoxDataSize bank
+      originalRegion = ByteString.take (bankBoxDataSize bank)
+                         (ByteString.drop boxOffset current)
+  in patchBytes boxOffset (serializeGen1Box nameLen boxCapacity originalRegion box) current
+
+patchPerBoxChecksum :: BoxBankInfo -> ByteString -> Int -> ByteString
+patchPerBoxChecksum bank current boxIndex =
+  let boxOffset = bankStartOffset bank + boxIndex * bankBoxDataSize bank
+      checksumValue = calculateGen1Checksum current
+                        boxOffset (boxOffset + bankBoxDataSize bank - 1)
+  in patchByte (bankBoxChecksums bank + boxIndex) checksumValue current
 

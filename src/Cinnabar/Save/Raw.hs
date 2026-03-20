@@ -23,6 +23,7 @@ module Cinnabar.Save.Raw
     -- * Container types
   , RawGen1Party (..)
   , RawGen1Box (..)
+  , RawBankValidity (..)
 
     -- * Parser
   , parseRawSave
@@ -43,6 +44,7 @@ import Cinnabar.Save.Layout
   ( CartridgeLayout (..)
   , SaveOffsets (..)
   , Gen1SaveOffsets (..)
+  , BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
   )
 import Cinnabar.Types (Gen (..), InternalIndex (..))
@@ -86,6 +88,8 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1PlayTime         :: !RawPlayTime
   , rawGen1PikachuFriend    :: !Word8
   , rawGen1Daycare          :: !RawDaycare
+  , rawGen1PCBoxes          :: ![RawGen1Box]
+  , rawGen1BoxBankValid     :: ![RawBankValidity]
   }
 
 -- | Stub -- will be fleshed out when Gen 2 parsing is implemented.
@@ -121,6 +125,11 @@ data RawGen1Party = RawGen1Party
   , rawGen1PartyMons    :: ![RawGen1PartyMon]
   , rawGen1PartyOTNames :: ![ByteString]
   , rawGen1PartyNicks   :: ![ByteString]
+  } deriving (Eq, Show)
+
+data RawBankValidity = RawBankValidity
+  { bankChecksumValid :: !Bool
+  , boxChecksumsValid :: ![Bool]
   } deriving (Eq, Show)
 
 data RawGen1Box = RawGen1Box
@@ -177,6 +186,8 @@ parseGen1Save layout offsets bytes =
       (pikachuFriend, _) = readByte (seekTo (g1PikachuFriendship offsets) cursor)
       daycare           = parseRawDaycare offsets cursor
 
+      (pcBoxes, boxBankValidity) = parseBoxBanks nameLen boxCapacity bytes (g1BoxBanks offsets)
+
       storedChecksum     = ByteString.index bytes (g1Checksum offsets)
       calculatedChecksum = calculateGen1Checksum bytes
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
@@ -204,6 +215,8 @@ parseGen1Save layout offsets bytes =
       , rawGen1PlayTime         = playTime
       , rawGen1PikachuFriend    = pikachuFriend
       , rawGen1Daycare          = daycare
+      , rawGen1PCBoxes          = pcBoxes
+      , rawGen1BoxBankValid     = boxBankValidity
       }
 
 
@@ -331,3 +344,37 @@ parseFixedArray count capacity slotSize parser cursor0 =
       let (entry, nextCursor)  = parser cursor
           (rest, finalCursor) = readEntries (remaining - 1) nextCursor
       in (entry : rest, finalCursor)
+
+
+-- ── Box Bank Parsers ─────────────────────────────────────────
+
+parseBoxBanks :: Int -> Int -> ByteString -> [BoxBankInfo] -> ([RawGen1Box], [RawBankValidity])
+parseBoxBanks nameLen boxCapacity bytes banks =
+  let results = map (parseBoxBank nameLen boxCapacity bytes) banks
+  in (concatMap fst results, map snd results)
+
+parseBoxBank :: Int -> Int -> ByteString -> BoxBankInfo -> ([RawGen1Box], RawBankValidity)
+parseBoxBank nameLen boxCapacity bytes bank =
+  let cursor = mkCursor bytes
+
+      boxes =
+        [ fst (parseGen1Box nameLen boxCapacity
+                (seekTo (bankStartOffset bank + boxIndex * bankBoxDataSize bank) cursor))
+        | boxIndex <- [0 .. bankBoxCount bank - 1]
+        ]
+
+      storedBankChecksum = ByteString.index bytes (bankAllChecksum bank)
+      calculatedBankChecksum = calculateGen1Checksum bytes
+                                 (bankStartOffset bank) (bankAllChecksum bank - 1)
+      bankValid = storedBankChecksum == calculatedBankChecksum
+
+      boxValid =
+        [ let boxOffset = bankStartOffset bank + boxIndex * bankBoxDataSize bank
+              stored     = ByteString.index bytes (bankBoxChecksums bank + boxIndex)
+              calculated = calculateGen1Checksum bytes
+                             boxOffset (boxOffset + bankBoxDataSize bank - 1)
+          in stored == calculated
+        | boxIndex <- [0 .. bankBoxCount bank - 1]
+        ]
+
+  in (boxes, RawBankValidity { bankChecksumValid = bankValid, boxChecksumsValid = boxValid })

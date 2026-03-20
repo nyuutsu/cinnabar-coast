@@ -110,9 +110,11 @@ data Gen2SaveOffsets = Gen2SaveOffsets
   } deriving (Show)
 
 data BoxBankInfo = BoxBankInfo
-  { bankStartOffset :: !Int
-  , bankBoxCount    :: !Int
-  , bankBoxDataSize :: !Int
+  { bankStartOffset  :: !Int
+  , bankBoxCount     :: !Int
+  , bankBoxDataSize  :: !Int
+  , bankAllChecksum  :: !Int   -- offset of the bank-wide checksum byte
+  , bankBoxChecksums :: !Int   -- offset of the first per-box checksum byte (consecutive)
   } deriving (Show)
 
 
@@ -183,6 +185,10 @@ westernGen1Layout game = CartridgeLayout
 -- Checksum:           Bank 1, 0x3523 (1 byte)
 -- Checksum range:     0x2598-0x3522 (complement of byte sum)
 -- Box banks:          Bank 2 at 0x4000, Bank 3 at 0x6000 (6 boxes each, 0x462 per box)
+-- Bank 2 checksum:    0x5A4C (1 byte, complement of byte sum over 0x4000-0x5A4B)
+-- Bank 2 box checks:  0x5A4D (6 bytes, one per box)
+-- Bank 3 checksum:    0x7A4C (1 byte, complement of byte sum over 0x6000-0x7A4B)
+-- Bank 3 box checks:  0x7A4D (6 bytes, one per box)
 westernGen1Offsets :: Gen1SaveOffsets
 westernGen1Offsets = Gen1SaveOffsets
   { g1PlayerName        = 0x2598
@@ -193,8 +199,10 @@ westernGen1Offsets = Gen1SaveOffsets
   , g1ChecksumStart     = 0x2598
   , g1ChecksumEnd       = 0x3522
   , g1BoxBanks          =
-      [ BoxBankInfo { bankStartOffset = 0x4000, bankBoxCount = 6, bankBoxDataSize = 1122 }
-      , BoxBankInfo { bankStartOffset = 0x6000, bankBoxCount = 6, bankBoxDataSize = 1122 }
+      [ BoxBankInfo { bankStartOffset = 0x4000, bankBoxCount = 6, bankBoxDataSize = 1122
+                    , bankAllChecksum = 0x5A4C, bankBoxChecksums = 0x5A4D }
+      , BoxBankInfo { bankStartOffset = 0x6000, bankBoxCount = 6, bankBoxDataSize = 1122
+                    , bankAllChecksum = 0x7A4C, bankBoxChecksums = 0x7A4D }
       ]
   , g1PokedexOwned      = 0x25A3
   , g1PokedexSeen       = 0x25B6
