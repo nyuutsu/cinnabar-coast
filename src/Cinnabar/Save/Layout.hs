@@ -103,6 +103,12 @@ data BoxBankInfo = BoxBankInfo
 
 -- ── Struct Sizes ──────────────────────────────────────────────────
 
+-- | Gen 1 container and struct sizes.
+--
+-- Source: Bulbapedia, "Save data structure (Generation I)"
+-- Party: always 6 capacity, 44-byte party structs, 33-byte box structs
+-- Box capacity varies by region: 20 (Western), 30 (Japanese)
+
 gen1PartyCapacity :: Int
 gen1PartyCapacity = 6
 
@@ -135,7 +141,18 @@ westernGen1Layout game = CartridgeLayout
   , layoutBoxCapacity = 20
   }
 
--- | Shared across Red, Blue, and Yellow.
+-- | Western Gen 1 save file offsets. Shared across Red, Blue, and Yellow.
+--
+-- Source: Bulbapedia, "Save data structure (Generation I)"
+-- https://bulbapedia.bulbagarden.net/wiki/Save_data_structure_(Generation_I)
+--
+-- Player name:    Bank 1, 0x2598 (11 bytes)
+-- Rival name:     Bank 1 main data, 0x25F6 (11 bytes)
+-- Party data:     Bank 1, 0x2F2C (0x194 bytes)
+-- Current box:    Bank 1, 0x30C0 (0x462 bytes)
+-- Checksum:       Bank 1, 0x3523 (1 byte)
+-- Checksum range: 0x2598–0x3522 (complement of byte sum)
+-- Box banks:      Bank 2 at 0x4000, Bank 3 at 0x6000 (6 boxes each, 0x462 per box)
 westernGen1Offsets :: Gen1SaveOffsets
 westernGen1Offsets = Gen1SaveOffsets
   { g1PlayerName    = 0x2598
