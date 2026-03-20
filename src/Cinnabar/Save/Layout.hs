@@ -89,6 +89,7 @@ data Gen1SaveOffsets = Gen1SaveOffsets
   , g1BoxItems          :: !Int
   , g1CurrentBoxNumber  :: !Int   -- 1 byte
   , g1HoFCount          :: !Int   -- 1 byte
+  , g1HallOfFame        :: !Int   -- Bank 0, 50 records × 6 entries × 16 bytes
   , g1CasinoCoins       :: !Int   -- 2 bytes BCD
   , g1PlayTime          :: !Int   -- 5 consecutive bytes
   , g1DaycareInUse      :: !Int   -- 1 byte
@@ -176,6 +177,7 @@ westernGen1Layout game = CartridgeLayout
 -- PC box items:       Bank 1, 0x27E6 (count + pairs + 0xFF)
 -- Current box number: Bank 1, 0x284C (1 byte)
 -- Hall of Fame count: Bank 1, 0x284E (1 byte)
+-- Hall of Fame:       Bank 0, 0x0598 (50 records × 6 entries × 16 bytes)
 -- Casino coins:       Bank 1, 0x2850 (2 bytes BCD)
 -- Play time:          Bank 1, 0x2CED (5 bytes: hours, maxed, min, sec, frames)
 -- Daycare in use:     Bank 1, 0x2CF4 (1 byte)
@@ -215,6 +217,7 @@ westernGen1Offsets = Gen1SaveOffsets
   , g1BoxItems          = 0x27E6
   , g1CurrentBoxNumber  = 0x284C
   , g1HoFCount          = 0x284E
+  , g1HallOfFame        = 0x0598
   , g1CasinoCoins       = 0x2850
   , g1PlayTime          = 0x2CED
   , g1DaycareInUse      = 0x2CF4

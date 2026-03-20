@@ -483,6 +483,35 @@ main = hspec $ do
                 let boxWarnings = filter isBoxWarning (interpWarnings interpreted)
                 boxWarnings `shouldBe` []
 
+  -- ── Hall of Fame ────────────────────────────────────────────
+
+  describe "Hall of Fame" $ do
+    hofCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+
+    it "parses all records and interprets valid entries" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) -> do
+                length (rawGen1HallOfFame save) `shouldBe` 50
+                let interpreted = interpretGen1Save gen1Data hofCodec save
+                length (interpHallOfFame interpreted) `shouldBe` interpHoFCount interpreted
+                case interpHallOfFame interpreted of
+                  (firstRecord : _) -> do
+                    let hasKnownSpecies entry = case hofSpecies entry of
+                          KnownSpecies _ _ -> True
+                          _                -> False
+                    any hasKnownSpecies (hofEntries firstRecord) `shouldBe` True
+                  [] -> pure ()
+
   -- ── Serialization round-trip ──────────────────────────────
 
   describe "Gen 1 serialize round-trip" $

@@ -27,6 +27,7 @@ import Cinnabar.Save.Layout
 import Cinnabar.Save.Raw
   ( RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..)
   , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
+  , RawGen1HoFEntry (..), RawGen1HoFRecord (..)
   )
 import Cinnabar.Types (InternalIndex (..))
 
@@ -53,7 +54,14 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
         originalBoxRegion = ByteString.take boxRegionSize
                           $ ByteString.drop (g1CurrentBox offsets) originalBytes
 
-        patched     = patchBytes (g1PlayerName offsets) (rawGen1PlayerName save)
+        hofRegionSize = 50 * 6 * 16
+        originalHoFRegion = ByteString.take hofRegionSize
+                          $ ByteString.drop (g1HallOfFame offsets) originalBytes
+
+        patched     = patchBytes (g1HallOfFame offsets)
+                        (serializeHallOfFame originalHoFRegion
+                          (rawGen1HallOfFame save))
+                    $ patchBytes (g1PlayerName offsets) (rawGen1PlayerName save)
                     $ patchBytes (g1RivalName offsets)  (rawGen1RivalName save)
                     $ patchBytes (g1PartyData offsets)
                         (serializeGen1Party nameLen originalPartyRegion
@@ -210,6 +218,25 @@ serializeRawPlayTime playTime = ByteString.pack
   , rawPlaySeconds playTime
   , rawPlayFrames playTime
   ]
+
+
+-- ── Hall of Fame Serialization ──────────────────────────────────
+
+serializeHallOfFame :: ByteString -> [RawGen1HoFRecord] -> ByteString
+serializeHallOfFame original records =
+  foldl' patchRecord original (zip [0 ..] records)
+  where
+    patchRecord region (recordIndex, record) =
+      foldl' (patchEntry recordIndex) region
+        (zip [0 ..] (rawGen1HoFEntries record))
+
+    patchEntry recordIndex region (entryIndex, entry) =
+      let offset = recordIndex * 96 + entryIndex * 16
+      in patchByte offset (unInternalIndex (rawGen1HoFSpecies entry))
+       $ patchByte (offset + 1) (rawGen1HoFLevel entry)
+       $ patchBytes (offset + 2) (rawGen1HoFNickname entry)
+       $ patchBytes (offset + 13) (rawGen1HoFPadding entry)
+         region
 
 
 -- ── Box Bank Serialization ────────────────────────────────────

@@ -23,7 +23,7 @@ import Cinnabar.Legality (classifyMove)
 import Cinnabar.Save.Interpret
   ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
   , InterpretedSpecies (..), InterpretedMove (..), SaveWarning (..)
-  , InterpretedBox (..)
+  , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
   , InventoryEntry (..), PlayTime (..)
   )
 import Cinnabar.Save.Layout
@@ -43,6 +43,7 @@ main = do
     ["demo"]            -> runDemo
     ["read", savePath]  -> runReadCommand savePath
     ["boxes", savePath] -> runBoxesCommand savePath
+    ["hof", savePath]   -> runHoFCommand savePath
     _                   -> usage
 
 
@@ -54,6 +55,7 @@ usage = do
   hPutStrLn stderr "  demo            Run demo output"
   hPutStrLn stderr "  read <file>     Read a Gen 1 save file"
   hPutStrLn stderr "  boxes <file>    Show PC box contents"
+  hPutStrLn stderr "  hof <file>      Show Hall of Fame records"
   exitFailure
 
 
@@ -108,6 +110,14 @@ runBoxesCommand savePath = do
   printAllBoxes interpreted
 
 
+-- ── HoF Command ──────────────────────────────────────────────
+
+runHoFCommand :: FilePath -> IO ()
+runHoFCommand savePath = do
+  interpreted <- loadGen1Save savePath
+  printHallOfFame interpreted
+
+
 -- ── Save Display ──────────────────────────────────────────────
 
 printSaveSummary :: InterpretedSave -> IO ()
@@ -155,7 +165,10 @@ printSaveSummary interpreted = do
     Just species -> putStrLn $ "Daycare: " ++ renderSpecies species
     Nothing -> pure ()
   putStrLn $ "Current Box: " ++ show (interpCurrentBox interpreted)
-  putStrLn $ "Hall of Fame entries: " ++ show (interpHoFCount interpreted)
+  let hofCount = interpHoFCount interpreted
+  if hofCount == 0
+    then putStrLn "Hall of Fame: (empty)"
+    else putStrLn $ "Hall of Fame: " ++ show hofCount ++ " entries"
   putStrLn ""
 
   printBoxSummary interpreted
@@ -232,6 +245,32 @@ printBoxDetail boxCapacity box = do
   putStrLn $ "Box " ++ show (interpBoxNumber box)
     ++ " (" ++ show count ++ "/" ++ show boxCapacity ++ "):"
   mapM_ (uncurry printPartyMon) (zip [1 ..] (interpBoxMons box))
+
+
+printHallOfFame :: InterpretedSave -> IO ()
+printHallOfFame interpreted = do
+  let records = interpHallOfFame interpreted
+  if null records
+    then putStrLn "Hall of Fame: (empty)"
+    else do
+      putStrLn $ "Hall of Fame (" ++ show (length records) ++ " entries):"
+      mapM_ (uncurry printHoFRecord) (zip [1 ..] records)
+
+printHoFRecord :: Int -> InterpretedHoFRecord -> IO ()
+printHoFRecord recordNumber record = do
+  putStrLn ""
+  putStrLn $ "  #" ++ show recordNumber ++ ":"
+  case hofEntries record of
+    [] -> putStrLn "    (empty)"
+    entries -> mapM_ printHoFEntry entries
+
+printHoFEntry :: InterpretedHoFEntry -> IO ()
+printHoFEntry entry =
+  let speciesLabel  = renderSpecies (hofSpecies entry)
+      levelValue    = unLevel (hofLevel entry)
+      nicknameLabel = Text.unpack (displayText (hofNickname entry))
+  in putStrLn $ "    " ++ speciesLabel ++ " (Lv " ++ show levelValue
+       ++ ") \"" ++ nicknameLabel ++ "\""
 
 
 printInventoryEntry :: InventoryEntry -> IO ()

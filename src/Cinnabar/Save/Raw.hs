@@ -20,6 +20,10 @@ module Cinnabar.Save.Raw
   , RawPlayTime (..)
   , RawDaycare (..)
 
+    -- * Hall of Fame types
+  , RawGen1HoFEntry (..)
+  , RawGen1HoFRecord (..)
+
     -- * Container types
   , RawGen1Party (..)
   , RawGen1Box (..)
@@ -90,6 +94,7 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1Daycare          :: !RawDaycare
   , rawGen1PCBoxes          :: ![RawGen1Box]
   , rawGen1BoxBankValid     :: ![RawBankValidity]
+  , rawGen1HallOfFame       :: ![RawGen1HoFRecord]
   }
 
 -- | Stub -- will be fleshed out when Gen 2 parsing is implemented.
@@ -114,6 +119,17 @@ data RawPlayTime = RawPlayTime
 data RawDaycare = RawDaycare
   { rawDaycareInUse :: !Word8            -- 0 = empty, nonzero = occupied
   , rawDaycareMon   :: !InternalIndex    -- species if in use
+  } deriving (Eq, Show)
+
+data RawGen1HoFEntry = RawGen1HoFEntry
+  { rawGen1HoFSpecies  :: !InternalIndex   -- 0x00 = empty slot
+  , rawGen1HoFLevel    :: !Word8
+  , rawGen1HoFNickname :: !ByteString      -- 11 bytes, raw text
+  , rawGen1HoFPadding  :: !ByteString      -- 3 bytes, preserved for round-trip
+  } deriving (Eq, Show)
+
+data RawGen1HoFRecord = RawGen1HoFRecord
+  { rawGen1HoFEntries :: ![RawGen1HoFEntry]    -- all 6 slots
   } deriving (Eq, Show)
 
 
@@ -186,6 +202,8 @@ parseGen1Save layout offsets bytes =
       (pikachuFriend, _) = readByte (seekTo (g1PikachuFriendship offsets) cursor)
       daycare           = parseRawDaycare offsets cursor
 
+      hallOfFame = parseHallOfFame (seekTo (g1HallOfFame offsets) cursor)
+
       (pcBoxes, boxBankValidity) = parseBoxBanks nameLen boxCapacity bytes (g1BoxBanks offsets)
 
       storedChecksum     = ByteString.index bytes (g1Checksum offsets)
@@ -217,6 +235,7 @@ parseGen1Save layout offsets bytes =
       , rawGen1Daycare          = daycare
       , rawGen1PCBoxes          = pcBoxes
       , rawGen1BoxBankValid     = boxBankValidity
+      , rawGen1HallOfFame       = hallOfFame
       }
 
 
@@ -267,6 +286,34 @@ parseRawDaycare offsets cursor =
       { rawDaycareInUse = inUse
       , rawDaycareMon   = InternalIndex speciesByte
       }
+
+
+-- ── Hall of Fame Parser ─────────────────────────────────────────
+
+parseHallOfFame :: Cursor -> [RawGen1HoFRecord]
+parseHallOfFame cursor0 =
+  [ parseHoFRecord (skip (recordIndex * 96) cursor0) | recordIndex <- [0 .. 49] ]
+
+parseHoFRecord :: Cursor -> RawGen1HoFRecord
+parseHoFRecord cursor0 =
+  let (entries, _) = parseHoFEntries 6 cursor0
+  in RawGen1HoFRecord { rawGen1HoFEntries = entries }
+
+parseHoFEntries :: Int -> Cursor -> ([RawGen1HoFEntry], Cursor)
+parseHoFEntries 0 cursor = ([], cursor)
+parseHoFEntries remaining cursor0 =
+  let (speciesByte, cursor1) = readByte cursor0
+      (levelByte, cursor2)   = readByte cursor1
+      (nickname, cursor3)    = readBytes 11 cursor2
+      (padding, cursor4)     = readBytes 3 cursor3
+      entry = RawGen1HoFEntry
+        { rawGen1HoFSpecies  = InternalIndex speciesByte
+        , rawGen1HoFLevel    = levelByte
+        , rawGen1HoFNickname = nickname
+        , rawGen1HoFPadding  = padding
+        }
+      (rest, finalCursor) = parseHoFEntries (remaining - 1) cursor4
+  in (entry : rest, finalCursor)
 
 
 -- ── Container Parsers ──────────────────────────────────────────

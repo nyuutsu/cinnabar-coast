@@ -19,6 +19,8 @@ module Cinnabar.Save.Interpret
   , StatOrigin (..)
   , InterpretedMon (..)
   , InterpretedBox (..)
+  , InterpretedHoFEntry (..)
+  , InterpretedHoFRecord (..)
   , InterpretedSave (..)
 
     -- * Decoded sub-records
@@ -36,6 +38,7 @@ import Data.Bits (testBit, shiftR, (.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.List (zip4)
+import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -55,6 +58,7 @@ import Cinnabar.Save.Raw
   ( RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..)
   , RawGen1Box (..), RawBankValidity (..)
   , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
+  , RawGen1HoFEntry (..), RawGen1HoFRecord (..)
   )
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 
@@ -114,6 +118,16 @@ data InterpretedBox = InterpretedBox
   , interpBoxMons   :: ![InterpretedMon]
   } deriving (Eq, Show)
 
+data InterpretedHoFEntry = InterpretedHoFEntry
+  { hofSpecies  :: !InterpretedSpecies
+  , hofLevel    :: !Level
+  , hofNickname :: !GameText
+  } deriving (Eq, Show)
+
+data InterpretedHoFRecord = InterpretedHoFRecord
+  { hofEntries :: ![InterpretedHoFEntry]
+  } deriving (Eq, Show)
+
 data InterpretedSave = InterpretedSave
   { interpPlayerName    :: !GameText
   , interpRivalName     :: !GameText
@@ -134,6 +148,7 @@ data InterpretedSave = InterpretedSave
   , interpOptions       :: !Word8
   , interpParty         :: ![InterpretedMon]
   , interpPCBoxes       :: ![InterpretedBox]
+  , interpHallOfFame    :: ![InterpretedHoFRecord]
   , interpActiveBoxNum  :: !Int
   , interpWarnings      :: ![SaveWarning]
   , interpRaw           :: !RawSaveFile
@@ -236,6 +251,11 @@ interpretGen1Save gameData codec rawSave =
                 ]
         ]
 
+      -- Hall of Fame interpretation
+      hofCount = fromIntegral (rawGen1HoFCount rawSave) :: Int
+      interpretedHoF = map (interpretHoFRecord indexMap speciesMap codec)
+                         (take hofCount (rawGen1HallOfFame rawSave))
+
       -- Box bank checksum warnings
       boxBankWarnings = case layoutOffsets (rawGen1Layout rawSave) of
         Gen2Offsets _ -> []
@@ -286,6 +306,7 @@ interpretGen1Save gameData codec rawSave =
       , interpOptions       = rawGen1Options rawSave
       , interpParty         = take partyCount interpretedMons
       , interpPCBoxes       = interpretedBoxes
+      , interpHallOfFame    = interpretedHoF
       , interpActiveBoxNum  = currentBoxNumber
       , interpWarnings      = concat monWarnings ++ checksumWarnings
                            ++ concat boxMonWarnings ++ boxBankWarnings
@@ -578,6 +599,47 @@ promotePlayTime raw = PlayTime
 resolvePikachuFriend :: GameVariant -> Word8 -> Maybe Int
 resolvePikachuFriend Yellow byte = Just (fromIntegral byte)
 resolvePikachuFriend _      _    = Nothing
+
+
+-- ── Hall of Fame Interpretation ──────────────────────────────
+
+interpretHoFRecord
+  :: Map.Map InternalIndex DexNumber
+  -> Map.Map DexNumber Species
+  -> TextCodec
+  -> RawGen1HoFRecord
+  -> InterpretedHoFRecord
+interpretHoFRecord indexMap speciesMap codec record =
+  InterpretedHoFRecord
+    { hofEntries = mapMaybe (interpretHoFEntry indexMap speciesMap codec)
+                     (rawGen1HoFEntries record)
+    }
+
+interpretHoFEntry
+  :: Map.Map InternalIndex DexNumber
+  -> Map.Map DexNumber Species
+  -> TextCodec
+  -> RawGen1HoFEntry
+  -> Maybe InterpretedHoFEntry
+interpretHoFEntry indexMap speciesMap codec entry
+  | unInternalIndex (rawGen1HoFSpecies entry) == 0x00 = Nothing
+  | otherwise = Just InterpretedHoFEntry
+      { hofSpecies  = resolveHoFSpecies indexMap speciesMap (rawGen1HoFSpecies entry)
+      , hofLevel    = Level (fromIntegral (rawGen1HoFLevel entry))
+      , hofNickname = decodeText codec (rawGen1HoFNickname entry)
+      }
+
+resolveHoFSpecies
+  :: Map.Map InternalIndex DexNumber
+  -> Map.Map DexNumber Species
+  -> InternalIndex
+  -> InterpretedSpecies
+resolveHoFSpecies indexMap speciesMap internalIdx =
+  case Map.lookup internalIdx indexMap of
+    Nothing  -> UnknownSpecies internalIdx
+    Just dex -> case Map.lookup dex speciesMap of
+      Nothing      -> UnknownSpecies internalIdx
+      Just species -> KnownSpecies dex species
 
 
 -- ── Stat Cross-Check ─────────────────────────────────────────
