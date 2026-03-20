@@ -296,6 +296,35 @@ main = hspec $ do
                 rawGen1PartySpecies party `shouldBe` []
                 rawGen1PartyMons party `shouldBe` []
 
+    it "parses trainer profile fields at known offsets" $
+      case cartridgeLayout Yellow RegionWestern of
+        Left msg -> expectationFailure (Text.unpack msg)
+        Right layout -> case layoutOffsets layout of
+          Gen2Offsets _ -> expectationFailure "expected Gen 1 offsets"
+          Gen1Offsets offsets -> do
+            let base = ByteString.replicate 32768 0x00
+                withFields = patchBytes (g1Money offsets)
+                               (ByteString.pack [0x12, 0x34, 0x56])
+                           $ patchByte (g1Badges offsets) 0xA5
+                           $ patchByte (g1PokedexOwned offsets) 0x03
+                           $ patchByte (g1PlayTime offsets) 0x2A
+                           $ patchByte (g1PlayTime offsets + 2) 0x1E
+                           $ patchByte (g1PartyData offsets + 1) 0xFF
+                           $ patchByte (g1CurrentBox offsets + 1) 0xFF
+                           $ base
+                checksum = calculateGen1Checksum withFields
+                             (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
+                saveBytes = patchByte (g1Checksum offsets) checksum withFields
+            case parseRawSave layout saveBytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) -> do
+                rawGen1Money save `shouldBe` ByteString.pack [0x12, 0x34, 0x56]
+                rawGen1Badges save `shouldBe` 0xA5
+                ByteString.index (rawGen1PokedexOwned save) 0 `shouldBe` 0x03
+                rawPlayHours (rawGen1PlayTime save) `shouldBe` 0x2A
+                rawPlayMinutes (rawGen1PlayTime save) `shouldBe` 0x1E
+
   -- ── Save interpretation ─────────────────────────────────────
 
   describe "Save interpretation" $ do

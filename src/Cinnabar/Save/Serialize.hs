@@ -15,6 +15,7 @@ module Cinnabar.Save.Serialize
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
+import Data.Word (Word8)
 
 import Cinnabar.Binary (writeByte, writeWord16BE, writeWord24BE, patchByte, patchBytes, patchSlots)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
@@ -23,7 +24,10 @@ import Cinnabar.Save.Layout
   ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..)
   , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
   )
-import Cinnabar.Save.Raw (RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..))
+import Cinnabar.Save.Raw
+  ( RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..)
+  , RawPlayTime (..), RawDaycare (..)
+  )
 import Cinnabar.Types (InternalIndex (..))
 
 
@@ -57,6 +61,27 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                     $ patchBytes (g1CurrentBox offsets)
                         (serializeGen1Box nameLen boxCapacity originalBoxRegion
                           (rawGen1CurrentBox save))
+                    $ patchBytes (g1PokedexOwned offsets) (rawGen1PokedexOwned save)
+                    $ patchBytes (g1PokedexSeen offsets)  (rawGen1PokedexSeen save)
+                    $ patchBytes (g1BagItems offsets)
+                        (serializeItemList (rawGen1BagItems save))
+                    $ patchBytes (g1BoxItems offsets)
+                        (serializeItemList (rawGen1BoxItems save))
+                    $ patchBytes (g1Money offsets)        (rawGen1Money save)
+                    $ patchBytes (g1CasinoCoins offsets)  (rawGen1CasinoCoins save)
+                    $ patchByte  (g1Badges offsets)       (rawGen1Badges save)
+                    $ patchBytes (g1PlayerID offsets)
+                        (writeWord16BE (rawGen1PlayerID save))
+                    $ patchByte  (g1Options offsets)      (rawGen1Options save)
+                    $ patchByte  (g1CurrentBoxNumber offsets) (rawGen1CurrentBoxNum save)
+                    $ patchByte  (g1HoFCount offsets)     (rawGen1HoFCount save)
+                    $ patchBytes (g1PlayTime offsets)
+                        (serializeRawPlayTime (rawGen1PlayTime save))
+                    $ patchByte  (g1PikachuFriendship offsets) (rawGen1PikachuFriend save)
+                    $ patchByte  (g1DaycareInUse offsets)
+                        (rawDaycareInUse (rawGen1Daycare save))
+                    $ patchByte  (g1DaycareMon offsets)
+                        (unInternalIndex (rawDaycareMon (rawGen1Daycare save)))
                     $ originalBytes
         checksum    = calculateGen1Checksum patched
                         (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
@@ -168,4 +193,19 @@ serializeRawStatExp statExp =
   <> writeWord16BE (rawExpDefense statExp)
   <> writeWord16BE (rawExpSpeed statExp)
   <> writeWord16BE (rawExpSpecial statExp)
+
+serializeItemList :: [(Word8, Word8)] -> ByteString
+serializeItemList items =
+  let count = fromIntegral (length items) :: Word8
+      entryBytes = concatMap (\(itemId, quantity) -> [itemId, quantity]) items
+  in ByteString.pack (count : entryBytes ++ [0xFF])
+
+serializeRawPlayTime :: RawPlayTime -> ByteString
+serializeRawPlayTime playTime = ByteString.pack
+  [ rawPlayHours playTime
+  , rawPlayMaxed playTime
+  , rawPlayMinutes playTime
+  , rawPlaySeconds playTime
+  , rawPlayFrames playTime
+  ]
 

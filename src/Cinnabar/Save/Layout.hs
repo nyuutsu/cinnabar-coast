@@ -70,14 +70,29 @@ data SaveOffsets
   deriving (Show)
 
 data Gen1SaveOffsets = Gen1SaveOffsets
-  { g1PlayerName    :: !Int
-  , g1RivalName     :: !Int
-  , g1PartyData     :: !Int
-  , g1CurrentBox    :: !Int
-  , g1Checksum      :: !Int
-  , g1ChecksumStart :: !Int
-  , g1ChecksumEnd   :: !Int
-  , g1BoxBanks      :: ![BoxBankInfo]
+  { g1PlayerName        :: !Int
+  , g1RivalName         :: !Int
+  , g1PartyData         :: !Int
+  , g1CurrentBox        :: !Int
+  , g1Checksum          :: !Int
+  , g1ChecksumStart     :: !Int
+  , g1ChecksumEnd       :: !Int
+  , g1BoxBanks          :: ![BoxBankInfo]
+  , g1PokedexOwned      :: !Int   -- 19 bytes, bit-packed
+  , g1PokedexSeen       :: !Int   -- 19 bytes, bit-packed
+  , g1BagItems          :: !Int
+  , g1Money             :: !Int   -- 3 bytes BCD
+  , g1Options           :: !Int   -- 1 byte
+  , g1Badges            :: !Int   -- 1 byte bitfield
+  , g1PlayerID          :: !Int   -- 2 bytes big-endian
+  , g1PikachuFriendship :: !Int   -- 1 byte (Yellow only; unused in R/B)
+  , g1BoxItems          :: !Int
+  , g1CurrentBoxNumber  :: !Int   -- 1 byte
+  , g1HoFCount          :: !Int   -- 1 byte
+  , g1CasinoCoins       :: !Int   -- 2 bytes BCD
+  , g1PlayTime          :: !Int   -- 5 consecutive bytes
+  , g1DaycareInUse      :: !Int   -- 1 byte
+  , g1DaycareMon        :: !Int   -- 1 byte (internal species index)
   } deriving (Show)
 
 data Gen2SaveOffsets = Gen2SaveOffsets
@@ -146,26 +161,56 @@ westernGen1Layout game = CartridgeLayout
 -- Source: Bulbapedia, "Save data structure (Generation I)"
 -- https://bulbapedia.bulbagarden.net/wiki/Save_data_structure_(Generation_I)
 --
--- Player name:    Bank 1, 0x2598 (11 bytes)
--- Rival name:     Bank 1 main data, 0x25F6 (11 bytes)
--- Party data:     Bank 1, 0x2F2C (0x194 bytes)
--- Current box:    Bank 1, 0x30C0 (0x462 bytes)
--- Checksum:       Bank 1, 0x3523 (1 byte)
--- Checksum range: 0x2598–0x3522 (complement of byte sum)
--- Box banks:      Bank 2 at 0x4000, Bank 3 at 0x6000 (6 boxes each, 0x462 per box)
+-- Player name:        Bank 1, 0x2598 (11 bytes)
+-- Pokedex owned:      Bank 1, 0x25A3 (19 bytes, bit-packed)
+-- Pokedex seen:       Bank 1, 0x25B6 (19 bytes, bit-packed)
+-- Bag items:          Bank 1, 0x25C9 (count + pairs + 0xFF)
+-- Money:              Bank 1, 0x25F3 (3 bytes BCD)
+-- Rival name:         Bank 1, 0x25F6 (11 bytes)
+-- Options:            Bank 1, 0x2601 (1 byte)
+-- Badges:             Bank 1, 0x2602 (1 byte bitfield)
+-- Player ID:          Bank 1, 0x2605 (2 bytes big-endian)
+-- Pikachu friendship: Bank 1, 0x271C (1 byte, Yellow only)
+-- PC box items:       Bank 1, 0x27E6 (count + pairs + 0xFF)
+-- Current box number: Bank 1, 0x284C (1 byte)
+-- Hall of Fame count: Bank 1, 0x284E (1 byte)
+-- Casino coins:       Bank 1, 0x2850 (2 bytes BCD)
+-- Play time:          Bank 1, 0x2CED (5 bytes: hours, maxed, min, sec, frames)
+-- Daycare in use:     Bank 1, 0x2CF4 (1 byte)
+-- Daycare mon:        Bank 1, 0x2D0B (1 byte, internal species index)
+-- Party data:         Bank 1, 0x2F2C (0x194 bytes)
+-- Current box:        Bank 1, 0x30C0 (0x462 bytes)
+-- Checksum:           Bank 1, 0x3523 (1 byte)
+-- Checksum range:     0x2598-0x3522 (complement of byte sum)
+-- Box banks:          Bank 2 at 0x4000, Bank 3 at 0x6000 (6 boxes each, 0x462 per box)
 westernGen1Offsets :: Gen1SaveOffsets
 westernGen1Offsets = Gen1SaveOffsets
-  { g1PlayerName    = 0x2598
-  , g1RivalName     = 0x25F6
-  , g1PartyData     = 0x2F2C
-  , g1CurrentBox    = 0x30C0
-  , g1Checksum      = 0x3523
-  , g1ChecksumStart = 0x2598
-  , g1ChecksumEnd   = 0x3522
-  , g1BoxBanks      =
+  { g1PlayerName        = 0x2598
+  , g1RivalName         = 0x25F6
+  , g1PartyData         = 0x2F2C
+  , g1CurrentBox        = 0x30C0
+  , g1Checksum          = 0x3523
+  , g1ChecksumStart     = 0x2598
+  , g1ChecksumEnd       = 0x3522
+  , g1BoxBanks          =
       [ BoxBankInfo { bankStartOffset = 0x4000, bankBoxCount = 6, bankBoxDataSize = 1122 }
       , BoxBankInfo { bankStartOffset = 0x6000, bankBoxCount = 6, bankBoxDataSize = 1122 }
       ]
+  , g1PokedexOwned      = 0x25A3
+  , g1PokedexSeen       = 0x25B6
+  , g1BagItems          = 0x25C9
+  , g1Money             = 0x25F3
+  , g1Options           = 0x2601
+  , g1Badges            = 0x2602
+  , g1PlayerID          = 0x2605
+  , g1PikachuFriendship = 0x271C
+  , g1BoxItems          = 0x27E6
+  , g1CurrentBoxNumber  = 0x284C
+  , g1HoFCount          = 0x284E
+  , g1CasinoCoins       = 0x2850
+  , g1PlayTime          = 0x2CED
+  , g1DaycareInUse      = 0x2CF4
+  , g1DaycareMon        = 0x2D0B
   }
 
 renderVariant :: GameVariant -> Text

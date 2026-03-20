@@ -15,6 +15,10 @@ module Cinnabar.Save.Raw
   , RawGen1SaveFile (..)
   , RawGen2SaveFile (..)
 
+    -- * Sub-record types
+  , RawPlayTime (..)
+  , RawDaycare (..)
+
     -- * Container types
   , RawGen1Party (..)
   , RawGen1Box (..)
@@ -26,9 +30,9 @@ module Cinnabar.Save.Raw
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Text (Text)
-import Data.Word (Word8)
+import Data.Word (Word8, Word16)
 
-import Cinnabar.Binary (Cursor, mkCursor, readByte, readBytes, seekTo, skip)
+import Cinnabar.Binary (Cursor, mkCursor, readByte, readWord16BE, readBytes, seekTo, skip)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
   ( RawGen1PartyMon, RawGen1BoxMon
@@ -59,18 +63,48 @@ data RawSaveFile
   | RawGen2Save !RawGen2SaveFile
 
 data RawGen1SaveFile = RawGen1SaveFile
-  { rawGen1Bytes         :: !ByteString
-  , rawGen1Layout        :: !CartridgeLayout
-  , rawGen1PlayerName    :: !ByteString
-  , rawGen1RivalName     :: !ByteString
-  , rawGen1Party         :: !RawGen1Party
-  , rawGen1CurrentBox    :: !RawGen1Box
-  , rawGen1Checksum      :: !Word8
-  , rawGen1ChecksumValid :: !Bool
+  { rawGen1Bytes            :: !ByteString
+  , rawGen1Layout           :: !CartridgeLayout
+  , rawGen1PlayerName       :: !ByteString
+  , rawGen1RivalName        :: !ByteString
+  , rawGen1Party            :: !RawGen1Party
+  , rawGen1CurrentBox       :: !RawGen1Box
+  , rawGen1Checksum         :: !Word8
+  , rawGen1ChecksumValid    :: !Bool
+  , rawGen1PokedexOwned     :: !ByteString
+  , rawGen1PokedexSeen      :: !ByteString
+  , rawGen1BagItems         :: ![(Word8, Word8)]
+  , rawGen1BoxItems         :: ![(Word8, Word8)]
+  , rawGen1Money            :: !ByteString
+  , rawGen1CasinoCoins      :: !ByteString
+  , rawGen1Badges           :: !Word8
+  , rawGen1PlayerID         :: !Word16
+  , rawGen1Options          :: !Word8
+  , rawGen1CurrentBoxNum    :: !Word8
+  , rawGen1HoFCount         :: !Word8
+  , rawGen1PlayTime         :: !RawPlayTime
+  , rawGen1PikachuFriend    :: !Word8
+  , rawGen1Daycare          :: !RawDaycare
   }
 
 -- | Stub -- will be fleshed out when Gen 2 parsing is implemented.
 data RawGen2SaveFile = RawGen2SaveFile
+
+
+-- ── Sub-Record Types ─────────────────────────────────────────
+
+data RawPlayTime = RawPlayTime
+  { rawPlayHours   :: !Word8
+  , rawPlayMaxed   :: !Word8   -- nonzero if the timer has capped
+  , rawPlayMinutes :: !Word8
+  , rawPlaySeconds :: !Word8
+  , rawPlayFrames  :: !Word8   -- 1/60th second
+  } deriving (Eq, Show)
+
+data RawDaycare = RawDaycare
+  { rawDaycareInUse :: !Word8            -- 0 = empty, nonzero = occupied
+  , rawDaycareMon   :: !InternalIndex    -- species if in use
+  } deriving (Eq, Show)
 
 
 -- ── Container Types ────────────────────────────────────────────
@@ -122,19 +156,96 @@ parseGen1Save layout offsets bytes =
       (party, _)      = parseGen1Party nameLen (seekTo (g1PartyData offsets) cursor)
       (currentBox, _) = parseGen1Box nameLen boxCapacity (seekTo (g1CurrentBox offsets) cursor)
 
+      (pokedexOwned, _) = readBytes 19 (seekTo (g1PokedexOwned offsets) cursor)
+      (pokedexSeen, _)  = readBytes 19 (seekTo (g1PokedexSeen offsets) cursor)
+      (bagItems, _)     = parseItemList (seekTo (g1BagItems offsets) cursor)
+      (boxItems, _)     = parseItemList (seekTo (g1BoxItems offsets) cursor)
+      (money, _)        = readBytes 3 (seekTo (g1Money offsets) cursor)
+      (casinoCoins, _)  = readBytes 2 (seekTo (g1CasinoCoins offsets) cursor)
+      (badges, _)       = readByte (seekTo (g1Badges offsets) cursor)
+      (playerID, _)     = readWord16BE (seekTo (g1PlayerID offsets) cursor)
+      (options, _)      = readByte (seekTo (g1Options offsets) cursor)
+      (boxNumber, _)    = readByte (seekTo (g1CurrentBoxNumber offsets) cursor)
+      (hofCount, _)     = readByte (seekTo (g1HoFCount offsets) cursor)
+      playTime          = parseRawPlayTime (seekTo (g1PlayTime offsets) cursor)
+      (pikachuFriend, _) = readByte (seekTo (g1PikachuFriendship offsets) cursor)
+      daycare           = parseRawDaycare offsets cursor
+
       storedChecksum     = ByteString.index bytes (g1Checksum offsets)
       calculatedChecksum = calculateGen1Checksum bytes
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
 
   in RawGen1SaveFile
-      { rawGen1Bytes         = bytes
-      , rawGen1Layout        = layout
-      , rawGen1PlayerName    = playerName
-      , rawGen1RivalName     = rivalName
-      , rawGen1Party         = party
-      , rawGen1CurrentBox    = currentBox
-      , rawGen1Checksum      = storedChecksum
-      , rawGen1ChecksumValid = storedChecksum == calculatedChecksum
+      { rawGen1Bytes            = bytes
+      , rawGen1Layout           = layout
+      , rawGen1PlayerName       = playerName
+      , rawGen1RivalName        = rivalName
+      , rawGen1Party            = party
+      , rawGen1CurrentBox       = currentBox
+      , rawGen1Checksum         = storedChecksum
+      , rawGen1ChecksumValid    = storedChecksum == calculatedChecksum
+      , rawGen1PokedexOwned     = pokedexOwned
+      , rawGen1PokedexSeen      = pokedexSeen
+      , rawGen1BagItems         = bagItems
+      , rawGen1BoxItems         = boxItems
+      , rawGen1Money            = money
+      , rawGen1CasinoCoins      = casinoCoins
+      , rawGen1Badges           = badges
+      , rawGen1PlayerID         = playerID
+      , rawGen1Options          = options
+      , rawGen1CurrentBoxNum    = boxNumber
+      , rawGen1HoFCount         = hofCount
+      , rawGen1PlayTime         = playTime
+      , rawGen1PikachuFriend    = pikachuFriend
+      , rawGen1Daycare          = daycare
+      }
+
+
+-- ── Item List Parser ─────────────────────────────────────────
+
+-- | Parse a Gen 1 item list: 1 byte count, count x (item ID, quantity)
+-- pairs, then a 0xFF terminator.
+parseItemList :: Cursor -> ([(Word8, Word8)], Cursor)
+parseItemList cursor0 =
+  let (count, cursor1) = readByte cursor0
+      itemCount        = fromIntegral count :: Int
+      (items, cursor2) = readItemPairs itemCount cursor1
+      (_terminator, cursor3) = readByte cursor2
+  in (items, cursor3)
+  where
+    readItemPairs :: Int -> Cursor -> ([(Word8, Word8)], Cursor)
+    readItemPairs 0 cursor = ([], cursor)
+    readItemPairs remaining cursor =
+      let (itemId, cursor1)   = readByte cursor
+          (quantity, cursor2) = readByte cursor1
+          (rest, cursor3)     = readItemPairs (remaining - 1) cursor2
+      in ((itemId, quantity) : rest, cursor3)
+
+
+-- ── Play Time / Daycare Parsers ─────────────────────────────
+
+parseRawPlayTime :: Cursor -> RawPlayTime
+parseRawPlayTime cursor0 =
+  let (hours, cursor1)   = readByte cursor0
+      (maxed, cursor2)   = readByte cursor1
+      (minutes, cursor3) = readByte cursor2
+      (seconds, cursor4) = readByte cursor3
+      (frames, _)        = readByte cursor4
+  in RawPlayTime
+      { rawPlayHours   = hours
+      , rawPlayMaxed   = maxed
+      , rawPlayMinutes = minutes
+      , rawPlaySeconds = seconds
+      , rawPlayFrames  = frames
+      }
+
+parseRawDaycare :: Gen1SaveOffsets -> Cursor -> RawDaycare
+parseRawDaycare offsets cursor =
+  let (inUse, _)     = readByte (seekTo (g1DaycareInUse offsets) cursor)
+      (speciesByte, _) = readByte (seekTo (g1DaycareMon offsets) cursor)
+  in RawDaycare
+      { rawDaycareInUse = inUse
+      , rawDaycareMon   = InternalIndex speciesByte
       }
 
 
