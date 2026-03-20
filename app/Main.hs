@@ -180,8 +180,9 @@ printSaveSummary interpreted = do
     Nothing -> pure ()
   putStrLn $ "Position: (" ++ show (interpPlayerY interpreted)
     ++ ", " ++ show (interpPlayerX interpreted)
-    ++ ") on map " ++ show (interpLastMap interpreted)
-    ++ ", last map " ++ show (interpLastBlackoutMap interpreted)
+    ++ ") on map " ++ show (interpCurrentMap interpreted)
+    ++ ", previous map " ++ show (interpPreviousMap interpreted)
+    ++ ", blackout map " ++ show (interpLastBlackoutMap interpreted)
   if interpInSafari interpreted
     then putStrLn $ "Safari Zone: " ++ show (interpSafariSteps interpreted)
       ++ " steps remaining, " ++ show (interpSafariBallCount interpreted) ++ " balls"

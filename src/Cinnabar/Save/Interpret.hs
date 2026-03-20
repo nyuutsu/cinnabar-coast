@@ -220,7 +220,8 @@ data InterpretedSave = InterpretedSave
   , interpDaycare         :: !(Maybe InterpretedDaycare)
   , interpPlayerY         :: !Int
   , interpPlayerX         :: !Int
-  , interpLastMap         :: !Int
+  , interpCurrentMap      :: !Int
+  , interpPreviousMap     :: !Int
   , interpLastBlackoutMap :: !Int
   , interpSafariSteps     :: !Int
   , interpSafariBallCount :: !Int
@@ -424,7 +425,8 @@ interpretGen1Save gameData codec rawSave =
       , interpDaycare         = interpretedDaycare
       , interpPlayerY         = fromIntegral (rawPlayerY positionRecord)
       , interpPlayerX         = fromIntegral (rawPlayerX positionRecord)
-      , interpLastMap         = fromIntegral (rawLastMap positionRecord)
+      , interpCurrentMap      = fromIntegral (rawCurrentMap (rawGen1Progress rawSave))
+      , interpPreviousMap     = fromIntegral (rawLastMap positionRecord)
       , interpLastBlackoutMap = fromIntegral (rawLastBlackoutMap positionRecord)
       , interpSafariSteps     = fromIntegral (rawSafariSteps safariRecord)
       , interpSafariBallCount = fromIntegral (rawSafariBallCount safariRecord)
