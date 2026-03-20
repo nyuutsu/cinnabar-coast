@@ -41,7 +41,7 @@ Said architecture is also *supposed* to be generation-agnostic. We will find out
 
 ## Building
 
-Requires GHC and cabal (via [ghcup](https://www.haskell.org/ghcup/)).
+Requires GHC and cabal.
 
 ```
 cabal build
@@ -53,7 +53,7 @@ What we track: species, moves, learnsets, evolutions, TM/HM mappings, TM/HM comp
 
 Relevant game data is stored as CSV.
 
-Provided, but, can be generated anew: `cabal run extract -- path/to/pokered path/to/pokecrystal`
+This data is provided, but, can be generated anew: `cabal run extract -- path/to/pokered path/to/pokecrystal`
 
 CSVs use pret ASM constant names throughout. We map these to domain types.
 
