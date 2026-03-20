@@ -666,11 +666,11 @@ decodePokedexFlags bytes = Set.fromList
   ]
 
 -- | Decode the badge bitfield into a list of badge names.
--- Bit order MSB→LSB: Boulder, Cascade, Thunder, Rainbow, Soul,
+-- Bit order LSB→MSB: Boulder, Cascade, Thunder, Rainbow, Soul,
 -- Marsh, Volcano, Earth.
 decodeBadges :: Word8 -> [Text]
 decodeBadges byte =
-  [ name | (bitPosition, name) <- zip [7, 6 .. 0] badgeNames, testBit byte bitPosition ]
+  [ name | (bitPosition, name) <- zip [0 .. 7] badgeNames, testBit byte bitPosition ]
   where
     badgeNames =
       ["Boulder", "Cascade", "Thunder", "Rainbow", "Soul", "Marsh", "Volcano", "Earth"]
@@ -937,10 +937,10 @@ interpretProgress gameData rawSave =
 
 -- ── Progress Decoders ─────────────────────────────────────────
 
--- | Decode gym defeat bitfield. Same MSB→LSB order as badges.
+-- | Decode gym defeat bitfield. Same LSB→MSB order as badges.
 decodeDefeatedGyms :: Word8 -> [Text]
 decodeDefeatedGyms byte =
-  [ name | (bitPosition, name) <- zip [7, 6 .. 0] gymLeaderNames, testBit byte bitPosition ]
+  [ name | (bitPosition, name) <- zip [0 .. 7] gymLeaderNames, testBit byte bitPosition ]
   where
     gymLeaderNames =
       ["Brock", "Misty", "Lt. Surge", "Erika", "Koga", "Sabrina", "Blaine", "Giovanni"]
