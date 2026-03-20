@@ -536,6 +536,25 @@ main = hspec $ do
                 ByteString.length (rawEventFlags (rawGen1Progress save)) `shouldBe` 320
                 rawPlayerStarter (rawGen1Progress save) `shouldSatisfy` (/= InternalIndex 0)
 
+  -- ── New sub-record fields ──────────────────────────────
+
+  describe "New sub-record fields" $
+    it "parses player position and daycare nickname from a real Yellow save" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) -> do
+                rawPlayerY (rawGen1PlayerPosition save) `shouldSatisfy` (/= 0)
+                ByteString.length (rawDaycareNickname (rawGen1Daycare save)) `shouldBe` 11
+
   -- ── Progress interpretation ──────────────────────────────
 
   describe "Progress interpretation" $ do

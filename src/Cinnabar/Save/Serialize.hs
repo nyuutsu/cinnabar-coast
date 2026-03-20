@@ -28,6 +28,8 @@ import Cinnabar.Save.Layout
 import Cinnabar.Save.Raw
   ( RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..)
   , RawItemEntry (..), RawPlayTime (..), RawDaycare (..), RawProgressFlags (..)
+  , RawPlayerPosition (..), RawSafariState (..), RawFossilState (..)
+  , RawTransientState (..)
   , RawGen1HoFEntry (..), RawGen1HoFRecord (..)
   )
 import Cinnabar.Types (InternalIndex (..))
@@ -43,6 +45,11 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
         boxCapacity = layoutBoxCapacity (rawGen1Layout save)
         originalBytes = rawGen1Bytes save
         progress    = rawGen1Progress save
+        position    = rawGen1PlayerPosition save
+        safari      = rawGen1Safari save
+        fossil      = rawGen1Fossil save
+        transient   = rawGen1Transient save
+        daycare     = rawGen1Daycare save
 
         partyRegionSize = 1 + (gen1PartyCapacity + 1)
                         + gen1PartyCapacity * gen1PartyMonSize
@@ -89,9 +96,13 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                         (serializeRawPlayTime (rawGen1PlayTime save))
                     $ patchByte  (g1PikachuFriendship offsets) (rawGen1PikachuFriend save)
                     $ patchByte  (g1DaycareInUse offsets)
-                        (rawDaycareInUse (rawGen1Daycare save))
+                        (rawDaycareInUse daycare)
                     $ patchByte  (g1DaycareMon offsets)
-                        (unInternalIndex (rawDaycareMon (rawGen1Daycare save)))
+                        (unInternalIndex (rawDaycareMon daycare))
+                    $ patchBytes (g1DaycareNickname offsets)
+                        (rawDaycareNickname daycare)
+                    $ patchBytes (g1DaycareOTName offsets)
+                        (rawDaycareOTName daycare)
                     $ patchBytes (g1EventFlags offsets)
                         (rawEventFlags progress)
                     $ patchBytes (g1ToggleFlags offsets)
@@ -114,6 +125,10 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                     $ patchByte  (g1VarFlags4 offsets) (rawVarFlags4 progress)
                     $ patchByte  (g1VarFlags5 offsets) (rawVarFlags5 progress)
                     $ patchByte  (g1VarFlags6 offsets) (rawVarFlags6 progress)
+                    $ patchByte  (g1VarFlags7 offsets) (rawVarFlags7 progress)
+                    $ patchByte  (g1VarFlags8 offsets) (rawVarFlags8 progress)
+                    $ patchBytes (g1DefeatedLorelei offsets)
+                        (writeWord16BE (rawDefeatedLorelei progress))
                     $ patchBytes (g1InGameTrades offsets)
                         (writeWord16BE (rawInGameTrades progress))
                     $ patchBytes (g1HiddenItems offsets)
@@ -122,6 +137,36 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                         (rawHiddenCoins progress)
                     $ patchByte  (g1CurrentMap offsets)
                         (rawCurrentMap progress)
+                    -- Player position
+                    $ patchByte  (g1PlayerY offsets) (rawPlayerY position)
+                    $ patchByte  (g1PlayerX offsets) (rawPlayerX position)
+                    $ patchByte  (g1LastMap offsets) (rawLastMap position)
+                    $ patchByte  (g1LastBlackoutMap offsets) (rawLastBlackoutMap position)
+                    $ patchByte  (g1DestinationMap offsets) (rawDestinationMap position)
+                    -- Safari state
+                    $ patchBytes (g1SafariSteps offsets)
+                        (writeWord16BE (rawSafariSteps safari))
+                    $ patchByte  (g1SafariBallCount offsets) (rawSafariBallCount safari)
+                    $ patchByte  (g1SafariGameOver offsets) (rawSafariGameOver safari)
+                    -- Fossil state
+                    $ patchByte  (g1FossilItem offsets) (rawFossilItemGiven fossil)
+                    $ patchBytes (g1FossilResult offsets) (rawFossilResult fossil)
+                    -- Transient state
+                    $ patchByte  (g1LetterDelay offsets) (rawLetterDelay transient)
+                    $ patchByte  (g1MusicId offsets) (rawMusicId transient)
+                    $ patchByte  (g1MusicBank offsets) (rawMusicBank transient)
+                    $ patchByte  (g1ContrastId offsets) (rawContrastId transient)
+                    $ patchByte  (g1EnemyTrainerClass offsets) (rawEnemyTrainerClass transient)
+                    $ patchByte  (g1BoulderSpriteIndex offsets) (rawBoulderSpriteIndex transient)
+                    $ patchByte  (g1DungeonWarpDest offsets) (rawDungeonWarpDest transient)
+                    $ patchByte  (g1DungeonWarpUsed offsets) (rawDungeonWarpUsed transient)
+                    $ patchByte  (g1WarpedFromWarp offsets) (rawWarpedFromWarp transient)
+                    $ patchByte  (g1WarpedFromMap offsets) (rawWarpedFromMap transient)
+                    $ patchByte  (g1CardKeyDoorY offsets) (rawCardKeyDoorY transient)
+                    $ patchByte  (g1CardKeyDoorX offsets) (rawCardKeyDoorX transient)
+                    $ patchByte  (g1TrashCanLock1 offsets) (rawTrashCanLock1 transient)
+                    $ patchByte  (g1TrashCanLock2 offsets) (rawTrashCanLock2 transient)
+                    $ patchByte  (g1CurrentMapScript offsets) (rawCurrentMapScript transient)
                     $ originalBytes
         checksum    = calculateGen1Checksum patched
                         (g1ChecksumStart offsets) (g1ChecksumEnd offsets)

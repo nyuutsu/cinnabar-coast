@@ -20,6 +20,10 @@ module Cinnabar.Save.Raw
   , RawPlayTime (..)
   , RawDaycare (..)
   , RawProgressFlags (..)
+  , RawPlayerPosition (..)
+  , RawSafariState (..)
+  , RawFossilState (..)
+  , RawTransientState (..)
 
     -- * Hall of Fame types
   , RawGen1HoFEntry (..)
@@ -98,6 +102,10 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1BoxBankValid     :: ![RawBankValidity]
   , rawGen1HallOfFame       :: ![RawGen1HoFRecord]
   , rawGen1Progress         :: !RawProgressFlags
+  , rawGen1PlayerPosition   :: !RawPlayerPosition
+  , rawGen1Safari           :: !RawSafariState
+  , rawGen1Fossil           :: !RawFossilState
+  , rawGen1Transient        :: !RawTransientState
   }
 
 -- | Stub -- will be fleshed out when Gen 2 parsing is implemented.
@@ -120,8 +128,10 @@ data RawPlayTime = RawPlayTime
   } deriving (Eq, Show)
 
 data RawDaycare = RawDaycare
-  { rawDaycareInUse :: !Word8            -- 0 = empty, nonzero = occupied
-  , rawDaycareMon   :: !InternalIndex    -- species if in use
+  { rawDaycareInUse    :: !Word8            -- 0 = empty, nonzero = occupied
+  , rawDaycareMon      :: !InternalIndex    -- species if in use
+  , rawDaycareNickname :: !ByteString       -- 11 bytes, raw text
+  , rawDaycareOTName   :: !ByteString       -- 11 bytes, raw text
   } deriving (Eq, Show)
 
 data RawProgressFlags = RawProgressFlags
@@ -139,10 +149,50 @@ data RawProgressFlags = RawProgressFlags
   , rawVarFlags4      :: !Word8
   , rawVarFlags5      :: !Word8
   , rawVarFlags6      :: !Word8
+  , rawVarFlags7      :: !Word8
+  , rawVarFlags8      :: !Word8
+  , rawDefeatedLorelei :: !Word16        -- 2 bytes, bit 1 tracks E4 run progress
   , rawInGameTrades   :: !Word16         -- bitset
   , rawHiddenItems    :: !ByteString     -- 14 bytes
   , rawHiddenCoins    :: !ByteString     -- 2 bytes
   , rawCurrentMap     :: !Word8
+  } deriving (Eq, Show)
+
+data RawPlayerPosition = RawPlayerPosition
+  { rawPlayerY          :: !Word8
+  , rawPlayerX          :: !Word8
+  , rawLastMap          :: !Word8
+  , rawLastBlackoutMap  :: !Word8
+  , rawDestinationMap   :: !Word8
+  } deriving (Eq, Show)
+
+data RawSafariState = RawSafariState
+  { rawSafariSteps     :: !Word16       -- big-endian
+  , rawSafariBallCount :: !Word8
+  , rawSafariGameOver  :: !Word8
+  } deriving (Eq, Show)
+
+data RawFossilState = RawFossilState
+  { rawFossilItemGiven :: !Word8        -- item byte
+  , rawFossilResult    :: !ByteString   -- 3 bytes
+  } deriving (Eq, Show)
+
+data RawTransientState = RawTransientState
+  { rawLetterDelay        :: !Word8
+  , rawMusicId            :: !Word8
+  , rawMusicBank          :: !Word8
+  , rawContrastId         :: !Word8
+  , rawEnemyTrainerClass  :: !Word8
+  , rawBoulderSpriteIndex :: !Word8
+  , rawDungeonWarpDest    :: !Word8
+  , rawDungeonWarpUsed    :: !Word8
+  , rawWarpedFromWarp     :: !Word8
+  , rawWarpedFromMap      :: !Word8
+  , rawCardKeyDoorY       :: !Word8
+  , rawCardKeyDoorX       :: !Word8
+  , rawTrashCanLock1      :: !Word8
+  , rawTrashCanLock2      :: !Word8
+  , rawCurrentMapScript   :: !Word8
   } deriving (Eq, Show)
 
 data RawGen1HoFEntry = RawGen1HoFEntry
@@ -226,6 +276,10 @@ parseGen1Save layout offsets bytes =
       (pikachuFriend, _) = readByte (seekTo (g1PikachuFriendship offsets) cursor)
       daycare           = parseRawDaycare offsets cursor
       progress          = parseRawProgress offsets cursor
+      playerPosition    = parseRawPlayerPosition offsets cursor
+      safari            = parseRawSafari offsets cursor
+      fossil            = parseRawFossil offsets cursor
+      transient         = parseRawTransient offsets cursor
 
       hallOfFame = parseHallOfFame (seekTo (g1HallOfFame offsets) cursor)
 
@@ -262,6 +316,10 @@ parseGen1Save layout offsets bytes =
       , rawGen1BoxBankValid     = boxBankValidity
       , rawGen1HallOfFame       = hallOfFame
       , rawGen1Progress         = progress
+      , rawGen1PlayerPosition   = playerPosition
+      , rawGen1Safari           = safari
+      , rawGen1Fossil           = fossil
+      , rawGen1Transient        = transient
       }
 
 
@@ -306,11 +364,15 @@ parseRawPlayTime cursor0 =
 
 parseRawDaycare :: Gen1SaveOffsets -> Cursor -> RawDaycare
 parseRawDaycare offsets cursor =
-  let (inUse, _)     = readByte (seekTo (g1DaycareInUse offsets) cursor)
+  let (inUse, _)       = readByte (seekTo (g1DaycareInUse offsets) cursor)
       (speciesByte, _) = readByte (seekTo (g1DaycareMon offsets) cursor)
+      (nickname, _)    = readBytes 11 (seekTo (g1DaycareNickname offsets) cursor)
+      (otName, _)      = readBytes 11 (seekTo (g1DaycareOTName offsets) cursor)
   in RawDaycare
-      { rawDaycareInUse = inUse
-      , rawDaycareMon   = InternalIndex speciesByte
+      { rawDaycareInUse    = inUse
+      , rawDaycareMon      = InternalIndex speciesByte
+      , rawDaycareNickname = nickname
+      , rawDaycareOTName   = otName
       }
 
 parseRawProgress :: Gen1SaveOffsets -> Cursor -> RawProgressFlags
@@ -328,30 +390,106 @@ parseRawProgress offsets cursor =
       (varFlags3, _)       = readByte (seekTo (g1VarFlags3 offsets) cursor)
       (varFlags4, _)       = readByte (seekTo (g1VarFlags4 offsets) cursor)
       (varFlags5, _)       = readByte (seekTo (g1VarFlags5 offsets) cursor)
-      (varFlags6, _)       = readByte (seekTo (g1VarFlags6 offsets) cursor)
-      (inGameTrades, _)    = readWord16BE (seekTo (g1InGameTrades offsets) cursor)
-      (hiddenItems, _)     = readBytes 14 (seekTo (g1HiddenItems offsets) cursor)
-      (hiddenCoins, _)     = readBytes 2 (seekTo (g1HiddenCoins offsets) cursor)
-      (currentMap, _)      = readByte (seekTo (g1CurrentMap offsets) cursor)
+      (varFlags6, _)          = readByte (seekTo (g1VarFlags6 offsets) cursor)
+      (varFlags7, _)          = readByte (seekTo (g1VarFlags7 offsets) cursor)
+      (varFlags8, _)          = readByte (seekTo (g1VarFlags8 offsets) cursor)
+      (defeatedLorelei, _)    = readWord16BE (seekTo (g1DefeatedLorelei offsets) cursor)
+      (inGameTrades, _)       = readWord16BE (seekTo (g1InGameTrades offsets) cursor)
+      (hiddenItems, _)        = readBytes 14 (seekTo (g1HiddenItems offsets) cursor)
+      (hiddenCoins, _)        = readBytes 2 (seekTo (g1HiddenCoins offsets) cursor)
+      (currentMap, _)         = readByte (seekTo (g1CurrentMap offsets) cursor)
   in RawProgressFlags
-      { rawEventFlags     = eventFlags
-      , rawToggleFlags    = toggleFlags
-      , rawMapScripts     = mapScripts
-      , rawDefeatedGyms   = defeatedGyms
-      , rawPlayerStarter  = InternalIndex playerStarter
-      , rawRivalStarter   = InternalIndex rivalStarter
-      , rawTownsVisited   = townsVisited
-      , rawMovementStatus = movementStatus
-      , rawVarFlags1      = varFlags1
-      , rawVarFlags2      = varFlags2
-      , rawVarFlags3      = varFlags3
-      , rawVarFlags4      = varFlags4
-      , rawVarFlags5      = varFlags5
-      , rawVarFlags6      = varFlags6
-      , rawInGameTrades   = inGameTrades
-      , rawHiddenItems    = hiddenItems
-      , rawHiddenCoins    = hiddenCoins
-      , rawCurrentMap     = currentMap
+      { rawEventFlags      = eventFlags
+      , rawToggleFlags     = toggleFlags
+      , rawMapScripts      = mapScripts
+      , rawDefeatedGyms    = defeatedGyms
+      , rawPlayerStarter   = InternalIndex playerStarter
+      , rawRivalStarter    = InternalIndex rivalStarter
+      , rawTownsVisited    = townsVisited
+      , rawMovementStatus  = movementStatus
+      , rawVarFlags1       = varFlags1
+      , rawVarFlags2       = varFlags2
+      , rawVarFlags3       = varFlags3
+      , rawVarFlags4       = varFlags4
+      , rawVarFlags5       = varFlags5
+      , rawVarFlags6       = varFlags6
+      , rawVarFlags7       = varFlags7
+      , rawVarFlags8       = varFlags8
+      , rawDefeatedLorelei = defeatedLorelei
+      , rawInGameTrades    = inGameTrades
+      , rawHiddenItems     = hiddenItems
+      , rawHiddenCoins     = hiddenCoins
+      , rawCurrentMap      = currentMap
+      }
+
+parseRawPlayerPosition :: Gen1SaveOffsets -> Cursor -> RawPlayerPosition
+parseRawPlayerPosition offsets cursor =
+  let (playerY, _)        = readByte (seekTo (g1PlayerY offsets) cursor)
+      (playerX, _)        = readByte (seekTo (g1PlayerX offsets) cursor)
+      (lastMap, _)        = readByte (seekTo (g1LastMap offsets) cursor)
+      (blackoutMap, _)    = readByte (seekTo (g1LastBlackoutMap offsets) cursor)
+      (destinationMap, _) = readByte (seekTo (g1DestinationMap offsets) cursor)
+  in RawPlayerPosition
+      { rawPlayerY         = playerY
+      , rawPlayerX         = playerX
+      , rawLastMap         = lastMap
+      , rawLastBlackoutMap = blackoutMap
+      , rawDestinationMap  = destinationMap
+      }
+
+parseRawSafari :: Gen1SaveOffsets -> Cursor -> RawSafariState
+parseRawSafari offsets cursor =
+  let (safariSteps, _) = readWord16BE (seekTo (g1SafariSteps offsets) cursor)
+      (ballCount, _)   = readByte (seekTo (g1SafariBallCount offsets) cursor)
+      (gameOver, _)    = readByte (seekTo (g1SafariGameOver offsets) cursor)
+  in RawSafariState
+      { rawSafariSteps     = safariSteps
+      , rawSafariBallCount = ballCount
+      , rawSafariGameOver  = gameOver
+      }
+
+parseRawFossil :: Gen1SaveOffsets -> Cursor -> RawFossilState
+parseRawFossil offsets cursor =
+  let (itemGiven, _)     = readByte (seekTo (g1FossilItem offsets) cursor)
+      (fossilResult, _)  = readBytes 3 (seekTo (g1FossilResult offsets) cursor)
+  in RawFossilState
+      { rawFossilItemGiven = itemGiven
+      , rawFossilResult    = fossilResult
+      }
+
+parseRawTransient :: Gen1SaveOffsets -> Cursor -> RawTransientState
+parseRawTransient offsets cursor =
+  let (letterDelay, _)     = readByte (seekTo (g1LetterDelay offsets) cursor)
+      (musicId, _)         = readByte (seekTo (g1MusicId offsets) cursor)
+      (musicBank, _)       = readByte (seekTo (g1MusicBank offsets) cursor)
+      (contrastId, _)      = readByte (seekTo (g1ContrastId offsets) cursor)
+      (trainerClass, _)    = readByte (seekTo (g1EnemyTrainerClass offsets) cursor)
+      (boulderSprite, _)   = readByte (seekTo (g1BoulderSpriteIndex offsets) cursor)
+      (dungeonDest, _)     = readByte (seekTo (g1DungeonWarpDest offsets) cursor)
+      (dungeonUsed, _)     = readByte (seekTo (g1DungeonWarpUsed offsets) cursor)
+      (warpedWarp, _)      = readByte (seekTo (g1WarpedFromWarp offsets) cursor)
+      (warpedMap, _)       = readByte (seekTo (g1WarpedFromMap offsets) cursor)
+      (cardKeyY, _)        = readByte (seekTo (g1CardKeyDoorY offsets) cursor)
+      (cardKeyX, _)        = readByte (seekTo (g1CardKeyDoorX offsets) cursor)
+      (trashLock1, _)      = readByte (seekTo (g1TrashCanLock1 offsets) cursor)
+      (trashLock2, _)      = readByte (seekTo (g1TrashCanLock2 offsets) cursor)
+      (mapScript, _)       = readByte (seekTo (g1CurrentMapScript offsets) cursor)
+  in RawTransientState
+      { rawLetterDelay        = letterDelay
+      , rawMusicId            = musicId
+      , rawMusicBank          = musicBank
+      , rawContrastId         = contrastId
+      , rawEnemyTrainerClass  = trainerClass
+      , rawBoulderSpriteIndex = boulderSprite
+      , rawDungeonWarpDest    = dungeonDest
+      , rawDungeonWarpUsed    = dungeonUsed
+      , rawWarpedFromWarp     = warpedWarp
+      , rawWarpedFromMap      = warpedMap
+      , rawCardKeyDoorY       = cardKeyY
+      , rawCardKeyDoorX       = cardKeyX
+      , rawTrashCanLock1      = trashLock1
+      , rawTrashCanLock2      = trashLock2
+      , rawCurrentMapScript   = mapScript
       }
 
 
