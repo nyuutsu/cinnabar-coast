@@ -26,7 +26,7 @@ import Cinnabar.Save.Layout
   )
 import Cinnabar.Save.Raw
   ( RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..)
-  , RawItemEntry (..), RawPlayTime (..), RawDaycare (..)
+  , RawItemEntry (..), RawPlayTime (..), RawDaycare (..), RawProgressFlags (..)
   , RawGen1HoFEntry (..), RawGen1HoFRecord (..)
   )
 import Cinnabar.Types (InternalIndex (..))
@@ -41,6 +41,7 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
     let nameLen     = layoutNameLen (rawGen1Layout save)
         boxCapacity = layoutBoxCapacity (rawGen1Layout save)
         originalBytes = rawGen1Bytes save
+        progress    = rawGen1Progress save
 
         partyRegionSize = 1 + (gen1PartyCapacity + 1)
                         + gen1PartyCapacity * gen1PartyMonSize
@@ -90,6 +91,36 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                         (rawDaycareInUse (rawGen1Daycare save))
                     $ patchByte  (g1DaycareMon offsets)
                         (unInternalIndex (rawDaycareMon (rawGen1Daycare save)))
+                    $ patchBytes (g1EventFlags offsets)
+                        (rawEventFlags progress)
+                    $ patchBytes (g1ToggleFlags offsets)
+                        (rawToggleFlags progress)
+                    $ patchBytes (g1MapScripts offsets)
+                        (rawMapScripts progress)
+                    $ patchByte  (g1DefeatedGyms offsets)
+                        (rawDefeatedGyms progress)
+                    $ patchByte  (g1PlayerStarter offsets)
+                        (unInternalIndex (rawPlayerStarter progress))
+                    $ patchByte  (g1RivalStarter offsets)
+                        (unInternalIndex (rawRivalStarter progress))
+                    $ patchBytes (g1TownsVisited offsets)
+                        (writeWord16BE (rawTownsVisited progress))
+                    $ patchByte  (g1MovementStatus offsets)
+                        (rawMovementStatus progress)
+                    $ patchByte  (g1VarFlags1 offsets) (rawVarFlags1 progress)
+                    $ patchByte  (g1VarFlags2 offsets) (rawVarFlags2 progress)
+                    $ patchByte  (g1VarFlags3 offsets) (rawVarFlags3 progress)
+                    $ patchByte  (g1VarFlags4 offsets) (rawVarFlags4 progress)
+                    $ patchByte  (g1VarFlags5 offsets) (rawVarFlags5 progress)
+                    $ patchByte  (g1VarFlags6 offsets) (rawVarFlags6 progress)
+                    $ patchBytes (g1InGameTrades offsets)
+                        (writeWord16BE (rawInGameTrades progress))
+                    $ patchBytes (g1HiddenItems offsets)
+                        (rawHiddenItems progress)
+                    $ patchBytes (g1HiddenCoins offsets)
+                        (rawHiddenCoins progress)
+                    $ patchByte  (g1CurrentMap offsets)
+                        (rawCurrentMap progress)
                     $ originalBytes
         checksum    = calculateGen1Checksum patched
                         (g1ChecksumStart offsets) (g1ChecksumEnd offsets)

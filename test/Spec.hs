@@ -512,6 +512,25 @@ main = hspec $ do
                     any hasKnownSpecies (hofEntries firstRecord) `shouldBe` True
                   [] -> pure ()
 
+  -- ── Progress flags ───────────────────────────────────────
+
+  describe "Progress flags" $
+    it "parses event flags and player starter from a real Yellow save" $ do
+      let savePath = "test/data/yellow.sav"
+      exists <- doesFileExist savePath
+      if not exists
+        then pendingWith "test/data/yellow.sav not present"
+        else do
+          bytes <- ByteString.readFile savePath
+          case cartridgeLayout Yellow RegionWestern of
+            Left msg -> expectationFailure (Text.unpack msg)
+            Right layout -> case parseRawSave layout bytes of
+              Left err -> expectationFailure (show err)
+              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
+              Right (RawGen1Save save) -> do
+                ByteString.length (rawEventFlags (rawGen1Progress save)) `shouldBe` 320
+                rawPlayerStarter (rawGen1Progress save) `shouldSatisfy` (/= InternalIndex 0)
+
   -- ── Serialization round-trip ──────────────────────────────
 
   describe "Gen 1 serialize round-trip" $

@@ -94,6 +94,24 @@ data Gen1SaveOffsets = Gen1SaveOffsets
   , g1PlayTime          :: !Int   -- 5 consecutive bytes
   , g1DaycareInUse      :: !Int   -- 1 byte
   , g1DaycareMon        :: !Int   -- 1 byte (internal species index)
+  , g1EventFlags        :: !Int   -- 320 bytes (2560-bit flag array)
+  , g1ToggleFlags       :: !Int   -- 32 bytes (256-bit flag array, toggleable objects)
+  , g1MapScripts        :: !Int   -- 256 bytes (per-map script progress)
+  , g1DefeatedGyms      :: !Int   -- 1 byte bitfield
+  , g1PlayerStarter     :: !Int   -- 1 byte (internal species index)
+  , g1RivalStarter      :: !Int   -- 1 byte (internal species index)
+  , g1TownsVisited      :: !Int   -- 2 bytes bitfield
+  , g1MovementStatus    :: !Int   -- 1 byte
+  , g1VarFlags1         :: !Int   -- 1 byte
+  , g1VarFlags2         :: !Int   -- 1 byte
+  , g1VarFlags3         :: !Int   -- 1 byte
+  , g1VarFlags4         :: !Int   -- 1 byte
+  , g1VarFlags5         :: !Int   -- 1 byte
+  , g1VarFlags6         :: !Int   -- 1 byte
+  , g1InGameTrades      :: !Int   -- 2 bytes bitset
+  , g1HiddenItems       :: !Int   -- 14 bytes
+  , g1HiddenCoins       :: !Int   -- 2 bytes
+  , g1CurrentMap        :: !Int   -- 1 byte
   } deriving (Show)
 
 data Gen2SaveOffsets = Gen2SaveOffsets
@@ -182,6 +200,24 @@ westernGen1Layout game = CartridgeLayout
 -- Play time:          Bank 1, 0x2CED (5 bytes: hours, maxed, min, sec, frames)
 -- Daycare in use:     Bank 1, 0x2CF4 (1 byte)
 -- Daycare mon:        Bank 1, 0x2D0B (1 byte, internal species index)
+-- Current map:        Bank 1, 0x260A (1 byte)
+-- Toggle flags:       Bank 1, 0x2852 (32 bytes, 256-bit flag array)
+-- Map scripts:        Bank 1, 0x289C (256 bytes, per-map script progress)
+-- Hidden items:       Bank 1, 0x299C (14 bytes)
+-- Hidden coins:       Bank 1, 0x29AA (2 bytes)
+-- Movement status:    Bank 1, 0x29AC (1 byte)
+-- Towns visited:      Bank 1, 0x29B7 (2 bytes bitfield)
+-- Rival starter:      Bank 1, 0x29C1 (1 byte, internal species index)
+-- Player starter:     Bank 1, 0x29C3 (1 byte, internal species index)
+-- Var flags 1:        Bank 1, 0x29D4 (1 byte)
+-- Defeated gyms:      Bank 1, 0x29D6 (1 byte bitfield)
+-- Var flags 2:        Bank 1, 0x29D8 (1 byte)
+-- Var flags 3:        Bank 1, 0x29D9 (1 byte)
+-- Var flags 4:        Bank 1, 0x29DA (1 byte)
+-- Var flags 5:        Bank 1, 0x29DC (1 byte)
+-- Var flags 6:        Bank 1, 0x29DE (1 byte)
+-- In-game trades:     Bank 1, 0x29E3 (2 bytes bitset)
+-- Event flags:        Bank 1, 0x29F3 (320 bytes, 2560-bit flag array)
 -- Party data:         Bank 1, 0x2F2C (0x194 bytes)
 -- Current box:        Bank 1, 0x30C0 (0x462 bytes)
 -- Checksum:           Bank 1, 0x3523 (1 byte)
@@ -222,6 +258,24 @@ westernGen1Offsets = Gen1SaveOffsets
   , g1PlayTime          = 0x2CED
   , g1DaycareInUse      = 0x2CF4
   , g1DaycareMon        = 0x2D0B
+  , g1EventFlags        = 0x29F3
+  , g1ToggleFlags       = 0x2852
+  , g1MapScripts        = 0x289C
+  , g1DefeatedGyms      = 0x29D6
+  , g1PlayerStarter     = 0x29C3
+  , g1RivalStarter      = 0x29C1
+  , g1TownsVisited      = 0x29B7
+  , g1MovementStatus    = 0x29AC
+  , g1VarFlags1         = 0x29D4
+  , g1VarFlags2         = 0x29D8
+  , g1VarFlags3         = 0x29D9
+  , g1VarFlags4         = 0x29DA
+  , g1VarFlags5         = 0x29DC
+  , g1VarFlags6         = 0x29DE
+  , g1InGameTrades      = 0x29E3
+  , g1HiddenItems       = 0x299C
+  , g1HiddenCoins       = 0x29AA
+  , g1CurrentMap        = 0x260A
   }
 
 renderVariant :: GameVariant -> Text

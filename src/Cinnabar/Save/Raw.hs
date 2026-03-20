@@ -19,6 +19,7 @@ module Cinnabar.Save.Raw
   , RawItemEntry (..)
   , RawPlayTime (..)
   , RawDaycare (..)
+  , RawProgressFlags (..)
 
     -- * Hall of Fame types
   , RawGen1HoFEntry (..)
@@ -95,6 +96,7 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1PCBoxes          :: ![RawGen1Box]
   , rawGen1BoxBankValid     :: ![RawBankValidity]
   , rawGen1HallOfFame       :: ![RawGen1HoFRecord]
+  , rawGen1Progress         :: !RawProgressFlags
   }
 
 -- | Stub -- will be fleshed out when Gen 2 parsing is implemented.
@@ -119,6 +121,27 @@ data RawPlayTime = RawPlayTime
 data RawDaycare = RawDaycare
   { rawDaycareInUse :: !Word8            -- 0 = empty, nonzero = occupied
   , rawDaycareMon   :: !InternalIndex    -- species if in use
+  } deriving (Eq, Show)
+
+data RawProgressFlags = RawProgressFlags
+  { rawEventFlags     :: !ByteString     -- 320 bytes, bit-packed
+  , rawToggleFlags    :: !ByteString     -- 32 bytes, bit-packed (toggleable objects)
+  , rawMapScripts     :: !ByteString     -- 256 bytes (per-map script progress counters)
+  , rawDefeatedGyms   :: !Word8          -- bitfield
+  , rawPlayerStarter  :: !InternalIndex
+  , rawRivalStarter   :: !InternalIndex
+  , rawTownsVisited   :: !Word16         -- bitfield
+  , rawMovementStatus :: !Word8
+  , rawVarFlags1      :: !Word8
+  , rawVarFlags2      :: !Word8
+  , rawVarFlags3      :: !Word8
+  , rawVarFlags4      :: !Word8
+  , rawVarFlags5      :: !Word8
+  , rawVarFlags6      :: !Word8
+  , rawInGameTrades   :: !Word16         -- bitset
+  , rawHiddenItems    :: !ByteString     -- 14 bytes
+  , rawHiddenCoins    :: !ByteString     -- 2 bytes
+  , rawCurrentMap     :: !Word8
   } deriving (Eq, Show)
 
 data RawGen1HoFEntry = RawGen1HoFEntry
@@ -201,6 +224,7 @@ parseGen1Save layout offsets bytes =
       playTime          = parseRawPlayTime (seekTo (g1PlayTime offsets) cursor)
       (pikachuFriend, _) = readByte (seekTo (g1PikachuFriendship offsets) cursor)
       daycare           = parseRawDaycare offsets cursor
+      progress          = parseRawProgress offsets cursor
 
       hallOfFame = parseHallOfFame (seekTo (g1HallOfFame offsets) cursor)
 
@@ -236,6 +260,7 @@ parseGen1Save layout offsets bytes =
       , rawGen1PCBoxes          = pcBoxes
       , rawGen1BoxBankValid     = boxBankValidity
       , rawGen1HallOfFame       = hallOfFame
+      , rawGen1Progress         = progress
       }
 
 
@@ -285,6 +310,47 @@ parseRawDaycare offsets cursor =
   in RawDaycare
       { rawDaycareInUse = inUse
       , rawDaycareMon   = InternalIndex speciesByte
+      }
+
+parseRawProgress :: Gen1SaveOffsets -> Cursor -> RawProgressFlags
+parseRawProgress offsets cursor =
+  let (eventFlags, _)      = readBytes 320 (seekTo (g1EventFlags offsets) cursor)
+      (toggleFlags, _)     = readBytes 32 (seekTo (g1ToggleFlags offsets) cursor)
+      (mapScripts, _)      = readBytes 256 (seekTo (g1MapScripts offsets) cursor)
+      (defeatedGyms, _)    = readByte (seekTo (g1DefeatedGyms offsets) cursor)
+      (playerStarter, _)   = readByte (seekTo (g1PlayerStarter offsets) cursor)
+      (rivalStarter, _)    = readByte (seekTo (g1RivalStarter offsets) cursor)
+      (townsVisited, _)    = readWord16BE (seekTo (g1TownsVisited offsets) cursor)
+      (movementStatus, _)  = readByte (seekTo (g1MovementStatus offsets) cursor)
+      (varFlags1, _)       = readByte (seekTo (g1VarFlags1 offsets) cursor)
+      (varFlags2, _)       = readByte (seekTo (g1VarFlags2 offsets) cursor)
+      (varFlags3, _)       = readByte (seekTo (g1VarFlags3 offsets) cursor)
+      (varFlags4, _)       = readByte (seekTo (g1VarFlags4 offsets) cursor)
+      (varFlags5, _)       = readByte (seekTo (g1VarFlags5 offsets) cursor)
+      (varFlags6, _)       = readByte (seekTo (g1VarFlags6 offsets) cursor)
+      (inGameTrades, _)    = readWord16BE (seekTo (g1InGameTrades offsets) cursor)
+      (hiddenItems, _)     = readBytes 14 (seekTo (g1HiddenItems offsets) cursor)
+      (hiddenCoins, _)     = readBytes 2 (seekTo (g1HiddenCoins offsets) cursor)
+      (currentMap, _)      = readByte (seekTo (g1CurrentMap offsets) cursor)
+  in RawProgressFlags
+      { rawEventFlags     = eventFlags
+      , rawToggleFlags    = toggleFlags
+      , rawMapScripts     = mapScripts
+      , rawDefeatedGyms   = defeatedGyms
+      , rawPlayerStarter  = InternalIndex playerStarter
+      , rawRivalStarter   = InternalIndex rivalStarter
+      , rawTownsVisited   = townsVisited
+      , rawMovementStatus = movementStatus
+      , rawVarFlags1      = varFlags1
+      , rawVarFlags2      = varFlags2
+      , rawVarFlags3      = varFlags3
+      , rawVarFlags4      = varFlags4
+      , rawVarFlags5      = varFlags5
+      , rawVarFlags6      = varFlags6
+      , rawInGameTrades   = inGameTrades
+      , rawHiddenItems    = hiddenItems
+      , rawHiddenCoins    = hiddenCoins
+      , rawCurrentMap     = currentMap
       }
 
 
