@@ -1,4 +1,4 @@
--- | Raw types and struct parser for Gen 1 Pokemon data.
+-- | Raw types and struct parser for Gen 1 Pokémon data.
 --
 -- These types mirror the binary layout exactly. Every field is the
 -- raw byte value with no interpretation. The party struct is 44 bytes;

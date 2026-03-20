@@ -20,7 +20,9 @@ import Cinnabar.Binary (writeByte, writeWord16BE, writeWord24BE, patchBytes, pat
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
 import Cinnabar.Save.Layout
-  ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..) )
+  ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..)
+  , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
+  )
 import Cinnabar.Save.Raw (RawGen1SaveFile (..), RawGen1Party (..), RawGen1Box (..))
 import Cinnabar.Types (InternalIndex (..))
 
@@ -46,15 +48,6 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
 
 
 -- ── Container Serializers ────────────────────────────────────
-
-gen1PartyCapacity :: Int
-gen1PartyCapacity = 6
-
-gen1PartyMonSize :: Int
-gen1PartyMonSize = 44
-
-gen1BoxMonSize :: Int
-gen1BoxMonSize = 33
 
 serializeGen1Party :: Int -> RawGen1Party -> ByteString
 serializeGen1Party nameLen party =

@@ -38,6 +38,7 @@ import Cinnabar.Save.Layout
   ( CartridgeLayout (..)
   , SaveOffsets (..)
   , Gen1SaveOffsets (..)
+  , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
   )
 import Cinnabar.Types (Gen (..), InternalIndex (..))
 
@@ -138,15 +139,6 @@ parseGen1Save layout offsets bytes =
 
 
 -- ── Container Parsers ──────────────────────────────────────────
-
-gen1PartyCapacity :: Int
-gen1PartyCapacity = 6
-
-gen1PartyMonSize :: Int
-gen1PartyMonSize = 44
-
-gen1BoxMonSize :: Int
-gen1BoxMonSize = 33
 
 parseGen1Party :: Int -> Cursor -> (RawGen1Party, Cursor)
 parseGen1Party nameLen cursor0 =

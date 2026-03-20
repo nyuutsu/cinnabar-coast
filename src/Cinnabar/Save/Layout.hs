@@ -18,6 +18,11 @@ module Cinnabar.Save.Layout
   , Gen2SaveOffsets (..)
   , BoxBankInfo (..)
 
+    -- * Struct sizes
+  , gen1PartyCapacity
+  , gen1PartyMonSize
+  , gen1BoxMonSize
+
     -- * Lookup
   , cartridgeLayout
   ) where
@@ -94,6 +99,18 @@ data BoxBankInfo = BoxBankInfo
   , bankBoxCount    :: !Int
   , bankBoxDataSize :: !Int
   } deriving (Show)
+
+
+-- ── Struct Sizes ──────────────────────────────────────────────────
+
+gen1PartyCapacity :: Int
+gen1PartyCapacity = 6
+
+gen1PartyMonSize :: Int
+gen1PartyMonSize = 44
+
+gen1BoxMonSize :: Int
+gen1BoxMonSize = 33
 
 
 -- ── Layout Lookup ───────────────────────────────────────────────
