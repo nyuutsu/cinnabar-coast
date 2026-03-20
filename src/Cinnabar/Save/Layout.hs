@@ -22,8 +22,8 @@ module Cinnabar.Save.Layout
 
     -- * Struct sizes
   , gen1PartyCapacity
-  , gen1PartyMonSize
-  , gen1BoxMonSize
+  , gen1PartyPokemonSize
+  , gen1BoxPokemonSize
   , gen1HoFRecordCount
   , gen1HoFSlotsPerRecord
   , gen1HoFEntrySize
@@ -112,7 +112,7 @@ data Gen1SaveOffsets = Gen1SaveOffsets
   , g1CasinoCoins       :: !Int   -- 2 bytes BCD
   , g1PlayTime          :: !Int   -- 5 consecutive bytes
   , g1DaycareInUse      :: !Int   -- 1 byte
-  , g1DaycareMon        :: !Int   -- 1 byte (internal species index)
+  , g1DaycarePokemon        :: !Int   -- 1 byte (internal species index)
   , g1EventFlags        :: !Int   -- 320 bytes (2560-bit flag array)
   , g1ToggleFlags       :: !Int   -- 32 bytes (256-bit flag array, toggleable objects)
   , g1MapScripts        :: !Int   -- 256 bytes (per-map script progress)
@@ -197,11 +197,11 @@ data BoxBankInfo = BoxBankInfo
 gen1PartyCapacity :: Int
 gen1PartyCapacity = 6
 
-gen1PartyMonSize :: Int
-gen1PartyMonSize = 44
+gen1PartyPokemonSize :: Int
+gen1PartyPokemonSize = 44
 
-gen1BoxMonSize :: Int
-gen1BoxMonSize = 33
+gen1BoxPokemonSize :: Int
+gen1BoxPokemonSize = 33
 
 gen1HoFRecordCount :: Int
 gen1HoFRecordCount = 50
@@ -310,7 +310,7 @@ westernGen1Layout game = CartridgeLayout
 -- Daycare in use:        Bank 1, 0x2CF4 (1 byte)
 -- Daycare nickname:      Bank 1, 0x2CF5 (11 bytes, raw text)
 -- Daycare OT name:       Bank 1, 0x2D00 (11 bytes, raw text)
--- Daycare mon:           Bank 1, 0x2D0B (1 byte, internal species index)
+-- Daycare pokemon:           Bank 1, 0x2D0B (1 byte, internal species index)
 -- Party data:            Bank 1, 0x2F2C (0x194 bytes)
 -- Current box:           Bank 1, 0x30C0 (0x462 bytes)
 -- Checksum:              Bank 1, 0x3523 (1 byte)
@@ -350,7 +350,7 @@ westernGen1Offsets = Gen1SaveOffsets
   , g1CasinoCoins       = 0x2850
   , g1PlayTime          = 0x2CED
   , g1DaycareInUse      = 0x2CF4
-  , g1DaycareMon        = 0x2D0B
+  , g1DaycarePokemon        = 0x2D0B
   , g1EventFlags        = 0x29F3
   , g1ToggleFlags       = 0x2852
   , g1MapScripts        = 0x289C

@@ -220,7 +220,7 @@ main = hspec $ do
       cartridgeLayout GoldSilver RegionJapanese `shouldSatisfy` isLeft
 
   describe "Gen 1 struct parsers" $
-    it "parseGen1PartyMon and parseGen1BoxMon parse a hand-crafted struct" $ do
+    it "parseGen1PartyPokemon and parseGen1BoxPokemon parse a hand-crafted struct" $ do
       let pikachuBytes = ByteString.pack
             [ 0x54                          -- species: Pikachu internal index
             , 0x00, 0x64                    -- current HP: 100
@@ -243,14 +243,14 @@ main = hspec $ do
             , 0x00, 0x6E                    -- speed: 110
             , 0x00, 0x46                    -- special: 70
             ]
-          (partyMon, partyCursor) = parseGen1PartyMon (mkCursor pikachuBytes)
-          (boxMon, boxCursor)     = parseGen1BoxMon (mkCursor pikachuBytes)
-      rawG1SpeciesIndex partyMon `shouldBe` InternalIndex 0x54
-      rawG1Exp partyMon `shouldBe` 50000
-      rawG1DVBytes partyMon `shouldBe` 0xFAD8
-      rawG1OTID partyMon `shouldBe` 12345
-      rawG1Level partyMon `shouldBe` 25
-      rawG1BoxSpeciesIndex boxMon `shouldBe` rawG1SpeciesIndex partyMon
+          (partyPokemon, partyCursor) = parseGen1PartyPokemon (mkCursor pikachuBytes)
+          (boxPokemon, boxCursor)     = parseGen1BoxPokemon (mkCursor pikachuBytes)
+      rawG1SpeciesIndex partyPokemon `shouldBe` InternalIndex 0x54
+      rawG1Exp partyPokemon `shouldBe` 50000
+      rawG1DVBytes partyPokemon `shouldBe` 0xFAD8
+      rawG1OTID partyPokemon `shouldBe` 12345
+      rawG1Level partyPokemon `shouldBe` 25
+      rawG1BoxSpeciesIndex boxPokemon `shouldBe` rawG1SpeciesIndex partyPokemon
       cursorOffset partyCursor `shouldBe` 44
       cursorOffset boxCursor `shouldBe` 33
 
@@ -273,7 +273,7 @@ main = hspec $ do
                     count = fromIntegral (rawGen1PartyCount party)
                 count `shouldSatisfy` (\n -> n >= 1 && n <= (6 :: Int))
                 length (rawGen1PartySpecies party) `shouldBe` count
-                length (rawGen1PartyMons party) `shouldBe` count
+                length (rawGen1PartyMembers party) `shouldBe` count
 
     it "parses an empty party without crashing" $
       case cartridgeLayout Yellow RegionWestern of
@@ -295,7 +295,7 @@ main = hspec $ do
                 let party = rawGen1Party save
                 rawGen1PartyCount party `shouldBe` 0
                 rawGen1PartySpecies party `shouldBe` []
-                rawGen1PartyMons party `shouldBe` []
+                rawGen1PartyMembers party `shouldBe` []
 
     it "parses trainer profile fields at known offsets" $
       case cartridgeLayout Yellow RegionWestern of
@@ -363,7 +363,7 @@ main = hspec $ do
                   ]
                 partyOffset = g1PartyData offsets
                 structStart = partyOffset + 1 + 7   -- past count + species list
-                otNameStart = structStart + 6 * 44   -- past 6 mon structs
+                otNameStart = structStart + 6 * 44   -- past 6 pokemon structs
                 nickStart   = otNameStart + 6 * 11   -- past 6 OT names
 
                 base = ByteString.replicate 32768 0x00
@@ -387,16 +387,16 @@ main = hspec $ do
               Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
               Right (RawGen1Save rawSave) -> do
                 let interpreted = interpretGen1Save gen1Data codec rawSave
-                    monList     = interpParty interpreted
-                length monList `shouldBe` 1
-                case monList of
+                    pokemonList     = interpParty interpreted
+                length pokemonList `shouldBe` 1
+                case pokemonList of
                   [] -> expectationFailure "expected one party member"
-                  (mon : _) -> do
-                    case interpSpecies mon of
+                  (pokemon : _) -> do
+                    case interpSpecies pokemon of
                       KnownSpecies (DexNumber dex) _ -> dex `shouldBe` 25
                       other -> expectationFailure $ "expected KnownSpecies, got: " ++ show other
-                    any isKnownMove (interpMoves mon) `shouldBe` True
-                    case interpSpecial mon of
+                    any isKnownMove (interpMoves pokemon) `shouldBe` True
+                    case interpSpecial pokemon of
                       Unified _ -> pure ()
                       Split _ _ -> expectationFailure "expected Unified special stat"
                     let isStarterWarning (UnknownSpeciesIndex PlayerStarter _) = True
@@ -461,7 +461,7 @@ main = hspec $ do
     boxCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
 
     it "interprets PC boxes with valid checksums from a real Yellow save" $ do
-      let hasKnownSpecies mon = case interpSpecies mon of
+      let hasKnownSpecies pokemon = case interpSpecies pokemon of
             KnownSpecies _ _ -> True
             _                -> False
           isBoxWarning (BoxBankChecksumMismatch {}) = True
@@ -484,7 +484,7 @@ main = hspec $ do
                 case interpPCBoxes interpreted of
                   [] -> expectationFailure "expected non-empty PC boxes"
                   (firstBox : _) ->
-                    any hasKnownSpecies (interpBoxMons firstBox) `shouldBe` True
+                    any hasKnownSpecies (interpBoxMembers firstBox) `shouldBe` True
                 let boxWarnings = filter isBoxWarning (interpWarnings interpreted)
                 boxWarnings `shouldBe` []
 

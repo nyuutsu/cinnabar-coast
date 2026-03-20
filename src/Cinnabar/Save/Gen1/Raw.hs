@@ -7,12 +7,12 @@
 module Cinnabar.Save.Gen1.Raw
   ( -- * Raw types
     RawStatExp (..)
-  , RawGen1PartyMon (..)
-  , RawGen1BoxMon (..)
+  , RawGen1PartyPokemon (..)
+  , RawGen1BoxPokemon (..)
 
     -- * Parsers
-  , parseGen1PartyMon
-  , parseGen1BoxMon
+  , parseGen1PartyPokemon
+  , parseGen1BoxPokemon
   ) where
 
 import Data.Word (Word8, Word16)
@@ -31,7 +31,7 @@ data RawStatExp = RawStatExp
   , rawExpSpecial :: !Word16
   } deriving (Eq, Show)
 
-data RawGen1PartyMon = RawGen1PartyMon
+data RawGen1PartyPokemon = RawGen1PartyPokemon
   { rawG1SpeciesIndex :: !InternalIndex
   , rawG1CurrentHP    :: !Word16
   , rawG1BoxLevel     :: !Word8
@@ -59,7 +59,7 @@ data RawGen1PartyMon = RawGen1PartyMon
   , rawG1Special      :: !Word16
   } deriving (Eq, Show)
 
-data RawGen1BoxMon = RawGen1BoxMon
+data RawGen1BoxPokemon = RawGen1BoxPokemon
   { rawG1BoxSpeciesIndex :: !InternalIndex
   , rawG1BoxCurrentHP    :: !Word16
   , rawG1BoxBoxLevel     :: !Word8
@@ -103,7 +103,7 @@ parseRawStatExp cursor0 =
 
 -- | Parse 33 bytes of shared box data, returning the fields and
 -- the cursor positioned after byte 32 (ready for party-only fields).
-parseBoxFields :: Cursor -> (RawGen1BoxMon, Cursor)
+parseBoxFields :: Cursor -> (RawGen1BoxPokemon, Cursor)
 parseBoxFields cursor0 =
   let (speciesByte, cursor1)  = readByte cursor0
       (currentHP,   cursor2)  = readWord16BE cursor1
@@ -124,7 +124,7 @@ parseBoxFields cursor0 =
       (pp2,         cursor17) = readByte cursor16
       (pp3,         cursor18) = readByte cursor17
       (pp4,         cursor19) = readByte cursor18
-  in ( RawGen1BoxMon
+  in ( RawGen1BoxPokemon
         { rawG1BoxSpeciesIndex = InternalIndex speciesByte
         , rawG1BoxCurrentHP    = currentHP
         , rawG1BoxBoxLevel     = boxLevel
@@ -148,38 +148,38 @@ parseBoxFields cursor0 =
      , cursor19
      )
 
-parseGen1BoxMon :: Cursor -> (RawGen1BoxMon, Cursor)
-parseGen1BoxMon = parseBoxFields
+parseGen1BoxPokemon :: Cursor -> (RawGen1BoxPokemon, Cursor)
+parseGen1BoxPokemon = parseBoxFields
 
-parseGen1PartyMon :: Cursor -> (RawGen1PartyMon, Cursor)
-parseGen1PartyMon cursor0 =
-  let (boxMon,  cursor1) = parseBoxFields cursor0
+parseGen1PartyPokemon :: Cursor -> (RawGen1PartyPokemon, Cursor)
+parseGen1PartyPokemon cursor0 =
+  let (boxPokemon,  cursor1) = parseBoxFields cursor0
       (level,   cursor2) = readByte cursor1
       (maxHP,   cursor3) = readWord16BE cursor2
       (attack,  cursor4) = readWord16BE cursor3
       (defense, cursor5) = readWord16BE cursor4
       (speed,   cursor6) = readWord16BE cursor5
       (special, cursor7) = readWord16BE cursor6
-  in ( RawGen1PartyMon
-        { rawG1SpeciesIndex = rawG1BoxSpeciesIndex boxMon
-        , rawG1CurrentHP    = rawG1BoxCurrentHP boxMon
-        , rawG1BoxLevel     = rawG1BoxBoxLevel boxMon
-        , rawG1Status       = rawG1BoxStatus boxMon
-        , rawG1Type1        = rawG1BoxType1 boxMon
-        , rawG1Type2        = rawG1BoxType2 boxMon
-        , rawG1CatchRate    = rawG1BoxCatchRate boxMon
-        , rawG1Move1        = rawG1BoxMove1 boxMon
-        , rawG1Move2        = rawG1BoxMove2 boxMon
-        , rawG1Move3        = rawG1BoxMove3 boxMon
-        , rawG1Move4        = rawG1BoxMove4 boxMon
-        , rawG1OTID         = rawG1BoxOTID boxMon
-        , rawG1Exp          = rawG1BoxExp boxMon
-        , rawG1StatExp      = rawG1BoxStatExp boxMon
-        , rawG1DVBytes      = rawG1BoxDVBytes boxMon
-        , rawG1PP1          = rawG1BoxPP1 boxMon
-        , rawG1PP2          = rawG1BoxPP2 boxMon
-        , rawG1PP3          = rawG1BoxPP3 boxMon
-        , rawG1PP4          = rawG1BoxPP4 boxMon
+  in ( RawGen1PartyPokemon
+        { rawG1SpeciesIndex = rawG1BoxSpeciesIndex boxPokemon
+        , rawG1CurrentHP    = rawG1BoxCurrentHP boxPokemon
+        , rawG1BoxLevel     = rawG1BoxBoxLevel boxPokemon
+        , rawG1Status       = rawG1BoxStatus boxPokemon
+        , rawG1Type1        = rawG1BoxType1 boxPokemon
+        , rawG1Type2        = rawG1BoxType2 boxPokemon
+        , rawG1CatchRate    = rawG1BoxCatchRate boxPokemon
+        , rawG1Move1        = rawG1BoxMove1 boxPokemon
+        , rawG1Move2        = rawG1BoxMove2 boxPokemon
+        , rawG1Move3        = rawG1BoxMove3 boxPokemon
+        , rawG1Move4        = rawG1BoxMove4 boxPokemon
+        , rawG1OTID         = rawG1BoxOTID boxPokemon
+        , rawG1Exp          = rawG1BoxExp boxPokemon
+        , rawG1StatExp      = rawG1BoxStatExp boxPokemon
+        , rawG1DVBytes      = rawG1BoxDVBytes boxPokemon
+        , rawG1PP1          = rawG1BoxPP1 boxPokemon
+        , rawG1PP2          = rawG1BoxPP2 boxPokemon
+        , rawG1PP3          = rawG1BoxPP3 boxPokemon
+        , rawG1PP4          = rawG1BoxPP4 boxPokemon
         , rawG1Level        = level
         , rawG1MaxHP        = maxHP
         , rawG1Attack       = attack

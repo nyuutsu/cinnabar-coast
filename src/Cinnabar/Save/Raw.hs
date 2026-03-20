@@ -46,8 +46,8 @@ import Data.Word (Word8, Word16)
 import Cinnabar.Binary (Cursor, mkCursor, readByte, readWord16BE, readBytes, seekTo, skip)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
-  ( RawGen1PartyMon, RawGen1BoxMon
-  , parseGen1PartyMon, parseGen1BoxMon
+  ( RawGen1PartyPokemon, RawGen1BoxPokemon
+  , parseGen1PartyPokemon, parseGen1BoxPokemon
   )
 import Cinnabar.Save.Layout
   ( CartridgeLayout (..)
@@ -55,7 +55,7 @@ import Cinnabar.Save.Layout
   , SaveOffsets (..)
   , Gen1SaveOffsets (..)
   , BoxBankInfo (..)
-  , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
+  , gen1PartyCapacity, gen1PartyPokemonSize, gen1BoxPokemonSize
   , gen1HoFRecordCount, gen1HoFSlotsPerRecord, gen1HoFEntrySize, gen1HoFRecordSize
   )
 import Cinnabar.Types (Gen (..), InternalIndex (..))
@@ -130,7 +130,7 @@ data RawPlayTime = RawPlayTime
 
 data RawDaycare = RawDaycare
   { rawDaycareInUse    :: !Word8            -- 0 = empty, nonzero = occupied
-  , rawDaycareMon      :: !InternalIndex    -- species if in use
+  , rawDaycarePokemon      :: !InternalIndex    -- species if in use
   , rawDaycareNickname :: !ByteString       -- 11 bytes, raw text
   , rawDaycareOTName   :: !ByteString       -- 11 bytes, raw text
   } deriving (Eq, Show)
@@ -213,9 +213,9 @@ data RawGen1HoFRecord = RawGen1HoFRecord
 data RawGen1Party = RawGen1Party
   { rawGen1PartyCount   :: !Word8
   , rawGen1PartySpecies :: ![InternalIndex]
-  , rawGen1PartyMons    :: ![RawGen1PartyMon]
+  , rawGen1PartyMembers    :: ![RawGen1PartyPokemon]
   , rawGen1PartyOTNames :: ![ByteString]
-  , rawGen1PartyNicks   :: ![ByteString]
+  , rawGen1PartyNicknames   :: ![ByteString]
   } deriving (Eq, Show)
 
 data RawBankValidity = RawBankValidity
@@ -226,9 +226,9 @@ data RawBankValidity = RawBankValidity
 data RawGen1Box = RawGen1Box
   { rawGen1BoxCount   :: !Word8
   , rawGen1BoxSpecies :: ![InternalIndex]
-  , rawGen1BoxMons    :: ![RawGen1BoxMon]
+  , rawGen1BoxMembers    :: ![RawGen1BoxPokemon]
   , rawGen1BoxOTNames :: ![ByteString]
-  , rawGen1BoxNicks   :: ![ByteString]
+  , rawGen1BoxNicknames   :: ![ByteString]
   } deriving (Eq, Show)
 
 
@@ -367,12 +367,12 @@ parseRawDaycare :: NameLength -> Gen1SaveOffsets -> Cursor -> RawDaycare
 parseRawDaycare nameLen offsets cursor =
   let nameLenInt       = unNameLength nameLen
       (inUse, _)       = readByte (seekTo (g1DaycareInUse offsets) cursor)
-      (speciesByte, _) = readByte (seekTo (g1DaycareMon offsets) cursor)
+      (speciesByte, _) = readByte (seekTo (g1DaycarePokemon offsets) cursor)
       (nickname, _)    = readBytes nameLenInt (seekTo (g1DaycareNickname offsets) cursor)
       (otName, _)      = readBytes nameLenInt (seekTo (g1DaycareOTName offsets) cursor)
   in RawDaycare
       { rawDaycareInUse    = inUse
-      , rawDaycareMon      = InternalIndex speciesByte
+      , rawDaycarePokemon      = InternalIndex speciesByte
       , rawDaycareNickname = nickname
       , rawDaycareOTName   = otName
       }
@@ -534,18 +534,18 @@ parseGen1Party nameLen cursor0 =
       entryCount        = fromIntegral count
       speciesListSize   = gen1PartyCapacity + 1
       (species, cursor2) = parseSpeciesList gen1PartyCapacity speciesListSize cursor1
-      (mons, cursor3)    = parseFixedArray entryCount gen1PartyCapacity
-                             gen1PartyMonSize parseGen1PartyMon cursor2
+      (members, cursor3)    = parseFixedArray entryCount gen1PartyCapacity
+                             gen1PartyPokemonSize parseGen1PartyPokemon cursor2
       (otNames, cursor4) = parseFixedArray entryCount gen1PartyCapacity
                              nameLenInt (readBytes nameLenInt) cursor3
-      (nicks, cursor5)   = parseFixedArray entryCount gen1PartyCapacity
+      (nicknames, cursor5)   = parseFixedArray entryCount gen1PartyCapacity
                              nameLenInt (readBytes nameLenInt) cursor4
   in ( RawGen1Party
         { rawGen1PartyCount   = count
         , rawGen1PartySpecies = species
-        , rawGen1PartyMons    = mons
+        , rawGen1PartyMembers    = members
         , rawGen1PartyOTNames = otNames
-        , rawGen1PartyNicks   = nicks
+        , rawGen1PartyNicknames   = nicknames
         }
      , cursor5
      )
@@ -558,18 +558,18 @@ parseGen1Box nameLen boxCapacity cursor0 =
       entryCount        = fromIntegral count
       speciesListSize   = boxCapInt + 1
       (species, cursor2) = parseSpeciesList boxCapInt speciesListSize cursor1
-      (mons, cursor3)    = parseFixedArray entryCount boxCapInt
-                             gen1BoxMonSize parseGen1BoxMon cursor2
+      (members, cursor3)    = parseFixedArray entryCount boxCapInt
+                             gen1BoxPokemonSize parseGen1BoxPokemon cursor2
       (otNames, cursor4) = parseFixedArray entryCount boxCapInt
                              nameLenInt (readBytes nameLenInt) cursor3
-      (nicks, cursor5)   = parseFixedArray entryCount boxCapInt
+      (nicknames, cursor5)   = parseFixedArray entryCount boxCapInt
                              nameLenInt (readBytes nameLenInt) cursor4
   in ( RawGen1Box
         { rawGen1BoxCount   = count
         , rawGen1BoxSpecies = species
-        , rawGen1BoxMons    = mons
+        , rawGen1BoxMembers    = members
         , rawGen1BoxOTNames = otNames
-        , rawGen1BoxNicks   = nicks
+        , rawGen1BoxNicknames   = nicknames
         }
      , cursor5
      )

@@ -9,8 +9,8 @@ module Cinnabar.Save.Serialize
     serializeGen1Save
 
     -- * Struct serializers
-  , serializeGen1PartyMon
-  , serializeGen1BoxMon
+  , serializeGen1PartyPokemon
+  , serializeGen1BoxPokemon
   ) where
 
 import Data.ByteString (ByteString)
@@ -19,11 +19,11 @@ import Data.Word (Word8)
 
 import Cinnabar.Binary (writeByte, writeWord16BE, writeWord24BE, patchByte, patchBytes, patchSlots)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
-import Cinnabar.Save.Gen1.Raw (RawGen1PartyMon (..), RawGen1BoxMon (..), RawStatExp (..))
+import Cinnabar.Save.Gen1.Raw (RawGen1PartyPokemon (..), RawGen1BoxPokemon (..), RawStatExp (..))
 import Cinnabar.Save.Layout
   ( CartridgeLayout (..), NameLength (..), BoxCapacity (..)
   , SaveOffsets (..), Gen1SaveOffsets (..), BoxBankInfo (..)
-  , gen1PartyCapacity, gen1PartyMonSize, gen1BoxMonSize
+  , gen1PartyCapacity, gen1PartyPokemonSize, gen1BoxPokemonSize
   , gen1HoFRecordCount, gen1HoFRecordSize, gen1HoFEntrySize
   )
 import Cinnabar.Save.Raw
@@ -53,13 +53,13 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
         daycare     = rawGen1Daycare save
 
         partyRegionSize = 1 + (gen1PartyCapacity + 1)
-                        + gen1PartyCapacity * gen1PartyMonSize
+                        + gen1PartyCapacity * gen1PartyPokemonSize
                         + gen1PartyCapacity * unNameLength nameLen * 2
         originalPartyRegion = ByteString.take partyRegionSize
                             $ ByteString.drop (g1PartyData offsets) originalBytes
 
         boxRegionSize = 1 + (unBoxCapacity boxCapacity + 1)
-                      + unBoxCapacity boxCapacity * gen1BoxMonSize
+                      + unBoxCapacity boxCapacity * gen1BoxPokemonSize
                       + unBoxCapacity boxCapacity * unNameLength nameLen * 2
         originalBoxRegion = ByteString.take boxRegionSize
                           $ ByteString.drop (g1CurrentBox offsets) originalBytes
@@ -98,8 +98,8 @@ serializeGen1Save save = case layoutOffsets (rawGen1Layout save) of
                     $ patchByte  (g1PikachuFriendship offsets) (rawGen1PikachuFriend save)
                     $ patchByte  (g1DaycareInUse offsets)
                         (rawDaycareInUse daycare)
-                    $ patchByte  (g1DaycareMon offsets)
-                        (unInternalIndex (rawDaycareMon daycare))
+                    $ patchByte  (g1DaycarePokemon offsets)
+                        (unInternalIndex (rawDaycarePokemon daycare))
                     $ patchBytes (g1DaycareNickname offsets)
                         (rawDaycareNickname daycare)
                     $ patchBytes (g1DaycareOTName offsets)
@@ -184,12 +184,12 @@ serializeGen1Party nameLen original party =
       count        = fromIntegral (rawGen1PartyCount party) :: Int
       speciesStart = 1
       structsStart = 1 + gen1PartyCapacity + 1
-      otStart      = structsStart + gen1PartyCapacity * gen1PartyMonSize
+      otStart      = structsStart + gen1PartyCapacity * gen1PartyPokemonSize
       nicksStart   = otStart + gen1PartyCapacity * nameLenInt
-  in patchSlots nicksStart nameLenInt (rawGen1PartyNicks party)
+  in patchSlots nicksStart nameLenInt (rawGen1PartyNicknames party)
    $ patchSlots otStart nameLenInt (rawGen1PartyOTNames party)
-   $ patchSlots structsStart gen1PartyMonSize
-       (map serializeGen1PartyMon (rawGen1PartyMons party))
+   $ patchSlots structsStart gen1PartyPokemonSize
+       (map serializeGen1PartyPokemon (rawGen1PartyMembers party))
    $ patchByte (speciesStart + count) 0xFF
    $ patchSlots speciesStart 1
        (map (ByteString.singleton . unInternalIndex) (rawGen1PartySpecies party))
@@ -203,12 +203,12 @@ serializeGen1Box nameLen boxCapacity original box =
       count        = fromIntegral (rawGen1BoxCount box) :: Int
       speciesStart = 1
       structsStart = 1 + boxCapInt + 1
-      otStart      = structsStart + boxCapInt * gen1BoxMonSize
+      otStart      = structsStart + boxCapInt * gen1BoxPokemonSize
       nicksStart   = otStart + boxCapInt * nameLenInt
-  in patchSlots nicksStart nameLenInt (rawGen1BoxNicks box)
+  in patchSlots nicksStart nameLenInt (rawGen1BoxNicknames box)
    $ patchSlots otStart nameLenInt (rawGen1BoxOTNames box)
-   $ patchSlots structsStart gen1BoxMonSize
-       (map serializeGen1BoxMon (rawGen1BoxMons box))
+   $ patchSlots structsStart gen1BoxPokemonSize
+       (map serializeGen1BoxPokemon (rawGen1BoxMembers box))
    $ patchByte (speciesStart + count) 0xFF
    $ patchSlots speciesStart 1
        (map (ByteString.singleton . unInternalIndex) (rawGen1BoxSpecies box))
@@ -218,64 +218,64 @@ serializeGen1Box nameLen boxCapacity original box =
 
 -- ── Struct Serializers ───────────────────────────────────────
 
-serializeGen1PartyMon :: RawGen1PartyMon -> ByteString
-serializeGen1PartyMon mon =
-  serializeBoxFields mon
-  <> writeByte (rawG1Level mon)
-  <> writeWord16BE (rawG1MaxHP mon)
-  <> writeWord16BE (rawG1Attack mon)
-  <> writeWord16BE (rawG1Defense mon)
-  <> writeWord16BE (rawG1Speed mon)
-  <> writeWord16BE (rawG1Special mon)
+serializeGen1PartyPokemon :: RawGen1PartyPokemon -> ByteString
+serializeGen1PartyPokemon pokemon =
+  serializeBoxFields pokemon
+  <> writeByte (rawG1Level pokemon)
+  <> writeWord16BE (rawG1MaxHP pokemon)
+  <> writeWord16BE (rawG1Attack pokemon)
+  <> writeWord16BE (rawG1Defense pokemon)
+  <> writeWord16BE (rawG1Speed pokemon)
+  <> writeWord16BE (rawG1Special pokemon)
 
-serializeGen1BoxMon :: RawGen1BoxMon -> ByteString
-serializeGen1BoxMon mon =
-  writeByte (unInternalIndex (rawG1BoxSpeciesIndex mon))
-  <> writeWord16BE (rawG1BoxCurrentHP mon)
-  <> writeByte (rawG1BoxBoxLevel mon)
-  <> writeByte (rawG1BoxStatus mon)
-  <> writeByte (rawG1BoxType1 mon)
-  <> writeByte (rawG1BoxType2 mon)
-  <> writeByte (rawG1BoxCatchRate mon)
-  <> writeByte (rawG1BoxMove1 mon)
-  <> writeByte (rawG1BoxMove2 mon)
-  <> writeByte (rawG1BoxMove3 mon)
-  <> writeByte (rawG1BoxMove4 mon)
-  <> writeWord16BE (rawG1BoxOTID mon)
-  <> writeWord24BE (rawG1BoxExp mon)
-  <> serializeRawStatExp (rawG1BoxStatExp mon)
-  <> writeWord16BE (rawG1BoxDVBytes mon)
-  <> writeByte (rawG1BoxPP1 mon)
-  <> writeByte (rawG1BoxPP2 mon)
-  <> writeByte (rawG1BoxPP3 mon)
-  <> writeByte (rawG1BoxPP4 mon)
+serializeGen1BoxPokemon :: RawGen1BoxPokemon -> ByteString
+serializeGen1BoxPokemon pokemon =
+  writeByte (unInternalIndex (rawG1BoxSpeciesIndex pokemon))
+  <> writeWord16BE (rawG1BoxCurrentHP pokemon)
+  <> writeByte (rawG1BoxBoxLevel pokemon)
+  <> writeByte (rawG1BoxStatus pokemon)
+  <> writeByte (rawG1BoxType1 pokemon)
+  <> writeByte (rawG1BoxType2 pokemon)
+  <> writeByte (rawG1BoxCatchRate pokemon)
+  <> writeByte (rawG1BoxMove1 pokemon)
+  <> writeByte (rawG1BoxMove2 pokemon)
+  <> writeByte (rawG1BoxMove3 pokemon)
+  <> writeByte (rawG1BoxMove4 pokemon)
+  <> writeWord16BE (rawG1BoxOTID pokemon)
+  <> writeWord24BE (rawG1BoxExp pokemon)
+  <> serializeRawStatExp (rawG1BoxStatExp pokemon)
+  <> writeWord16BE (rawG1BoxDVBytes pokemon)
+  <> writeByte (rawG1BoxPP1 pokemon)
+  <> writeByte (rawG1BoxPP2 pokemon)
+  <> writeByte (rawG1BoxPP3 pokemon)
+  <> writeByte (rawG1BoxPP4 pokemon)
 
 
 -- ── Internal Helpers ─────────────────────────────────────────
 
 -- | The first 33 bytes of a party struct are identical to a box struct.
 -- Shares field order with parseBoxFields.
-serializeBoxFields :: RawGen1PartyMon -> ByteString
-serializeBoxFields mon =
-  writeByte (unInternalIndex (rawG1SpeciesIndex mon))
-  <> writeWord16BE (rawG1CurrentHP mon)
-  <> writeByte (rawG1BoxLevel mon)
-  <> writeByte (rawG1Status mon)
-  <> writeByte (rawG1Type1 mon)
-  <> writeByte (rawG1Type2 mon)
-  <> writeByte (rawG1CatchRate mon)
-  <> writeByte (rawG1Move1 mon)
-  <> writeByte (rawG1Move2 mon)
-  <> writeByte (rawG1Move3 mon)
-  <> writeByte (rawG1Move4 mon)
-  <> writeWord16BE (rawG1OTID mon)
-  <> writeWord24BE (rawG1Exp mon)
-  <> serializeRawStatExp (rawG1StatExp mon)
-  <> writeWord16BE (rawG1DVBytes mon)
-  <> writeByte (rawG1PP1 mon)
-  <> writeByte (rawG1PP2 mon)
-  <> writeByte (rawG1PP3 mon)
-  <> writeByte (rawG1PP4 mon)
+serializeBoxFields :: RawGen1PartyPokemon -> ByteString
+serializeBoxFields pokemon =
+  writeByte (unInternalIndex (rawG1SpeciesIndex pokemon))
+  <> writeWord16BE (rawG1CurrentHP pokemon)
+  <> writeByte (rawG1BoxLevel pokemon)
+  <> writeByte (rawG1Status pokemon)
+  <> writeByte (rawG1Type1 pokemon)
+  <> writeByte (rawG1Type2 pokemon)
+  <> writeByte (rawG1CatchRate pokemon)
+  <> writeByte (rawG1Move1 pokemon)
+  <> writeByte (rawG1Move2 pokemon)
+  <> writeByte (rawG1Move3 pokemon)
+  <> writeByte (rawG1Move4 pokemon)
+  <> writeWord16BE (rawG1OTID pokemon)
+  <> writeWord24BE (rawG1Exp pokemon)
+  <> serializeRawStatExp (rawG1StatExp pokemon)
+  <> writeWord16BE (rawG1DVBytes pokemon)
+  <> writeByte (rawG1PP1 pokemon)
+  <> writeByte (rawG1PP2 pokemon)
+  <> writeByte (rawG1PP3 pokemon)
+  <> writeByte (rawG1PP4 pokemon)
 
 serializeRawStatExp :: RawStatExp -> ByteString
 serializeRawStatExp statExp =

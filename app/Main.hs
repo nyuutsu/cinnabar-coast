@@ -21,7 +21,7 @@ import Cinnabar.Data (loadGameData, loadAllGameData)
 import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
 import Cinnabar.Save.Interpret
-  ( interpretGen1Save, InterpretedSave (..), InterpretedMon (..)
+  ( interpretGen1Save, InterpretedSave (..), InterpretedPokemon (..)
   , InterpretedSpecies (..), InterpretedMove (..)
   , InterpretedDaycare (..)
   , WarningContext (..), SaveWarning (..)
@@ -210,7 +210,7 @@ printSaveSummary interpreted = do
 
   let party = interpParty interpreted
   putStrLn $ "Party (" ++ show (length party) ++ "):"
-  mapM_ (uncurry printPartyMon) (zip [1 ..] party)
+  mapM_ (uncurry printPartyPokemon) (zip [1 ..] party)
   case interpWarnings interpreted of
     [] -> pure ()
     warnings -> do
@@ -218,13 +218,13 @@ printSaveSummary interpreted = do
       mapM_ (putStrLn . ("  " ++) . renderWarning) warnings
 
 
-printPartyMon :: Int -> InterpretedMon -> IO ()
-printPartyMon slotNumber mon = do
-  let speciesLabel  = renderSpecies (interpSpecies mon)
-      levelValue    = unLevel (interpLevel mon)
-      nicknameLabel = Text.unpack (displayText (interpNickname mon))
-      moveLabels    = mapMaybe renderMove (interpMoves mon)
-      dvs           = interpDVs mon
+printPartyPokemon :: Int -> InterpretedPokemon -> IO ()
+printPartyPokemon slotNumber pokemon = do
+  let speciesLabel  = renderSpecies (interpSpecies pokemon)
+      levelValue    = unLevel (interpLevel pokemon)
+      nicknameLabel = Text.unpack (displayText (interpNickname pokemon))
+      moveLabels    = mapMaybe renderMove (interpMoves pokemon)
+      dvs           = interpDVs pokemon
       shinyLabel    = if isShiny dvs then "shiny" else "not shiny"
   putStrLn $ "  " ++ show slotNumber ++ ". " ++ speciesLabel
     ++ " (Lv " ++ show levelValue ++ ") \"" ++ nicknameLabel ++ "\""
@@ -235,8 +235,8 @@ printPartyMon slotNumber mon = do
     ++ " Spc=" ++ show (dvSpecial dvs)
     ++ " (HP=" ++ show (dvHP dvs) ++ ")"
     ++ " \xFF0F " ++ shinyLabel
-  putStrLn $ "     HP: " ++ show (interpCurrentHP mon)
-    ++ "/" ++ show (interpMaxHP mon)
+  putStrLn $ "     HP: " ++ show (interpCurrentHP pokemon)
+    ++ "/" ++ show (interpMaxHP pokemon)
   putStrLn ""
 
 
@@ -250,7 +250,7 @@ printBoxSummary interpreted = do
       nonEmptyNums = Set.fromList (map interpBoxNumber boxes)
       displayNums = Set.toAscList (Set.insert activeBoxNum nonEmptyNums)
       boxCountMap = Map.fromList
-        [(interpBoxNumber box, length (interpBoxMons box)) | box <- boxes]
+        [(interpBoxNumber box, length (interpBoxMembers box)) | box <- boxes]
   putStrLn "PC Boxes:"
   mapM_ (\boxNum -> do
     let count = Map.findWithDefault 0 boxNum boxCountMap
@@ -275,10 +275,10 @@ printAllBoxes interpreted = do
 
 printBoxDetail :: Int -> InterpretedBox -> IO ()
 printBoxDetail boxCapacity box = do
-  let count = length (interpBoxMons box)
+  let count = length (interpBoxMembers box)
   putStrLn $ "Box " ++ show (interpBoxNumber box)
     ++ " (" ++ show count ++ "/" ++ show boxCapacity ++ "):"
-  mapM_ (uncurry printPartyMon) (zip [1 ..] (interpBoxMons box))
+  mapM_ (uncurry printPartyPokemon) (zip [1 ..] (interpBoxMembers box))
 
 
 printHallOfFame :: InterpretedSave -> IO ()
