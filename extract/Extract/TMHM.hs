@@ -25,8 +25,8 @@ extractTMHM gen path = do
   pure (tmRows ++ hmRows ++ tutorRows)
 
 formatRow :: Text -> Text -> Int -> Text -> [Text]
-formatRow gen kind number moveName =
-  [gen, Text.pack (show number), moveName, kind]
+formatRow gen kind machineNumber moveName =
+  [gen, Text.pack (show machineNumber), moveName, kind]
 
 tmhmHeader :: [Text]
 tmhmHeader = ["gen", "number", "move_name", "kind"]

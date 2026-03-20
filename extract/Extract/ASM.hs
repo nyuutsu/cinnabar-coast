@@ -21,6 +21,7 @@ module Extract.ASM
   , identifier
   , integer
   , hexInteger
+  , number
   , horizontalSpace
   , endOfLine
   , lineComment

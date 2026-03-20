@@ -28,6 +28,9 @@ import Extract.EggMoves (extractEggMoves, eggMovesHeader)
 import Extract.EvosAttacks (parseEvosAttacksFile, formatLearnsetRows,
                             formatEvolutionRows, learnsetHeader,
                             evolutionHeader)
+import Extract.Events (extractEventFlags, eventFlagsHeader,
+                       extractToggleFlags, toggleFlagsHeader,
+                       extractMapScripts, mapScriptsHeader)
 import Extract.Species (extractSpeciesFile, parseBaseStatsIncludes,
                         formatGen1Species, formatGen2Species,
                         gen1StartingMoves,
@@ -145,6 +148,16 @@ extractAll pokered pokecrystal outDir = do
                     ++ formatEvolutionRows "2" gen2PokemonConsts gen2EvosAttacksJoined
   writeCSV (outDir </> "evolutions.csv") evolutionHeader evolutionRows
 
+  -- ── Event flags, toggle flags, map scripts ──────────────────
+  eventFlags <- extractEventFlags (pokered </> "constants/event_constants.asm")
+  writeCSV (outDir </> "event_flags.csv") eventFlagsHeader eventFlags
+
+  toggleFlags <- extractToggleFlags (pokered </> "constants/toggle_constants.asm")
+  writeCSV (outDir </> "toggle_flags.csv") toggleFlagsHeader toggleFlags
+
+  mapScripts <- extractMapScripts (pokered </> "ram/wram.asm")
+  writeCSV (outDir </> "map_scripts.csv") mapScriptsHeader mapScripts
+
   -- ── Summary ──────────────────────────────────────────────────
   putStrLn "Extraction complete:"
   putStrLn $ "  moves:       " ++ show (length gen1Moves + length gen2Moves)
@@ -157,6 +170,9 @@ extractAll pokered pokecrystal outDir = do
   putStrLn $ "  learnsets:   " ++ show (length learnsetRows)
   putStrLn $ "  evolutions:  " ++ show (length evolutionRows)
   putStrLn $ "  internal:    " ++ show (length internalIndexRows)
+  putStrLn $ "  events:      " ++ show (length eventFlags)
+  putStrLn $ "  toggles:     " ++ show (length toggleFlags)
+  putStrLn $ "  map_scripts: " ++ show (length mapScripts)
 
 
 -- ── Species extraction ─────────────────────────────────────────
@@ -248,10 +264,10 @@ buildMoveNumberMap tmhm =
 -- For each species' tmhm moves, look up the TM/HM number.
 buildTMHMCompat :: Text -> Map Text Int -> [(Int, Text, SpeciesData)] -> [[Text]]
 buildTMHMCompat gen moveToNumber speciesData =
-  [ [gen, Text.pack (show dex), Text.pack (show number)]
+  [ [gen, Text.pack (show dex), Text.pack (show machineNumber)]
   | (dex, _name, parsedSpecies) <- speciesData
   , moveName <- speciesTmhm parsedSpecies
-  , Just number <- [Map.lookup moveName moveToNumber]
+  , Just machineNumber <- [Map.lookup moveName moveToNumber]
   ]
 
 -- | Generate tutor compatibility rows.
