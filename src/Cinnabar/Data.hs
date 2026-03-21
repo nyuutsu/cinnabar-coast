@@ -153,11 +153,14 @@ data CSV = CSV
 -- | Read a CSV file. Each data row becomes a Row stamped with its source
 -- file path and 1-based line number (counting only data rows, not the header).
 -- Rows with fewer fields than the header produce a RowTooShort error.
--- Blank lines are silently skipped.
+-- Blank lines and comment lines (starting with #) are silently skipped.
 readCSV :: FilePath -> IO (Either LoadError CSV)
 readCSV path = do
   content <- TextIO.readFile path
-  let allLines = filter (not . Text.null . Text.strip) (Text.lines content)
+  let allLines = filter isContentLine (Text.lines content)
+      isContentLine line = let stripped = Text.strip line
+                           in not (Text.null stripped)
+                           && not ("#" `Text.isPrefixOf` stripped)
   pure $ case allLines of
     [] -> Left (EmptyCSV path)
     (headerLine:dataLines) ->
