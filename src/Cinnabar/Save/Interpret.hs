@@ -24,6 +24,7 @@ module Cinnabar.Save.Interpret
   , InterpretedBox (..)
   , FlagState (..)
   , MapScriptState (..)
+  , StatusCondition (..)
   , MovementMode (..)
   , InterpretedProgress (..)
   , InterpretedHoFEntry (..)
@@ -46,10 +47,11 @@ module Cinnabar.Save.Interpret
   , SaveWarning (..)
 
     -- * Interpretation
+  , interpretStatus
   , interpretGen1Save
   ) where
 
-import Data.Bits (testBit, popCount, shiftR, (.&.))
+import Data.Bits (testBit, shiftR, (.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.List (zip4)
@@ -135,7 +137,7 @@ data InterpretedPokemon = InterpretedPokemon
   , interpDVs        :: !DVs
   , interpStatExp    :: !StatExp
   , interpExp        :: !Int
-  , interpStatus     :: !Word8
+  , interpStatus     :: !StatusCondition
   , interpCurrentHP  :: !Int
   , interpMaxHP      :: !Int
   , interpAttack     :: !Int
@@ -167,6 +169,33 @@ data MapScriptState = MapScriptState
   , scriptStep :: !Int
   } deriving (Eq, Show)
 
+data StatusCondition
+  = Healthy
+  | Asleep !Int              -- turns remaining (1-7)
+  | Poisoned
+  | Burned
+  | Frozen
+  | Paralyzed
+  | MultipleStatuses !Word8  -- invalid: multiple bits set simultaneously
+  deriving (Eq, Show)
+
+-- | Decode the status byte. Bits 0-2 are sleep turns, bits 3-6 are
+-- PSN/BRN/FRZ/PAR (mutually exclusive). The game enforces at most one
+-- condition, but a save editor could create invalid combinations.
+interpretStatus :: Word8 -> StatusCondition
+interpretStatus byte
+  | sleepTurns /= 0 && statusBits /= 0 = MultipleStatuses byte
+  | sleepTurns /= 0                     = Asleep sleepTurns
+  | statusBits == 0                     = Healthy
+  | statusBits == 0x08                  = Poisoned
+  | statusBits == 0x10                  = Burned
+  | statusBits == 0x20                  = Frozen
+  | statusBits == 0x40                  = Paralyzed
+  | otherwise                           = MultipleStatuses byte
+  where
+    sleepTurns = fromIntegral (byte .&. 0x07)
+    statusBits = byte .&. 0xF8  -- bits 3-7
+
 data MovementMode
   = Walking
   | Biking
@@ -190,7 +219,7 @@ data InterpretedProgress = InterpretedProgress
   , progReceivedLapras    :: !Bool
   , progReceivedStarter   :: !Bool
   , progHealedAtCenter    :: !Bool
-  , progTradesCompleted   :: !Int
+  , progTrades            :: ![FlagState]
   , progTestBattle          :: !Bool
   , progPreventMusicChange  :: !Bool
   , progTrainerWantsBattle  :: !Bool
@@ -569,7 +598,7 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
         , interpDVs        = dvs
         , interpStatExp    = promotedExp
         , interpExp        = rawG1Exp partyPokemon
-        , interpStatus     = rawG1Status partyPokemon
+        , interpStatus     = interpretStatus (rawG1Status partyPokemon)
         , interpCurrentHP  = fromIntegral (rawG1CurrentHP partyPokemon)
         , interpMaxHP      = fromIntegral (rawG1MaxHP partyPokemon)
         , interpAttack     = fromIntegral (rawG1Attack partyPokemon)
@@ -635,7 +664,7 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
         , interpDVs        = dvs
         , interpStatExp    = promotedExp
         , interpExp        = rawG1BoxExp boxPokemon
-        , interpStatus     = rawG1BoxStatus boxPokemon
+        , interpStatus     = interpretStatus (rawG1BoxStatus boxPokemon)
         , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP boxPokemon)
         , interpMaxHP      = maybe 0 statHP calculatedStats
         , interpAttack     = maybe 0 statAttack calculatedStats
@@ -991,6 +1020,14 @@ interpretProgress gameData rawSave =
         Nothing    -> []
         Just names -> decodeMapScripts (mapScriptNames names) (rawMapScripts progress)
 
+      tradeList = case flagNames of
+        Nothing    -> []
+        Just names ->
+          let tradeNameMap = case gameVariant of
+                Yellow -> tradeNamesYellow names
+                _      -> tradeNamesRB names
+          in decodeNamedBitFlags tradeNameMap (rawInGameTrades progress)
+
       varFlags1 = rawVarFlags1 progress
       varFlags4 = rawVarFlags4 progress
       varFlags7 = rawVarFlags7 progress
@@ -1014,7 +1051,7 @@ interpretProgress gameData rawSave =
         , progReceivedLapras    = testBit varFlags4 0
         , progReceivedStarter   = testBit varFlags4 3
         , progHealedAtCenter    = testBit varFlags4 2
-        , progTradesCompleted     = sum (map popCount (ByteString.unpack (rawInGameTrades progress)))
+        , progTrades              = tradeList
         , progTestBattle          = testBit varFlags7 0
         , progPreventMusicChange  = testBit varFlags7 1
         , progTrainerWantsBattle  = testBit varFlags7 3

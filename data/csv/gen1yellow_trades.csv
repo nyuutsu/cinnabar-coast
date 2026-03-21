@@ -1,0 +1,15 @@
+# Nicknames are from the English pret disassembly. Other language ROMs
+# use different nicknames for the same trades. If localized trade tables
+# become available, add per-language CSVs and select at interpretation
+# time alongside the game variant.
+bit_index,give_species,receive_species,nickname
+0,LICKITUNG,DUGTRIO,GURIO
+1,CLEFAIRY,MR_MIME,MILES
+2,BUTTERFREE,BEEDRILL,STINGER
+3,KANGASKHAN,MUK,STICKY
+4,MEW,MEW,BART
+5,TANGELA,PARASECT,SPIKE
+6,PIDGEOT,PIDGEOT,MARTY
+7,GOLDUCK,RHYDON,BUFFY
+8,GROWLITHE,DEWGONG,CEZANNE
+9,CUBONE,MACHOKE,RICKY

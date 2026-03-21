@@ -71,6 +71,8 @@ loadAllGameData = do
     badgesCsv        <- ExceptT (readCSV (csvPath "gen1_badges.csv"))
     gymLeadersCsv    <- ExceptT (readCSV (csvPath "gen1_gym_leaders.csv"))
     townsCsv         <- ExceptT (readCSV (csvPath "gen1_towns.csv"))
+    tradesRBCsv      <- ExceptT (readCSV (csvPath "gen1rb_trades.csv"))
+    tradesYellowCsv  <- ExceptT (readCSV (csvPath "gen1yellow_trades.csv"))
 
     let buildForGen gen flagNames = do
           (moves, moveNameToId)      <- buildMoves gen movesCsv
@@ -123,7 +125,7 @@ loadAllGameData = do
 
     except $ do
       gen1FlagNames <- buildGen1FlagNames eventFlagsCsv toggleFlagsCsv mapScriptsCsv
-                         badgesCsv gymLeadersCsv townsCsv
+                         badgesCsv gymLeadersCsv townsCsv tradesRBCsv tradesYellowCsv
       gen1Data <- buildForGen Gen1 (Just gen1FlagNames)
       gen2Data <- buildForGen Gen2 Nothing
       pure (gen1Data, gen2Data)
@@ -595,22 +597,26 @@ buildInternalIndex csv = do
 -- ── Flag Name Maps ──────────────────────────────────────────────
 
 -- | Build Gen 1 event/toggle flag, map script, badge, gym leader,
--- and town name mappings.
-buildGen1FlagNames :: CSV -> CSV -> CSV -> CSV -> CSV -> CSV -> Either LoadError Gen1FlagNames
-buildGen1FlagNames eventCsv toggleCsv mapCsv badgeCsv gymLeaderCsv townCsv = do
+-- town, and trade name mappings.
+buildGen1FlagNames :: CSV -> CSV -> CSV -> CSV -> CSV -> CSV -> CSV -> CSV -> Either LoadError Gen1FlagNames
+buildGen1FlagNames eventCsv toggleCsv mapCsv badgeCsv gymLeaderCsv townCsv tradesRBCsv tradesYellowCsv = do
   eventFlags  <- buildIndexNameMap eventCsv "bit_index" "event_name"
   toggleFlags <- buildIndexNameMap toggleCsv "bit_index" "toggle_name"
   mapScripts  <- buildIndexNameMap mapCsv "byte_offset" "script_name"
   badges      <- buildIndexNameMap badgeCsv "bit_index" "badge_name"
   gymLeaders  <- buildIndexNameMap gymLeaderCsv "bit_index" "leader_name"
   towns       <- buildIndexNameMap townCsv "bit_index" "town_name"
+  tradesRB    <- buildTradeNames tradesRBCsv
+  tradesYellow <- buildTradeNames tradesYellowCsv
   pure Gen1FlagNames
-    { eventFlagNames  = eventFlags
-    , toggleFlagNames = toggleFlags
-    , mapScriptNames  = mapScripts
-    , badgeNames      = badges
-    , gymLeaderNames  = gymLeaders
-    , townNames       = towns
+    { eventFlagNames   = eventFlags
+    , toggleFlagNames  = toggleFlags
+    , mapScriptNames   = mapScripts
+    , badgeNames       = badges
+    , gymLeaderNames   = gymLeaders
+    , townNames        = towns
+    , tradeNamesRB     = tradesRB
+    , tradeNamesYellow = tradesYellow
     }
 
 -- | Generic loader for index→name CSVs (no gen column).
@@ -622,6 +628,23 @@ buildIndexNameMap csv indexColumnName nameColumnName = do
         idx  <- indexOfRow row
         name <- nameOfRow row
         pure (idx, name)
+  pairs <- traverse parseRow (csvRows csv)
+  pure $ Map.fromList pairs
+
+-- | Load a trade CSV and format each row as a display label:
+-- "GIVE_SPECIES \x2192 RECEIVE_SPECIES (NICKNAME)"
+buildTradeNames :: CSV -> Either LoadError (Map Int Text)
+buildTradeNames csv = do
+  indexOfRow    <- intColumn csv "bit_index"
+  giveOfRow     <- textColumn csv "give_species"
+  receiveOfRow  <- textColumn csv "receive_species"
+  nicknameOfRow <- textColumn csv "nickname"
+  let parseRow row = do
+        idx      <- indexOfRow row
+        give     <- giveOfRow row
+        receive  <- receiveOfRow row
+        nickname <- nicknameOfRow row
+        pure (idx, give <> " \x2192 " <> receive <> " (" <> nickname <> ")")
   pairs <- traverse parseRow (csvRows csv)
   pure $ Map.fromList pairs
 

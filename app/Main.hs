@@ -27,7 +27,7 @@ import Cinnabar.Save.Interpret
   , InterpretedDaycare (..)
   , WarningContext (..), SaveWarning (..)
   , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
-  , InterpretedProgress (..), MovementMode (..), FlagState (..), MapScriptState (..)
+  , InterpretedProgress (..), StatusCondition (..), MovementMode (..), FlagState (..), MapScriptState (..)
   , TextSpeed (..), BattleAnimation (..), BattleStyle (..), SoundSetting (..)
   , InterpretedOptions (..)
   , InventoryEntry (..), PlayTime (..)
@@ -261,6 +261,9 @@ printPartyPokemon slotNumber pokemon = do
     ++ " \xFF0F " ++ shinyLabel
   putStrLn $ "     HP: " ++ show (interpCurrentHP pokemon)
     ++ "/" ++ show (interpMaxHP pokemon)
+  case interpStatus pokemon of
+    Healthy -> pure ()
+    status  -> putStrLn $ "     Status: " ++ renderStatusCondition status
   putStrLn ""
 
 
@@ -382,6 +385,16 @@ renderMove EmptyMove          = Nothing
 renderMove (KnownMove _ move) = Just (Text.unpack (moveName move))
 renderMove (UnknownMove byte) = Just ("Unknown [0x" ++ showHexByte byte ++ "]")
 
+renderStatusCondition :: StatusCondition -> String
+renderStatusCondition Healthy = "Healthy"
+renderStatusCondition (Asleep turns) = "Asleep (" ++ show turns ++ " turns)"
+renderStatusCondition Poisoned = "Poisoned"
+renderStatusCondition Burned = "Burned"
+renderStatusCondition Frozen = "Frozen"
+renderStatusCondition Paralyzed = "Paralyzed"
+renderStatusCondition (MultipleStatuses byte) =
+  "Invalid status (0x" ++ showHexByte byte ++ ")"
+
 renderMovementMode :: MovementMode -> String
 renderMovementMode Walking = "Walking"
 renderMovementMode Biking = "Biking"
@@ -488,9 +501,10 @@ printProgressSummary progress = do
 
   putStrLn $ "Movement: " ++ renderMovementMode (progMovementMode progress)
 
-  if progTradesCompleted progress > 0
-    then putStrLn $ "Trades completed: " ++ show (progTradesCompleted progress)
-    else pure ()
+  let completedTrades = filter flagIsSet (progTrades progress)
+  case completedTrades of
+    [] -> pure ()
+    _  -> putStrLn $ "Trades completed: " ++ show (length completedTrades)
   putStrLn ""
 
 
@@ -500,6 +514,7 @@ printAllFlags progress = do
   printFlagSection "Gyms defeated" "defeated" "not defeated" (progDefeatedGyms progress)
   printFlagSection "Towns visited" "visited" "not visited" (progTownsVisited progress)
   printFlagSection "Event flags" "set" "unset" (progEventFlags progress)
+  printFlagSection "In-game trades" "completed" "not completed" (progTrades progress)
 
   putStrLn "Various flags:"
   putStrLn $ "  Received Old Rod: " ++ showYesNo (progReceivedOldRod progress)

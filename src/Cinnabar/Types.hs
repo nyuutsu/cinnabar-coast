@@ -536,12 +536,14 @@ data GameData = GameData
 -- | Gen 1 event/toggle flag and map script name mappings.
 -- Loaded from CSVs extracted from pokered disassembly.
 data Gen1FlagNames = Gen1FlagNames
-  { eventFlagNames  :: !(Map Int Text)
-  , toggleFlagNames :: !(Map Int Text)
-  , mapScriptNames  :: !(Map Int Text)
-  , badgeNames      :: !(Map Int Text)
-  , gymLeaderNames  :: !(Map Int Text)
-  , townNames       :: !(Map Int Text)
+  { eventFlagNames     :: !(Map Int Text)
+  , toggleFlagNames    :: !(Map Int Text)
+  , mapScriptNames     :: !(Map Int Text)
+  , badgeNames         :: !(Map Int Text)
+  , gymLeaderNames     :: !(Map Int Text)
+  , townNames          :: !(Map Int Text)
+  , tradeNamesRB       :: !(Map Int Text)
+  , tradeNamesYellow   :: !(Map Int Text)
   } deriving (Show)
 
 
