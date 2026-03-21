@@ -1,0 +1,27 @@
+# Badge-to-leader mapping assembled from gym scripts because no
+# structured table exists in pret. Johto badges are bits 0-7,
+# Kanto badges are bits 8-15 (matching gen2_badges.csv encoding).
+# Sources:
+#   Johto: pokecrystal/maps/{VioletGym,AzaleaGym,GoldenrodGym,
+#     EcruteakGym,OlivineGym,CianwoodGym,MahoganyGym,
+#     BlackthornGym1F}.asm
+#   Kanto: pokecrystal/maps/{PewterGym,CeruleanGym,VermilionGym,
+#     CeladonGym,FuchsiaGym,SaffronGym,SeafoamGym,ViridianGym}.asm
+# Leader names from pokecrystal/constants/trainer_constants.asm.
+bit_index,leader_name
+0,FALKNER
+1,BUGSY
+2,WHITNEY
+3,MORTY
+4,JASMINE
+5,CHUCK
+6,PRYCE
+7,CLAIR
+8,BROCK
+9,MISTY
+10,LT_SURGE
+11,ERIKA
+12,JANINE
+13,SABRINA
+14,BLAINE
+15,BLUE

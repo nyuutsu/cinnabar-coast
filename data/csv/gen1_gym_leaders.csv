@@ -1,0 +1,14 @@
+# Badge-to-leader mapping assembled from gym scripts because no
+# structured table exists in pret.
+# Sources: pokered/scripts/{PewterGym,CeruleanGym,VermilionGym,
+#   CeladonGym,FuchsiaGym,SaffronGym,CinnabarGym,ViridianGym}.asm
+# Leader names from pokered/constants/trainer_constants.asm.
+bit_index,leader_name
+0,BROCK
+1,MISTY
+2,LT_SURGE
+3,ERIKA
+4,KOGA
+5,SABRINA
+6,BLAINE
+7,GIOVANNI

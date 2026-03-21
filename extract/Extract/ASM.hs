@@ -28,9 +28,15 @@ module Extract.ASM
   , blankLine
   , skipJunk
 
-    -- * Const blocks
-  , ConstEntry(..)
+    -- * Const directives
+  , ConstDirective(..)
+  , parseConstDirectiveLine
+  , resolveConstDirectives
+
+    -- * Const block parsers
+  , parseConstEntries
   , parseConstBlock
+  , parseConstEntriesUntil
 
     -- * TM/HM/Tutor macros
   , TMHM(..)
@@ -170,96 +176,123 @@ skipJunk = skipMany $ try junkLine
       ]
 
 
--- ── Const blocks ───────────────────────────────────────────────
+-- ── Const directives ─────────────────────────────────────────
 
--- | One entry from a const block: the name and its resolved value.
-data ConstEntry = ConstEntry
-  { constName  :: !Text
-  , constValue :: !Int
-  } deriving (Show)
+-- | One directive from a const-based ASM file.
+data ConstDirective
+  = ConstReset !Int       -- ^ @const_def [start]@: reset counter (default 0)
+  | ConstJump !Int        -- ^ @const_next VALUE@: set counter to value
+  | ConstSkip !Int        -- ^ @const_skip [N]@: advance counter by N (default 1)
+  | ConstNamed !Text      -- ^ @const NAME@: define NAME at current counter
+  deriving (Show)
 
--- | Parse a file that contains const_def/const/const_next/const_skip
--- directives. Extracts all `const NAME` definitions into a Map.
---
--- Skips everything it doesn't understand (comments, DEF lines,
--- MACRO blocks, etc.) — only tracks the counter state machine:
---
---   const_def [start]   — reset counter (default 0)
---   const NAME          — define NAME = counter, counter += 1
---   const_skip          — counter += 1, no definition
---   const_next VALUE    — set counter to VALUE
-parseConstBlock :: Parser (Map Text Int)
-parseConstBlock = do
-  entries <- constLines 0
-  pure $ Map.fromList [(constName entry, constValue entry) | entry <- entries]
+-- | Try to parse one line as a const directive. Returns 'Just' for
+-- recognized directives, 'Nothing' for other lines. Consumes
+-- leading whitespace and everything through end of line.
+parseConstDirectiveLine :: Parser (Maybe ConstDirective)
+parseConstDirectiveLine = do
+  horizontalSpace
+  choice
+    [ Just <$> try constDirective
+    , Nothing <$ restOfLine
+    ]
+
+-- | Walk a list of const directives, tracking the running counter.
+-- Produces (index, name) for each 'ConstNamed'.
+resolveConstDirectives :: [ConstDirective] -> [(Int, Text)]
+resolveConstDirectives = resolveFrom 0
   where
-    constLines :: Int -> Parser [ConstEntry]
-    constLines counter = do
-      done <- isAtEnd
-      if done
-        then pure []
-        else do
-          result <- constLine counter
-          case result of
-            ConstDef startValue  -> constLines startValue
-            ConstNext nextValue  -> constLines nextValue
-            ConstSkip            -> constLines (counter + 1)
-            ConstFound entry     -> (entry :) <$> constLines (counter + 1)
-            ConstIgnored         -> constLines counter
+    resolveFrom _counter [] = []
+    resolveFrom counter (directive : rest) = case directive of
+      ConstReset startValue -> resolveFrom startValue rest
+      ConstJump nextValue   -> resolveFrom nextValue rest
+      ConstSkip skipAmount  -> resolveFrom (counter + skipAmount) rest
+      ConstNamed name       -> (counter, name) : resolveFrom (counter + 1) rest
 
-    -- Parse one line, returning what happened to the counter.
-    constLine :: Int -> Parser ConstLineResult
-    constLine counter = do
-      horizontalSpace
-      choice
-        [ try $ parseConstDef
-        , try $ parseConstNext
-        , try $ parseConstSkip
-        , try $ parseConstEntry counter
-        , ConstIgnored <$ (takeWhileP Nothing (/= '\n') *> endOfLine)
-        ]
-
-    parseConstDef :: Parser ConstLineResult
-    parseConstDef = do
+-- Internal: parse a const directive after leading whitespace.
+-- Consumes through end of line on success.
+constDirective :: Parser ConstDirective
+constDirective = choice
+  [ try parseReset
+  , try parseJump
+  , try parseSkipDirective
+  , parseNamed
+  ]
+  where
+    parseReset = do
       _ <- keyword "const_def"
       startValue <- option 0 numericLiteral
-      _ <- takeWhileP Nothing (/= '\n')
-      endOfLine
-      pure (ConstDef startValue)
+      restOfLine
+      pure (ConstReset startValue)
 
-    parseConstNext :: Parser ConstLineResult
-    parseConstNext = do
+    parseJump = do
       _ <- keyword "const_next"
-      nextValue <- numericLiteral
-      _ <- takeWhileP Nothing (/= '\n')
-      endOfLine
-      pure (ConstNext nextValue)
+      baseValue <- numericLiteral
+      -- Handle arithmetic: const_next $F0 - 2, const_next $100 + 3
+      finalValue <- option baseValue $ do
+        horizontalSpace
+        operator <- single '-' <|> single '+'
+        horizontalSpace
+        offset <- numericLiteral
+        pure $ case operator of
+          '-' -> baseValue - offset
+          '+' -> baseValue + offset
+          _   -> baseValue  -- unreachable, but total
+      restOfLine
+      pure (ConstJump finalValue)
 
-    parseConstSkip :: Parser ConstLineResult
-    parseConstSkip = do
+    parseSkipDirective = do
       _ <- keyword "const_skip"
-      _ <- takeWhileP Nothing (/= '\n')
-      endOfLine
-      pure ConstSkip
+      skipAmount <- option 1 (try numericLiteral)
+      restOfLine
+      pure (ConstSkip skipAmount)
 
-    parseConstEntry :: Int -> Parser ConstLineResult
-    parseConstEntry counter = do
+    parseNamed = do
       _ <- keyword "const"
       name <- identifier
-      _ <- takeWhileP Nothing (/= '\n')
-      endOfLine
-      pure (ConstFound (ConstEntry name counter))
+      restOfLine
+      pure (ConstNamed name)
 
-    isAtEnd :: Parser Bool
-    isAtEnd = option False (True <$ eof)
 
--- Internal: what a const line did to the state.
-data ConstLineResult
-  = ConstDef  !Int
-  | ConstNext !Int
-  | ConstSkip
-  | ConstFound !ConstEntry
-  | ConstIgnored
+-- ── Const block parsers ──────────────────────────────────────
+
+-- | Parse const directives to EOF, resolving named entries to
+-- their indices. Skips non-directive lines.
+parseConstEntries :: Parser [(Int, Text)]
+parseConstEntries = resolveConstDirectives <$> collectDirectives []
+  where
+    collectDirectives results = do
+      done <- option False (True <$ eof)
+      if done
+        then pure (reverse results)
+        else do
+          result <- parseConstDirectiveLine
+          case result of
+            Just directive -> collectDirectives (directive : results)
+            Nothing        -> collectDirectives results
+
+-- | Parse const directives to EOF, collecting named entries into
+-- a Map from name to index.
+parseConstBlock :: Parser (Map Text Int)
+parseConstBlock = do
+  entries <- parseConstEntries
+  pure $ Map.fromList [(name, idx) | (idx, name) <- entries]
+
+-- | Parse const directives until a stop parser matches at the
+-- start of a line (after leading whitespace). The stop line is
+-- consumed but not included in results.
+parseConstEntriesUntil :: Parser stop -> Parser [(Int, Text)]
+parseConstEntriesUntil stopParser = resolveConstDirectives <$> collectDirectives []
+  where
+    collectDirectives results = do
+      horizontalSpace
+      stopped <- option False (True <$ try (lookAhead stopParser))
+      if stopped
+        then restOfLine *> pure (reverse results)
+        else choice
+          [ try (constDirective >>= \directive -> collectDirectives (directive : results))
+          , restOfLine >> collectDirectives results
+          ]
 
 
 -- ── TM/HM/Tutor macros ────────────────────────────────────────

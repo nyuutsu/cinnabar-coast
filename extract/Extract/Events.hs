@@ -29,79 +29,6 @@ import Text.Megaparsec
 import Extract.ASM
 
 
--- ── Const directive parsing ──────────────────────────────────
-
--- | One directive from a const-based ASM file.
-data ConstDirective
-  = ResetCounter !Int       -- ^ const_def [start]: reset to start (default 0)
-  | JumpCounter !Int        -- ^ const_next VALUE: set counter to value
-  | SkipCounter !Int        -- ^ const_skip [N]: advance by N (default 1)
-  | NamedConst !Text        -- ^ const NAME: named entry at current index
-  deriving (Show)
-
--- | Parse a file of const directives, resolving each named const
--- to its bit/byte index. Skips lines that aren't const directives
--- (comments, MACRO blocks, toggle_consts_for, DEF lines, etc.).
-parseConstDirectives :: Parser [(Int, Text)]
-parseConstDirectives = resolveDirectives <$> scanLines parseDirective
-
--- | Parse one const directive from a line.
-parseDirective :: Parser ConstDirective
-parseDirective = choice
-  [ try parseConstDef
-  , try parseConstNext
-  , try parseConstSkip
-  , parseConstNamed
-  ]
-  where
-    parseConstDef = do
-      _ <- keyword "const_def"
-      startValue <- option 0 numericLiteral
-      restOfLine
-      pure (ResetCounter startValue)
-
-    parseConstNext = do
-      _ <- keyword "const_next"
-      baseValue <- numericLiteral
-      -- Handle simple arithmetic: $F0 - 2, $100 + 3, etc.
-      finalValue <- option baseValue $ do
-        horizontalSpace
-        operator <- single '-' <|> single '+'
-        horizontalSpace
-        offset <- numericLiteral
-        pure $ case operator of
-          '-' -> baseValue - offset
-          '+' -> baseValue + offset
-          _   -> baseValue  -- unreachable, but total
-      restOfLine
-      pure (JumpCounter finalValue)
-
-    parseConstSkip = do
-      _ <- keyword "const_skip"
-      -- Bare const_skip means skip 1; const_skip N means skip N
-      skipAmount <- option 1 (try numericLiteral)
-      restOfLine
-      pure (SkipCounter skipAmount)
-
-    parseConstNamed = do
-      _ <- keyword "const"
-      name <- identifier
-      restOfLine
-      pure (NamedConst name)
-
--- | Walk a list of directives, tracking the running counter.
--- Emit (index, name) for each NamedConst.
-resolveDirectives :: [ConstDirective] -> [(Int, Text)]
-resolveDirectives = resolveFrom 0
-  where
-    resolveFrom _counter [] = []
-    resolveFrom counter (directive : rest) = case directive of
-      ResetCounter startValue -> resolveFrom startValue rest
-      JumpCounter nextValue   -> resolveFrom nextValue rest
-      SkipCounter skipAmount  -> resolveFrom (counter + skipAmount) rest
-      NamedConst name         -> (counter, name) : resolveFrom (counter + 1) rest
-
-
 -- ── Map script parsing ───────────────────────────────────────
 
 -- | One entry in the wGameProgressFlags region of wram.asm.
@@ -209,13 +136,13 @@ resolveProgressEntries = resolveFrom 0
 -- | Extract event flag bit indices from constants/event_constants.asm.
 extractEventFlags :: FilePath -> IO [[Text]]
 extractEventFlags path = do
-  entries <- parseFile parseConstDirectives path
+  entries <- parseFile parseConstEntries path
   pure [formatIndexRow bitIndex eventName | (bitIndex, eventName) <- entries]
 
 -- | Extract toggleable object flag indices from constants/toggle_constants.asm.
 extractToggleFlags :: FilePath -> IO [[Text]]
 extractToggleFlags path = do
-  entries <- parseFile parseConstDirectives path
+  entries <- parseFile parseConstEntries path
   pure [formatIndexRow bitIndex toggleName | (bitIndex, toggleName) <- entries]
 
 -- | Extract map script progress byte offsets from ram/wram.asm.

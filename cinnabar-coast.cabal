@@ -67,6 +67,7 @@ executable extract
                     Extract.Items
                     Extract.EggMoves
                     Extract.Events
+                    Extract.Badges
                     Extract.EvosAttacks
                     Extract.Species
   default-language: GHC2024

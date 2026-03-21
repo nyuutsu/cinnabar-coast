@@ -31,6 +31,9 @@ import Extract.EvosAttacks (parseEvosAttacksFile, formatLearnsetRows,
 import Extract.Events (extractEventFlags, eventFlagsHeader,
                        extractToggleFlags, toggleFlagsHeader,
                        extractMapScripts, mapScriptsHeader)
+import Extract.Badges (extractGen1Badges, extractGen2Badges, badgesHeader,
+                       extractGen1Towns, extractGen2Spawns, townsHeader,
+                       spawnsHeader)
 import Extract.Species (extractSpeciesFile, parseBaseStatsIncludes,
                         formatGen1Species, formatGen2Species,
                         gen1StartingMoves,
@@ -158,6 +161,20 @@ extractAll pokered pokecrystal outDir = do
   mapScripts <- extractMapScripts (pokered </> "ram/wram.asm")
   writeCSV (outDir </> "map_scripts.csv") mapScriptsHeader mapScripts
 
+  -- ── Badges ─────────────────────────────────────────────────
+  gen1Badges <- extractGen1Badges (pokered </> "constants/ram_constants.asm")
+  writeCSV (outDir </> "gen1_badges.csv") badgesHeader gen1Badges
+
+  gen2Badges <- extractGen2Badges (pokecrystal </> "constants/ram_constants.asm")
+  writeCSV (outDir </> "gen2_badges.csv") badgesHeader gen2Badges
+
+  -- ── Towns / Spawns ─────────────────────────────────────────
+  gen1Towns <- extractGen1Towns (pokered </> "constants/map_constants.asm")
+  writeCSV (outDir </> "gen1_towns.csv") townsHeader gen1Towns
+
+  gen2Spawns <- extractGen2Spawns (pokecrystal </> "constants/map_data_constants.asm")
+  writeCSV (outDir </> "gen2_spawns.csv") spawnsHeader gen2Spawns
+
   -- ── Summary ──────────────────────────────────────────────────
   putStrLn "Extraction complete:"
   putStrLn $ "  moves:       " ++ show (length gen1Moves + length gen2Moves)
@@ -173,6 +190,10 @@ extractAll pokered pokecrystal outDir = do
   putStrLn $ "  events:      " ++ show (length eventFlags)
   putStrLn $ "  toggles:     " ++ show (length toggleFlags)
   putStrLn $ "  map_scripts: " ++ show (length mapScripts)
+  putStrLn $ "  gen1_badges: " ++ show (length gen1Badges)
+  putStrLn $ "  gen2_badges: " ++ show (length gen2Badges)
+  putStrLn $ "  gen1_towns:  " ++ show (length gen1Towns)
+  putStrLn $ "  gen2_spawns: " ++ show (length gen2Spawns)
 
 
 -- ── Species extraction ─────────────────────────────────────────
