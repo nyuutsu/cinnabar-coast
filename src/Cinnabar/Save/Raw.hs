@@ -40,6 +40,7 @@ module Cinnabar.Save.Raw
 
 import Control.Monad (replicateM)
 import Control.Monad.Trans.Class (lift)
+import Data.Bits ((.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Word (Word8, Word16)
@@ -106,6 +107,7 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1Safari           :: !RawSafariState
   , rawGen1Fossil           :: !RawFossilState
   , rawGen1Transient        :: !RawTransientState
+  , rawGen1ActiveBoxSynced  :: !Bool
   }
 
 -- | Stub -- will be fleshed out when Gen 2 parsing is implemented.
@@ -368,6 +370,7 @@ parseGen1Save layout offsets bytes = do
     , rawGen1Safari           = safari
     , rawGen1Fossil           = fossil
     , rawGen1Transient        = transient
+    , rawGen1ActiveBoxSynced  = checkActiveBoxSync offsets boxNumber bytes
     }
 
 
@@ -734,3 +737,36 @@ parseBoxBank nameLen boxCapacity bytes bank = do
            , boxChecksumPairs       = boxPairs
            }
        )
+
+
+-- ── Active Box Sync Check ─────────────────────────────────────
+
+-- | Compare the Bank 1 current box region against the corresponding
+-- PC bank box region. If byte-identical, the active box is synced.
+checkActiveBoxSync :: Gen1SaveOffsets -> Word8 -> ByteString -> Bool
+checkActiveBoxSync offsets boxNumber bytes =
+  let bankInfos       = g1BoxBanks offsets
+      boxIndex        = fromIntegral (boxNumber .&. 0x7F)
+      currentBoxStart = g1CurrentBox offsets
+  in case bankInfos of
+    [] -> True
+    (firstBank : _) ->
+      let boxDataSize      = bankBoxDataSize firstBank
+          currentBoxRegion = sliceBytes currentBoxStart boxDataSize bytes
+      in case findPCBoxOffset bankInfos boxIndex of
+        Nothing        -> False
+        Just pcBoxStart ->
+          let pcBoxRegion = sliceBytes pcBoxStart boxDataSize bytes
+          in currentBoxRegion == pcBoxRegion
+
+sliceBytes :: Int -> Int -> ByteString -> ByteString
+sliceBytes offset len bytes = ByteString.take len (ByteString.drop offset bytes)
+
+findPCBoxOffset :: [BoxBankInfo] -> Int -> Maybe Int
+findPCBoxOffset banks targetBox = searchBanks banks 0
+  where
+    searchBanks [] _ = Nothing
+    searchBanks (bank : rest) baseBox
+      | targetBox < baseBox + bankBoxCount bank =
+          Just (bankStartOffset bank + (targetBox - baseBox) * bankBoxDataSize bank)
+      | otherwise = searchBanks rest (baseBox + bankBoxCount bank)

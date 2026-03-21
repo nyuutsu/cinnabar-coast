@@ -67,10 +67,7 @@ import Data.Word (Word8, Word16)
 import Cinnabar.Types
 import Cinnabar.Stats (CalcStats (..), calcAllStats)
 import Cinnabar.TextCodec (TextCodec, decodeText, showHexByte)
-import Cinnabar.Save.Layout
-  ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), GameVariant (..)
-  , BoxBankInfo (..)
-  )
+import Cinnabar.Save.Layout (CartridgeLayout (..), GameVariant (..))
 import Cinnabar.Save.Raw
   ( RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..)
   , RawGen1Box (..), RawBankValidity (..)
@@ -1041,7 +1038,7 @@ interpretProgress gameData rawSave =
         , progJumpingLedge        = testBit varFlags8 6
         , progSpinning            = testBit varFlags8 7
         , progBeatenLorelei       = testBit (ByteString.index (rawDefeatedLorelei progress) 0) 1
-        , progActiveBoxSynced     = checkActiveBoxSync rawSave
+        , progActiveBoxSynced     = rawGen1ActiveBoxSynced rawSave
         }
      , starterWarnings
      )
@@ -1072,38 +1069,3 @@ decodeMapScripts nameMap bytes =
   ]
 
 
--- ── Active Box Sync Check ─────────────────────────────────────
-
--- | Compare the Bank 1 current box region against the corresponding
--- PC bank box region. If byte-identical, the active box is synced.
-checkActiveBoxSync :: RawGen1SaveFile -> Bool
-checkActiveBoxSync rawSave =
-  case layoutOffsets (rawGen1Layout rawSave) of
-    Gen2Offsets _ -> True
-    Gen1Offsets offsets ->
-      let bankInfos       = g1BoxBanks offsets
-          boxIndex        = fromIntegral (rawGen1CurrentBoxNum rawSave .&. 0x7F)
-          currentBoxStart = g1CurrentBox offsets
-          bytes           = rawGen1Bytes rawSave
-      in case bankInfos of
-        [] -> True
-        (firstBank : _) ->
-          let boxDataSize      = bankBoxDataSize firstBank
-              currentBoxRegion = sliceBytes currentBoxStart boxDataSize bytes
-          in case findPCBoxOffset bankInfos boxIndex of
-            Nothing        -> False
-            Just pcBoxStart ->
-              let pcBoxRegion = sliceBytes pcBoxStart boxDataSize bytes
-              in currentBoxRegion == pcBoxRegion
-
-sliceBytes :: Int -> Int -> ByteString -> ByteString
-sliceBytes offset len bytes = ByteString.take len (ByteString.drop offset bytes)
-
-findPCBoxOffset :: [BoxBankInfo] -> Int -> Maybe Int
-findPCBoxOffset banks targetBox = searchBanks banks 0
-  where
-    searchBanks [] _ = Nothing
-    searchBanks (bank : rest) baseBox
-      | targetBox < baseBox + bankBoxCount bank =
-          Just (bankStartOffset bank + (targetBox - baseBox) * bankBoxDataSize bank)
-      | otherwise = searchBanks rest (baseBox + bankBoxCount bank)
