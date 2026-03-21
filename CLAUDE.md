@@ -7,8 +7,8 @@ Pokemon Gen 1/2 save editor. Haskell.
 A Pokemon Gen 1/2 save editor — CLI tool for reading and editing
 save files (like git or ffmpeg — no UI baked in, a GUI would be a
 separate program). Domain logic covers species, moves, learnsets,
-evolutions, and text encoding. Currently loads and queries static
-game data; save file parsing is the active next step.
+evolutions, text encoding, and save file parsing. Loads static
+game data and reads/interprets Gen 1 save files.
 
 Core logic lives in the cabal library stanza so the executable and
 tests can share code, but there are no external consumers.
@@ -27,33 +27,22 @@ tests can share code, but there are no external consumers.
 
 ## Architecture
 
-```
-cinnabar-coast/
-├── src/Cinnabar/
-│   ├── Types.hs           -- Core domain types (Species, Move, DVs, GameChar, etc.)
-│   ├── Types/Internal.hs  -- GameChar constructors (Internal module pattern)
-│   ├── Data.hs            -- CSV loader → GameData
-│   ├── Error.hs           -- LoadError type, renderLoadError, loadOrDie
-│   ├── Schema.hs          -- Canonical name↔type maps for pret ASM constants
-│   ├── Stats.hs           -- Exp curves, stat calculation
-│   ├── Legality.hs        -- Move classification (how can species learn move?)
-│   └── TextCodec.hs       -- Game Boy text encoding/decoding
-├── extract/
-│   ├── Main.hs            -- Extraction orchestrator (reads pret repos, writes CSVs)
-│   └── Extract/
-│       ├── ASM.hs         -- Megaparsec primitives for pret ASM format
-│       ├── Species.hs     -- base_stats/*.asm → species.csv + tmhm_compat.csv
-│       ├── EvosAttacks.hs -- evos_attacks.asm → learnsets.csv + evolutions.csv
-│       ├── Moves.hs       -- moves/*.asm → moves.csv
-│       ├── TMHM.hs        -- tmhm tables → tmhm.csv
-│       ├── EggMoves.hs    -- egg_moves.asm → egg_moves.csv
-│       └── Items.hs       -- item constants → items.csv
-├── app/Main.hs            -- CLI entry point (demo)
-├── data/csv/              -- Game data (extracted from pret by `cabal run extract`)
-├── data/charsets/         -- Character encoding JSONs (en, frde, ites, jp × gen1/gen2)
-├── data/event-pokemon/    -- Event distribution CSVs (not loaded yet)
-└── test/                  -- Tests (stats, codec round-trip, move legality)
-```
+- `src/Cinnabar/` — Library. Core types, static data loading,
+  stat calculation, move legality, text encoding, and save file
+  parsing. Types.hs is the central type catalog; Types/Internal.hs
+  restricts GameChar construction. Save/ handles binary format
+  parsing and interpretation (layout, checksum, raw field access,
+  interpreted views).
+- `extract/` — Standalone executable. Reads pret disassemblies
+  (pokered, pokecrystal) with Megaparsec and writes all CSVs.
+  One module per data domain (species, moves, evolutions, TM/HM,
+  egg moves, items, badges, events). The library never touches
+  ASM format.
+- `app/` — CLI entry point.
+- `data/csv/` — Game data extracted by `cabal run extract`.
+- `data/charsets/` — Character encoding JSONs per language/gen.
+- `data/event-pokemon/` — Event distribution CSVs.
+- `test/` — Tests (stats, codec round-trip, move legality).
 
 ### Key types
 
@@ -84,7 +73,18 @@ are only the types whose design isn't obvious from the code alone.
   by usage pattern: MachineData (TM/HM mappings + compatibility),
   LearnsetData (level-up, egg, tutor), SpeciesGraph (species +
   bidirectional evolution maps), LookupTables (name→ID, app layer).
-  Functions take the subrecord they need, not the whole GameData.
+  Plus optional Gen1FlagNames for save interpretation. Functions
+  take the subrecord they need, not the whole GameData.
+- `Gen1FlagNames` — Name mappings for Gen 1 event flags, toggle
+  flags, map scripts, badges, gym leaders, towns, and in-game
+  trades. Optional in GameData because it only applies to Gen 1.
+  Maps Int→Text for human-readable save interpretation.
+- `EventConstraint` — A predicate on Pokemon, not a Pokemon
+  instance. Maybe fields mean "any value is valid" (unknown,
+  random, or hatcher-dependent). DVConstraint further refines DV
+  matching (AnyDVs | ExactDVs | PartialDVs). EventMatch carries
+  the result: ExactMatch, PartialMatch (with diverged fields), or
+  NoMatch.
 - `LearnSource` — One way a species can learn a move. Nests
   recursively via `sourceVia` to explain compound paths (e.g.
   Tradeback "Gen 1" [TM source] or PreEvo "PIKACHU" [level-up source]).
@@ -130,18 +130,20 @@ are only the types whose design isn't obvious from the code alone.
 CSV files are extracted directly from pret disassemblies (pokered,
 pokecrystal) by `cabal run extract -- <pokered-path> <pokecrystal-path>`.
 The extract executable parses ASM source with Megaparsec and writes
-all 9 CSVs. CSVs use pret ASM constant names throughout (NORMAL,
+CSVs covering species, moves, evolutions, learnsets, TM/HM tables,
+egg moves, items, badges, gym leaders, towns, trades, event flags,
+and more. CSVs use pret ASM constant names throughout (NORMAL,
 FIRE, GROWTH_MEDIUM_SLOW, GENDER_F50, EGG_MONSTER, EVOLVE_TRADE_ITEM,
 etc.) — Data.hs maps these to domain types.
 
 Event CSVs are curated from distribution records. Charset JSONs are
 from Bulbapedia's "Character encoding" and "Text entry" pages
-(which derive from pret disassemblies). Files are named by
-language group: en, frde, ites, jp.
+(which derive from pret disassemblies).
 
 ## What's next (rough order)
 
-1. **Save parser** — binary format reading/writing for Gen 1 and Gen 2
+1. **Save parser** — Gen 1 reading and interpretation is working;
+   Gen 2 and write-back are next
 2. **Event matching** — constraint checking against event profiles
 3. **CLI interface** — subcommands (info, edit, classify, etc.)
 
