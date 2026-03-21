@@ -15,6 +15,9 @@ module Cinnabar.Save.Interpret
   ( -- * Interpreted types
     InterpretedSpecies (..)
   , InterpretedMove (..)
+  , EeveelutionPath (..)
+  , EeveelutionState (..)
+  , RivalStarter (..)
   , InterpretedGenFields (..)
   , StatOrigin (..)
   , InterpretedPokemon (..)
@@ -87,6 +90,20 @@ data InterpretedMove
   | EmptyMove
   deriving (Eq, Show)
 
+data EeveelutionPath = JolteonPath | FlareonPath | VaporeonPath
+  deriving (Eq, Show, Enum, Bounded)
+
+data EeveelutionState
+  = EeveelutionPending                    -- 0: not yet determined
+  | EeveelutionKnown !EeveelutionPath     -- 1-3: determined
+  | EeveelutionUnknown !Word8             -- 4+: carries raw byte
+  deriving (Eq, Show)
+
+data RivalStarter
+  = RivalStarterSpecies !InterpretedSpecies
+  | RivalEeveelution !EeveelutionState
+  deriving (Eq, Show)
+
 data InterpretedGenFields
   = InterpGen1Fields
       { interpCatchRate :: !Word8
@@ -146,7 +163,7 @@ data MapScriptState = MapScriptState
 
 data InterpretedProgress = InterpretedProgress
   { progPlayerStarter     :: !InterpretedSpecies
-  , progRivalStarter      :: !InterpretedSpecies
+  , progRivalStarter      :: !RivalStarter
   , progDefeatedGyms      :: ![Text]
   , progTownsVisited      :: ![Text]
   , progMovementMode      :: !Text
@@ -259,7 +276,7 @@ data WarningContext
   | BoxSlot !Int !Int        -- 1-based box number, 1-based slot index
   | HoFSlot !Int !Int        -- 1-based record index, 1-based entry index
   | PlayerStarter
-  | RivalStarter
+  | RivalStarterSlot
   | DaycareSlot
   | FossilSlot
   deriving (Eq, Show)
@@ -273,6 +290,7 @@ data SaveWarning
   | BoxBankChecksumMismatch !Int !Word8 !Word8        -- bank index, stored, calculated
   | BoxChecksumMismatch !Int !Int !Word8 !Word8       -- bank index, box-within-bank index, stored, calculated
   | ActiveBoxDesync
+  | UnexpectedEeveelution !Word8
   deriving (Eq, Show)
 
 
@@ -872,8 +890,21 @@ interpretProgress gameData rawSave =
 
       (playerStarter, playerStarterWarnings) =
         resolveSpecies indexMap speciesMap PlayerStarter (rawPlayerStarter progress)
-      (rivalStarter, rivalStarterWarnings) =
-        resolveSpecies indexMap speciesMap RivalStarter (rawRivalStarter progress)
+      gameVariant = layoutGame (rawGen1Layout rawSave)
+      (rivalStarter, rivalStarterWarnings) = case gameVariant of
+        Yellow ->
+          let rawByte = unInternalIndex (rawRivalStarter progress)
+          in case rawByte of
+            0 -> (RivalEeveelution EeveelutionPending, [])
+            1 -> (RivalEeveelution (EeveelutionKnown JolteonPath), [])
+            2 -> (RivalEeveelution (EeveelutionKnown FlareonPath), [])
+            3 -> (RivalEeveelution (EeveelutionKnown VaporeonPath), [])
+            _ -> (RivalEeveelution (EeveelutionUnknown rawByte),
+                  [UnexpectedEeveelution rawByte])
+        _ ->
+          let (species, warnings) =
+                resolveSpecies indexMap speciesMap RivalStarterSlot (rawRivalStarter progress)
+          in (RivalStarterSpecies species, warnings)
 
       defeatedGyms = decodeDefeatedGyms (rawDefeatedGyms progress)
       townsVisited = decodeTownsVisited (rawTownsVisited progress)

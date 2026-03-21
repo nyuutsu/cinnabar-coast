@@ -23,6 +23,7 @@ import Cinnabar.Legality (classifyMove)
 import Cinnabar.Save.Interpret
   ( interpretGen1Save, InterpretedSave (..), InterpretedPokemon (..)
   , InterpretedSpecies (..), InterpretedMove (..)
+  , EeveelutionPath (..), EeveelutionState (..), RivalStarter (..)
   , InterpretedDaycare (..)
   , WarningContext (..), SaveWarning (..)
   , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
@@ -337,6 +338,23 @@ renderSpecies (UnknownDexSpecies dex) =
   "Unknown [#" ++ show (unDex dex) ++ "]"
 
 
+renderRivalStarter :: RivalStarter -> String
+renderRivalStarter (RivalStarterSpecies species) = renderSpecies species
+renderRivalStarter (RivalEeveelution state) = renderEeveelutionState state
+
+renderRivalStarterLabel :: RivalStarter -> String
+renderRivalStarterLabel (RivalStarterSpecies _) = "Rival's starter"
+renderRivalStarterLabel (RivalEeveelution _) = "Rival's Eevee"
+
+renderEeveelutionState :: EeveelutionState -> String
+renderEeveelutionState EeveelutionPending = "not yet determined"
+renderEeveelutionState (EeveelutionKnown JolteonPath) = "Jolteon path"
+renderEeveelutionState (EeveelutionKnown FlareonPath) = "Flareon path"
+renderEeveelutionState (EeveelutionKnown VaporeonPath) = "Vaporeon path"
+renderEeveelutionState (EeveelutionUnknown byte) =
+  "unknown (0x" ++ showHexByte byte ++ ")"
+
+
 renderMove :: InterpretedMove -> Maybe String
 renderMove EmptyMove          = Nothing
 renderMove (KnownMove _ move) = Just (Text.unpack (moveName move))
@@ -357,7 +375,7 @@ renderWarningContext (PartySlot slot)        = "Party slot " ++ show slot
 renderWarningContext (BoxSlot box slot)      = "Box " ++ show box ++ " slot " ++ show slot
 renderWarningContext (HoFSlot record entry)  = "HoF record " ++ show record ++ " slot " ++ show entry
 renderWarningContext PlayerStarter           = "Player starter"
-renderWarningContext RivalStarter            = "Rival starter"
+renderWarningContext RivalStarterSlot        = "Rival starter"
 renderWarningContext DaycareSlot             = "Daycare"
 renderWarningContext FossilSlot              = "Fossil"
 
@@ -387,14 +405,19 @@ renderWarning (BoxChecksumMismatch bankIndex boxIndex stored calculated) =
     ++ ", calculated 0x" ++ showHexByte calculated ++ ")"
 renderWarning ActiveBoxDesync =
   "Active box data differs from its PC bank copy (desync)"
+renderWarning (UnexpectedEeveelution byte) =
+  renderWarningContext RivalStarterSlot ++ ": unexpected Eeveelution byte 0x"
+    ++ showHexByte byte
 
 
 -- ── Progress Display ──────────────────────────────────────────
 
 printProgressSummary :: InterpretedProgress -> IO ()
 printProgressSummary progress = do
+  let rivalLabel = renderRivalStarterLabel (progRivalStarter progress)
+      rivalValue = renderRivalStarter (progRivalStarter progress)
   putStrLn $ "Starter: " ++ renderSpecies (progPlayerStarter progress)
-    ++ "    Rival's starter: " ++ renderSpecies (progRivalStarter progress)
+    ++ "    " ++ rivalLabel ++ ": " ++ rivalValue
 
   case progDefeatedGyms progress of
     [] -> pure ()
