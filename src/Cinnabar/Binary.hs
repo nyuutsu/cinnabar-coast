@@ -19,6 +19,7 @@ module Cinnabar.Binary
 
     -- * Reading
   , readByte
+  , readByteAt
   , readWord16BE
   , readWord24BE
   , readBytes
@@ -102,6 +103,14 @@ readByte = do
   let byte = ByteString.index (cursorSource cursor) offset
   put cursor { cursorOffset = offset + 1 }
   pure byte
+
+-- | Read one byte at an absolute offset without a cursor.
+-- For standalone bounds-checked reads outside a Parser context.
+readByteAt :: Int -> ByteString -> Either SaveError Word8
+readByteAt offset bytes
+  | offset < 0 || offset >= ByteString.length bytes =
+      Left (CursorOverrun offset 1 (ByteString.length bytes))
+  | otherwise = Right (ByteString.index bytes offset)
 
 -- | Read a 16-bit big-endian value and advance by 2.
 readWord16BE :: Parser Word16

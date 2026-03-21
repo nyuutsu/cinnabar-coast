@@ -46,7 +46,7 @@ import Data.Word (Word8, Word16)
 
 import Cinnabar.Binary
   ( SaveError (..), Parser, runParser
-  , readByte, readWord16BE, readBytes
+  , readByte, readByteAt, readWord16BE, readBytes
   , seek, skip
   )
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
@@ -713,18 +713,18 @@ parseBoxBank nameLen boxCapacity bytes bank = do
     | boxIndex <- [0 .. bankBoxCount bank - 1]
     ]
 
-  let storedBankChecksum = ByteString.index bytes (bankAllChecksum bank)
-      calculatedBankChecksum = calculateGen1Checksum bytes
+  storedBankChecksum <- readByteAt (bankAllChecksum bank) bytes
+  let calculatedBankChecksum = calculateGen1Checksum bytes
                                  (bankStartOffset bank) (bankAllChecksum bank - 1)
       bankValid = storedBankChecksum == calculatedBankChecksum
 
-      boxValid =
-        [ let boxOffset  = bankStartOffset bank + boxIndex * bankBoxDataSize bank
-              stored     = ByteString.index bytes (bankBoxChecksums bank + boxIndex)
-              calculated = calculateGen1Checksum bytes
-                             boxOffset (boxOffset + bankBoxDataSize bank - 1)
-          in stored == calculated
-        | boxIndex <- [0 .. bankBoxCount bank - 1]
-        ]
+  boxValid <- sequence
+    [ do stored <- readByteAt (bankBoxChecksums bank + boxIndex) bytes
+         let boxOffset  = bankStartOffset bank + boxIndex * bankBoxDataSize bank
+             calculated = calculateGen1Checksum bytes
+                            boxOffset (boxOffset + bankBoxDataSize bank - 1)
+         pure (stored == calculated)
+    | boxIndex <- [0 .. bankBoxCount bank - 1]
+    ]
 
   pure (boxes, RawBankValidity { bankChecksumValid = bankValid, boxChecksumsValid = boxValid })
