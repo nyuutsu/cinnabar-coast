@@ -150,9 +150,11 @@ printSaveSummary interpreted = do
   putStrLn $ "Coins: " ++ show (interpCasinoCoins interpreted)
   putStrLn ""
 
-  case interpBadges interpreted of
+  let earnedBadges = filter flagIsSet (progBadges (interpProgress interpreted))
+  case earnedBadges of
     [] -> putStrLn "Badges: (none)"
-    badges -> TextIO.putStrLn $ "Badges: " <> Text.intercalate ", " badges
+    _  -> TextIO.putStrLn $ "Badges: "
+      <> Text.intercalate ", " (map flagName earnedBadges)
   let ownedCount = Set.size (interpPokedexOwned interpreted)
       seenCount  = Set.size (interpPokedexSeen interpreted)
   putStrLn $ "Pokédex: " ++ show ownedCount ++ " owned, " ++ show seenCount ++ " seen"
@@ -419,9 +421,11 @@ printProgressSummary progress = do
   putStrLn $ "Starter: " ++ renderSpecies (progPlayerStarter progress)
     ++ "    " ++ rivalLabel ++ ": " ++ rivalValue
 
-  case progDefeatedGyms progress of
+  let defeatedGyms = filter flagIsSet (progDefeatedGyms progress)
+  case defeatedGyms of
     [] -> pure ()
-    gyms -> TextIO.putStrLn $ "Gyms defeated: " <> Text.intercalate ", " gyms
+    _  -> TextIO.putStrLn $ "Gyms defeated: "
+      <> Text.intercalate ", " (map flagName defeatedGyms)
 
   let rods = concat
         [ ["Old Rod" | progReceivedOldRod progress]
@@ -446,6 +450,10 @@ printProgressSummary progress = do
 
 printAllFlags :: InterpretedProgress -> IO ()
 printAllFlags progress = do
+  printFlagSection "Badges" "earned" "not earned" (progBadges progress)
+  printFlagSection "Gyms defeated" "defeated" "not defeated" (progDefeatedGyms progress)
+  printFlagSection "Towns visited" "visited" "not visited" (progTownsVisited progress)
+
   let events    = progEventFlags progress
       setCount  = length (filter flagIsSet events)
       unsetCount = length events - setCount
@@ -495,6 +503,17 @@ printAllFlags progress = do
     then putStrLn "  (none)"
     else mapM_ (\state -> TextIO.putStrLn $ "  " <> padRight 40 (scriptName state)
       <> "step " <> Text.pack (show (scriptStep state))) scripts
+
+printFlagSection :: String -> Text -> Text -> [FlagState] -> IO ()
+printFlagSection title setLabel unsetLabel flags = do
+  let setCount   = length (filter flagIsSet flags)
+      totalCount = length flags
+  putStrLn $ title ++ " (" ++ show setCount ++ "/" ++ show totalCount ++ "):"
+  if null flags
+    then putStrLn "  (none)"
+    else mapM_ (\flag -> TextIO.putStrLn $ "  " <> padRight 40 (flagName flag)
+      <> if flagIsSet flag then setLabel else unsetLabel) flags
+  putStrLn ""
 
 padRight :: Int -> Text -> Text
 padRight width text

@@ -164,8 +164,9 @@ data MapScriptState = MapScriptState
 data InterpretedProgress = InterpretedProgress
   { progPlayerStarter     :: !InterpretedSpecies
   , progRivalStarter      :: !RivalStarter
-  , progDefeatedGyms      :: ![Text]
-  , progTownsVisited      :: ![Text]
+  , progBadges            :: ![FlagState]
+  , progDefeatedGyms      :: ![FlagState]
+  , progTownsVisited      :: ![FlagState]
   , progMovementMode      :: !Text
   , progEventFlags        :: ![FlagState]
   , progToggleFlags       :: ![FlagState]
@@ -224,7 +225,6 @@ data InterpretedSave = InterpretedSave
   , interpPlayerID      :: !TrainerId
   , interpMoney         :: !Int
   , interpCasinoCoins   :: !Int
-  , interpBadges        :: ![Text]
   , interpPokedexOwned  :: !(Set DexNumber)
   , interpPokedexSeen   :: !(Set DexNumber)
   , interpBagItems      :: ![InventoryEntry]
@@ -430,7 +430,6 @@ interpretGen1Save gameData codec rawSave =
       , interpPlayerID      = TrainerId (fromIntegral (rawGen1PlayerID rawSave))
       , interpMoney         = decodeBCD (rawGen1Money rawSave)
       , interpCasinoCoins   = decodeBCD (rawGen1CasinoCoins rawSave)
-      , interpBadges        = decodeBadges (rawGen1Badges rawSave)
       , interpPokedexOwned  = decodePokedexFlags (rawGen1PokedexOwned rawSave)
       , interpPokedexSeen   = decodePokedexFlags (rawGen1PokedexSeen rawSave)
       , interpBagItems      = resolveItems itemMap machineMap moveMap (rawGen1BagItems rawSave)
@@ -683,16 +682,6 @@ decodePokedexFlags bytes = Set.fromList
   , testBit byte bitOffset
   ]
 
--- | Decode the badge bitfield into a list of badge names.
--- Bit order LSB→MSB: Boulder, Cascade, Thunder, Rainbow, Soul,
--- Marsh, Volcano, Earth.
-decodeBadges :: Word8 -> [Text]
-decodeBadges byte =
-  [ name | (bitPosition, name) <- zip [0 .. 7] badgeNames, testBit byte bitPosition ]
-  where
-    badgeNames =
-      ["Boulder", "Cascade", "Thunder", "Rainbow", "Soul", "Marsh", "Volcano", "Earth"]
-
 resolveItems
   :: Map.Map ItemId Text
   -> Map.Map Machine MoveId
@@ -906,14 +895,26 @@ interpretProgress gameData rawSave =
                 resolveSpecies indexMap speciesMap RivalStarterSlot (rawRivalStarter progress)
           in (RivalStarterSpecies species, warnings)
 
-      defeatedGyms = decodeDefeatedGyms (rawDefeatedGyms progress)
-      townsVisited = decodeTownsVisited (rawTownsVisited progress)
-
       movementMode = case rawMovementStatus progress of
         0 -> "Walking"
         1 -> "Biking"
         2 -> "Surfing"
         _ -> "Unknown"
+
+      badgeList = case flagNames of
+        Nothing    -> []
+        Just names -> decodeNamedBitFlags (badgeNames names)
+                        (ByteString.singleton (rawGen1Badges rawSave))
+
+      gymList = case flagNames of
+        Nothing    -> []
+        Just names -> decodeNamedBitFlags (gymLeaderNames names)
+                        (ByteString.singleton (rawDefeatedGyms progress))
+
+      townList = case flagNames of
+        Nothing    -> []
+        Just names -> decodeNamedBitFlags (townNames names)
+                        (rawTownsVisited progress)
 
       eventFlagList = case flagNames of
         Nothing    -> []
@@ -937,8 +938,9 @@ interpretProgress gameData rawSave =
   in ( InterpretedProgress
         { progPlayerStarter     = playerStarter
         , progRivalStarter      = rivalStarter
-        , progDefeatedGyms      = defeatedGyms
-        , progTownsVisited      = townsVisited
+        , progBadges            = badgeList
+        , progDefeatedGyms      = gymList
+        , progTownsVisited      = townList
         , progMovementMode      = movementMode
         , progEventFlags        = eventFlagList
         , progToggleFlags       = toggleFlagList
@@ -949,7 +951,7 @@ interpretProgress gameData rawSave =
         , progReceivedLapras    = testBit varFlags4 0
         , progReceivedStarter   = testBit varFlags4 3
         , progHealedAtCenter    = testBit varFlags4 2
-        , progTradesCompleted     = popCount (rawInGameTrades progress)
+        , progTradesCompleted     = sum (map popCount (ByteString.unpack (rawInGameTrades progress)))
         , progTestBattle          = testBit varFlags7 0
         , progPreventMusicChange  = testBit varFlags7 1
         , progTrainerWantsBattle  = testBit varFlags7 3
@@ -959,7 +961,7 @@ interpretProgress gameData rawSave =
         , progStandingOnWarp      = testBit varFlags8 2
         , progJumpingLedge        = testBit varFlags8 6
         , progSpinning            = testBit varFlags8 7
-        , progBeatenLorelei       = testBit (rawDefeatedLorelei progress) 1
+        , progBeatenLorelei       = testBit (ByteString.index (rawDefeatedLorelei progress) 0) 1
         , progActiveBoxSynced     = checkActiveBoxSync rawSave
         }
      , starterWarnings
@@ -967,31 +969,6 @@ interpretProgress gameData rawSave =
 
 
 -- ── Progress Decoders ─────────────────────────────────────────
-
--- | Decode gym defeat bitfield. Same LSB→MSB order as badges.
-decodeDefeatedGyms :: Word8 -> [Text]
-decodeDefeatedGyms byte =
-  [ name | (bitPosition, name) <- zip [0 .. 7] gymLeaderNames, testBit byte bitPosition ]
-  where
-    gymLeaderNames =
-      ["Brock", "Misty", "Lt. Surge", "Erika", "Koga", "Sabrina", "Blaine", "Giovanni"]
-
--- | Decode towns visited from a big-endian Word16.
--- The game stores bit N in byte (N `div` 8), bit (N `mod` 8).
--- readWord16BE places byte 0 in the high byte, so game bit N
--- maps to Word16 bit ((N + 8) `mod` 16).
-decodeTownsVisited :: Word16 -> [Text]
-decodeTownsVisited word =
-  [ name
-  | (gameBit, name) <- zip [0 :: Int ..] townNames
-  , testBit word ((gameBit + 8) `mod` 16)
-  ]
-  where
-    townNames =
-      [ "Pallet Town", "Viridian City", "Pewter City", "Cerulean City"
-      , "Lavender Town", "Vermilion City", "Celadon City", "Fuchsia City"
-      , "Cinnabar Island", "Indigo Plateau", "Saffron City"
-      ]
 
 -- | Walk a bit-packed byte string and produce a FlagState for every named bit.
 -- LSB-first within each byte, same layout as decodePokedexFlags.

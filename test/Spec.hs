@@ -429,7 +429,7 @@ main = hspec $ do
               Right (RawGen1Save rawSave) -> do
                 let interpreted = interpretGen1Save gen1Data profileCodec rawSave
                 interpMoney interpreted `shouldSatisfy` (>= 0)
-                interpBadges interpreted `shouldSatisfy` (not . null)
+                progBadges (interpProgress interpreted) `shouldSatisfy` (not . null)
                 Set.size (interpPokedexOwned interpreted) `shouldSatisfy` (> 0)
                 case interpPikachuFriend interpreted of
                   Just _  -> pure ()

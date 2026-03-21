@@ -142,7 +142,7 @@ data RawProgressFlags = RawProgressFlags
   , rawDefeatedGyms   :: !Word8          -- bitfield
   , rawPlayerStarter  :: !InternalIndex
   , rawRivalStarter   :: !InternalIndex
-  , rawTownsVisited   :: !Word16         -- bitfield
+  , rawTownsVisited   :: !ByteString     -- 2 bytes, bitfield
   , rawMovementStatus :: !Word8
   , rawVarFlags1      :: !Word8
   , rawVarFlags2      :: !Word8
@@ -152,8 +152,8 @@ data RawProgressFlags = RawProgressFlags
   , rawVarFlags6      :: !Word8
   , rawVarFlags7      :: !Word8
   , rawVarFlags8      :: !Word8
-  , rawDefeatedLorelei :: !Word16        -- 2 bytes, bit 1 tracks E4 run progress
-  , rawInGameTrades   :: !Word16         -- bitset
+  , rawDefeatedLorelei :: !ByteString    -- 2 bytes, bit 1 of byte 0 tracks E4 run
+  , rawInGameTrades   :: !ByteString     -- 2 bytes, bitset
   , rawHiddenItems    :: !ByteString     -- 14 bytes
   , rawHiddenCoins    :: !ByteString     -- 2 bytes
   , rawCurrentMap     :: !Word8
@@ -385,7 +385,7 @@ parseRawProgress offsets cursor =
       (defeatedGyms, _)    = readByte (seekTo (g1DefeatedGyms offsets) cursor)
       (playerStarter, _)   = readByte (seekTo (g1PlayerStarter offsets) cursor)
       (rivalStarter, _)    = readByte (seekTo (g1RivalStarter offsets) cursor)
-      (townsVisited, _)    = readWord16BE (seekTo (g1TownsVisited offsets) cursor)
+      (townsVisited, _)    = readBytes 2 (seekTo (g1TownsVisited offsets) cursor)
       (movementStatus, _)  = readByte (seekTo (g1MovementStatus offsets) cursor)
       (varFlags1, _)       = readByte (seekTo (g1VarFlags1 offsets) cursor)
       (varFlags2, _)       = readByte (seekTo (g1VarFlags2 offsets) cursor)
@@ -395,8 +395,8 @@ parseRawProgress offsets cursor =
       (varFlags6, _)          = readByte (seekTo (g1VarFlags6 offsets) cursor)
       (varFlags7, _)          = readByte (seekTo (g1VarFlags7 offsets) cursor)
       (varFlags8, _)          = readByte (seekTo (g1VarFlags8 offsets) cursor)
-      (defeatedLorelei, _)    = readWord16BE (seekTo (g1DefeatedLorelei offsets) cursor)
-      (inGameTrades, _)       = readWord16BE (seekTo (g1InGameTrades offsets) cursor)
+      (defeatedLorelei, _)    = readBytes 2 (seekTo (g1DefeatedLorelei offsets) cursor)
+      (inGameTrades, _)       = readBytes 2 (seekTo (g1InGameTrades offsets) cursor)
       (hiddenItems, _)        = readBytes 14 (seekTo (g1HiddenItems offsets) cursor)
       (hiddenCoins, _)        = readBytes 2 (seekTo (g1HiddenCoins offsets) cursor)
       (currentMap, _)         = readByte (seekTo (g1CurrentMap offsets) cursor)

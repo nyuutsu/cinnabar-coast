@@ -68,6 +68,9 @@ loadAllGameData = do
     eventFlagsCsv    <- ExceptT (readCSV (csvPath "event_flags.csv"))
     toggleFlagsCsv   <- ExceptT (readCSV (csvPath "toggle_flags.csv"))
     mapScriptsCsv    <- ExceptT (readCSV (csvPath "map_scripts.csv"))
+    badgesCsv        <- ExceptT (readCSV (csvPath "gen1_badges.csv"))
+    gymLeadersCsv    <- ExceptT (readCSV (csvPath "gen1_gym_leaders.csv"))
+    townsCsv         <- ExceptT (readCSV (csvPath "gen1_towns.csv"))
 
     let buildForGen gen flagNames = do
           (moves, moveNameToId)      <- buildMoves gen movesCsv
@@ -120,6 +123,7 @@ loadAllGameData = do
 
     except $ do
       gen1FlagNames <- buildGen1FlagNames eventFlagsCsv toggleFlagsCsv mapScriptsCsv
+                         badgesCsv gymLeadersCsv townsCsv
       gen1Data <- buildForGen Gen1 (Just gen1FlagNames)
       gen2Data <- buildForGen Gen2 Nothing
       pure (gen1Data, gen2Data)
@@ -587,16 +591,23 @@ buildInternalIndex csv = do
 
 -- ── Flag Name Maps ──────────────────────────────────────────────
 
--- | Build Gen 1 event/toggle flag and map script name mappings.
-buildGen1FlagNames :: CSV -> CSV -> CSV -> Either LoadError Gen1FlagNames
-buildGen1FlagNames eventCsv toggleCsv mapCsv = do
+-- | Build Gen 1 event/toggle flag, map script, badge, gym leader,
+-- and town name mappings.
+buildGen1FlagNames :: CSV -> CSV -> CSV -> CSV -> CSV -> CSV -> Either LoadError Gen1FlagNames
+buildGen1FlagNames eventCsv toggleCsv mapCsv badgeCsv gymLeaderCsv townCsv = do
   eventFlags  <- buildIndexNameMap eventCsv "bit_index" "event_name"
   toggleFlags <- buildIndexNameMap toggleCsv "bit_index" "toggle_name"
   mapScripts  <- buildIndexNameMap mapCsv "byte_offset" "script_name"
+  badges      <- buildIndexNameMap badgeCsv "bit_index" "badge_name"
+  gymLeaders  <- buildIndexNameMap gymLeaderCsv "bit_index" "leader_name"
+  towns       <- buildIndexNameMap townCsv "bit_index" "town_name"
   pure Gen1FlagNames
     { eventFlagNames  = eventFlags
     , toggleFlagNames = toggleFlags
     , mapScriptNames  = mapScripts
+    , badgeNames      = badges
+    , gymLeaderNames  = gymLeaders
+    , townNames       = towns
     }
 
 -- | Generic loader for index→name CSVs (no gen column).

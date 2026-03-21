@@ -539,6 +539,9 @@ data Gen1FlagNames = Gen1FlagNames
   { eventFlagNames  :: !(Map Int Text)
   , toggleFlagNames :: !(Map Int Text)
   , mapScriptNames  :: !(Map Int Text)
+  , badgeNames      :: !(Map Int Text)
+  , gymLeaderNames  :: !(Map Int Text)
+  , townNames       :: !(Map Int Text)
   } deriving (Show)
 
 
