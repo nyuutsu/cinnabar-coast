@@ -400,7 +400,7 @@ main = hspec $ do
                       Unified _ -> pure ()
                       Split _ _ -> expectationFailure "expected Unified special stat"
                     let isStarterWarning (UnknownSpeciesIndex PlayerStarter _) = True
-                        isStarterWarning (UnknownSpeciesIndex RivalStarter _) = True
+                        isStarterWarning (UnknownSpeciesIndex RivalStarterSlot _) = True
                         isStarterWarning _ = False
                     filter (\warning -> warning /= ActiveBoxDesync
                                      && not (isStarterWarning warning))
