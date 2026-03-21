@@ -7,7 +7,7 @@
 -- Gen 1; Gen 2 returns UnimplementedGen.
 
 module Cinnabar.Save.Raw
-  ( -- * Errors
+  ( -- * Errors (re-exported from Binary)
     SaveError (..)
 
     -- * Raw save types
@@ -38,12 +38,17 @@ module Cinnabar.Save.Raw
   , parseRawSave
   ) where
 
+import Control.Monad (replicateM)
+import Control.Monad.Trans.Class (lift)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
-import Data.Text (Text)
 import Data.Word (Word8, Word16)
 
-import Cinnabar.Binary (Cursor, mkCursor, readByte, readWord16BE, readBytes, seekTo, skip)
+import Cinnabar.Binary
+  ( SaveError (..), Parser, runParser
+  , readByte, readWord16BE, readBytes
+  , seek, skip
+  )
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
   ( RawGen1PartyPokemon, RawGen1BoxPokemon
@@ -56,18 +61,9 @@ import Cinnabar.Save.Layout
   , Gen1SaveOffsets (..)
   , BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyPokemonSize, gen1BoxPokemonSize
-  , gen1HoFRecordCount, gen1HoFSlotsPerRecord, gen1HoFEntrySize, gen1HoFRecordSize
+  , gen1HoFRecordCount, gen1HoFSlotsPerRecord, gen1HoFEntrySize
   )
 import Cinnabar.Types (Gen (..), InternalIndex (..))
-
-
--- ── Errors ─────────────────────────────────────────────────────
-
-data SaveError
-  = WrongFileSize !Int !Int
-  | UnsupportedLayout !Text
-  | UnimplementedGen !Gen
-  deriving (Eq, Show)
 
 
 -- ── Raw Save Types ─────────────────────────────────────────────
@@ -246,7 +242,7 @@ parseRawSave layout bytes = case layoutGen layout of
     | ByteString.length bytes /= gen1FileSize ->
         Left (WrongFileSize gen1FileSize (ByteString.length bytes))
     | Gen1Offsets offsets <- layoutOffsets layout ->
-        Right (RawGen1Save (parseGen1Save layout offsets bytes))
+        RawGen1Save <$> runParser (parseGen1Save layout offsets bytes) bytes
     | otherwise ->
         Left (UnsupportedLayout "Gen 1 game with Gen 2 offsets")
   Gen2 -> Left (UnimplementedGen Gen2)
@@ -254,390 +250,476 @@ parseRawSave layout bytes = case layoutGen layout of
 
 -- ── Gen 1 Save Parsing ────────────────────────────────────────
 
-parseGen1Save :: CartridgeLayout -> Gen1SaveOffsets -> ByteString -> RawGen1SaveFile
-parseGen1Save layout offsets bytes =
-  let cursor      = mkCursor bytes
-      nameLen     = layoutNameLen layout
+parseGen1Save :: CartridgeLayout -> Gen1SaveOffsets -> ByteString -> Parser RawGen1SaveFile
+parseGen1Save layout offsets bytes = do
+  let nameLen     = layoutNameLen layout
+      nameLenInt  = unNameLength nameLen
       boxCapacity = layoutBoxCapacity layout
 
-      (playerName, _) = readBytes (unNameLength nameLen) (seekTo (g1PlayerName offsets) cursor)
-      (rivalName, _)  = readBytes (unNameLength nameLen) (seekTo (g1RivalName offsets) cursor)
-      (party, _)      = parseGen1Party nameLen (seekTo (g1PartyData offsets) cursor)
-      (currentBox, _) = parseGen1Box nameLen boxCapacity (seekTo (g1CurrentBox offsets) cursor)
+  seek (g1PlayerName offsets)
+  playerName <- readBytes nameLenInt
 
-      (pokedexOwned, _) = readBytes 19 (seekTo (g1PokedexOwned offsets) cursor)
-      (pokedexSeen, _)  = readBytes 19 (seekTo (g1PokedexSeen offsets) cursor)
-      (bagItems, _)     = parseItemList (seekTo (g1BagItems offsets) cursor)
-      (boxItems, _)     = parseItemList (seekTo (g1BoxItems offsets) cursor)
-      (money, _)        = readBytes 3 (seekTo (g1Money offsets) cursor)
-      (casinoCoins, _)  = readBytes 2 (seekTo (g1CasinoCoins offsets) cursor)
-      (badges, _)       = readByte (seekTo (g1Badges offsets) cursor)
-      (playerID, _)     = readWord16BE (seekTo (g1PlayerID offsets) cursor)
-      (options, _)      = readByte (seekTo (g1Options offsets) cursor)
-      (boxNumber, _)    = readByte (seekTo (g1CurrentBoxNumber offsets) cursor)
-      (hofCount, _)     = readByte (seekTo (g1HoFCount offsets) cursor)
-      playTime          = parseRawPlayTime (seekTo (g1PlayTime offsets) cursor)
-      (pikachuHappiness, _) = readByte (seekTo (g1PikachuHappiness offsets) cursor)
-      (pikachuMood, _)      = readByte (seekTo (g1PikachuMood offsets) cursor)
-      (surfingHiScore, _)   = readBytes 2 (seekTo (g1SurfingHiScore offsets) cursor)
-      (printerSettings, _)  = readByte (seekTo (g1PrinterSettings offsets) cursor)
-      daycare           = parseRawDaycare nameLen offsets cursor
-      progress          = parseRawProgress offsets cursor
-      playerPosition    = parseRawPlayerPosition offsets cursor
-      safari            = parseRawSafari offsets cursor
-      fossil            = parseRawFossil offsets cursor
-      transient         = parseRawTransient offsets cursor
+  seek (g1RivalName offsets)
+  rivalName <- readBytes nameLenInt
 
-      hallOfFame = parseHallOfFame nameLen (seekTo (g1HallOfFame offsets) cursor)
+  seek (g1PartyData offsets)
+  party <- parseGen1Party nameLen
 
-      (pcBoxes, boxBankValidity) = parseBoxBanks nameLen boxCapacity bytes (g1BoxBanks offsets)
+  seek (g1CurrentBox offsets)
+  currentBox <- parseGen1Box nameLen boxCapacity
 
-      storedChecksum     = ByteString.index bytes (g1Checksum offsets)
-      calculatedChecksum = calculateGen1Checksum bytes
+  seek (g1PokedexOwned offsets)
+  pokedexOwned <- readBytes 19
+
+  seek (g1PokedexSeen offsets)
+  pokedexSeen <- readBytes 19
+
+  seek (g1BagItems offsets)
+  bagItems <- parseItemList
+
+  seek (g1BoxItems offsets)
+  boxItems <- parseItemList
+
+  seek (g1Money offsets)
+  money <- readBytes 3
+
+  seek (g1CasinoCoins offsets)
+  casinoCoins <- readBytes 2
+
+  seek (g1Badges offsets)
+  badges <- readByte
+
+  seek (g1PlayerID offsets)
+  playerID <- readWord16BE
+
+  seek (g1Options offsets)
+  options <- readByte
+
+  seek (g1CurrentBoxNumber offsets)
+  boxNumber <- readByte
+
+  seek (g1HoFCount offsets)
+  hofCount <- readByte
+
+  seek (g1PlayTime offsets)
+  playTime <- parseRawPlayTime
+
+  seek (g1PikachuHappiness offsets)
+  pikachuHappiness <- readByte
+
+  seek (g1PikachuMood offsets)
+  pikachuMood <- readByte
+
+  seek (g1SurfingHiScore offsets)
+  surfingHiScore <- readBytes 2
+
+  seek (g1PrinterSettings offsets)
+  printerSettings <- readByte
+
+  daycare        <- parseRawDaycare nameLen offsets
+  progress       <- parseRawProgress offsets
+  playerPosition <- parseRawPlayerPosition offsets
+  safari         <- parseRawSafari offsets
+  fossil         <- parseRawFossil offsets
+  transient      <- parseRawTransient offsets
+
+  seek (g1HallOfFame offsets)
+  hallOfFame <- parseHallOfFame nameLen
+
+  (pcBoxes, boxBankValidity) <- lift (parseBoxBanks nameLen boxCapacity bytes (g1BoxBanks offsets))
+
+  seek (g1Checksum offsets)
+  storedChecksum <- readByte
+  let calculatedChecksum = calculateGen1Checksum bytes
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
 
-  in RawGen1SaveFile
-      { rawGen1Bytes            = bytes
-      , rawGen1Layout           = layout
-      , rawGen1PlayerName       = playerName
-      , rawGen1RivalName        = rivalName
-      , rawGen1Party            = party
-      , rawGen1CurrentBox       = currentBox
-      , rawGen1Checksum         = storedChecksum
-      , rawGen1ChecksumValid    = storedChecksum == calculatedChecksum
-      , rawGen1PokedexOwned     = pokedexOwned
-      , rawGen1PokedexSeen      = pokedexSeen
-      , rawGen1BagItems         = bagItems
-      , rawGen1BoxItems         = boxItems
-      , rawGen1Money            = money
-      , rawGen1CasinoCoins      = casinoCoins
-      , rawGen1Badges           = badges
-      , rawGen1PlayerID         = playerID
-      , rawGen1Options          = options
-      , rawGen1CurrentBoxNum    = boxNumber
-      , rawGen1HoFCount         = hofCount
-      , rawGen1PlayTime         = playTime
-      , rawGen1PikachuHappiness = pikachuHappiness
-      , rawGen1PikachuMood     = pikachuMood
-      , rawGen1SurfingHiScore  = surfingHiScore
-      , rawGen1PrinterSettings = printerSettings
-      , rawGen1Daycare          = daycare
-      , rawGen1PCBoxes          = pcBoxes
-      , rawGen1BoxBankValid     = boxBankValidity
-      , rawGen1HallOfFame       = hallOfFame
-      , rawGen1Progress         = progress
-      , rawGen1PlayerPosition   = playerPosition
-      , rawGen1Safari           = safari
-      , rawGen1Fossil           = fossil
-      , rawGen1Transient        = transient
-      }
+  pure RawGen1SaveFile
+    { rawGen1Bytes            = bytes
+    , rawGen1Layout           = layout
+    , rawGen1PlayerName       = playerName
+    , rawGen1RivalName        = rivalName
+    , rawGen1Party            = party
+    , rawGen1CurrentBox       = currentBox
+    , rawGen1Checksum         = storedChecksum
+    , rawGen1ChecksumValid    = storedChecksum == calculatedChecksum
+    , rawGen1PokedexOwned     = pokedexOwned
+    , rawGen1PokedexSeen      = pokedexSeen
+    , rawGen1BagItems         = bagItems
+    , rawGen1BoxItems         = boxItems
+    , rawGen1Money            = money
+    , rawGen1CasinoCoins      = casinoCoins
+    , rawGen1Badges           = badges
+    , rawGen1PlayerID         = playerID
+    , rawGen1Options          = options
+    , rawGen1CurrentBoxNum    = boxNumber
+    , rawGen1HoFCount         = hofCount
+    , rawGen1PlayTime         = playTime
+    , rawGen1PikachuHappiness = pikachuHappiness
+    , rawGen1PikachuMood     = pikachuMood
+    , rawGen1SurfingHiScore  = surfingHiScore
+    , rawGen1PrinterSettings = printerSettings
+    , rawGen1Daycare          = daycare
+    , rawGen1PCBoxes          = pcBoxes
+    , rawGen1BoxBankValid     = boxBankValidity
+    , rawGen1HallOfFame       = hallOfFame
+    , rawGen1Progress         = progress
+    , rawGen1PlayerPosition   = playerPosition
+    , rawGen1Safari           = safari
+    , rawGen1Fossil           = fossil
+    , rawGen1Transient        = transient
+    }
 
 
 -- ── Item List Parser ─────────────────────────────────────────
 
 -- | Parse a Gen 1 item list: 1 byte count, count x (item ID, quantity)
 -- pairs, then a 0xFF terminator.
-parseItemList :: Cursor -> ([RawItemEntry], Cursor)
-parseItemList cursor0 =
-  let (count, cursor1) = readByte cursor0
-      itemCount        = fromIntegral count :: Int
-      (items, cursor2) = readItemPairs itemCount cursor1
-      (_terminator, cursor3) = readByte cursor2
-  in (items, cursor3)
+parseItemList :: Parser [RawItemEntry]
+parseItemList = do
+  count <- readByte
+  items <- replicateM (fromIntegral count) parseItemEntry
+  _ <- readByte  -- terminator
+  pure items
   where
-    readItemPairs :: Int -> Cursor -> ([RawItemEntry], Cursor)
-    readItemPairs 0 cursor = ([], cursor)
-    readItemPairs remaining cursor =
-      let (itemByte, cursor1)    = readByte cursor
-          (quantityByte, cursor2) = readByte cursor1
-          entry = RawItemEntry { rawItemId = itemByte, rawItemQuantity = quantityByte }
-          (rest, cursor3)        = readItemPairs (remaining - 1) cursor2
-      in (entry : rest, cursor3)
+    parseItemEntry :: Parser RawItemEntry
+    parseItemEntry = do
+      itemByte     <- readByte
+      quantityByte <- readByte
+      pure RawItemEntry { rawItemId = itemByte, rawItemQuantity = quantityByte }
 
 
 -- ── Play Time / Daycare Parsers ─────────────────────────────
 
-parseRawPlayTime :: Cursor -> RawPlayTime
-parseRawPlayTime cursor0 =
-  let (hours, cursor1)   = readByte cursor0
-      (maxed, cursor2)   = readByte cursor1
-      (minutes, cursor3) = readByte cursor2
-      (seconds, cursor4) = readByte cursor3
-      (frames, _)        = readByte cursor4
-  in RawPlayTime
-      { rawPlayHours   = hours
-      , rawPlayMaxed   = maxed
-      , rawPlayMinutes = minutes
-      , rawPlaySeconds = seconds
-      , rawPlayFrames  = frames
-      }
+parseRawPlayTime :: Parser RawPlayTime
+parseRawPlayTime = do
+  hours   <- readByte
+  maxed   <- readByte
+  minutes <- readByte
+  seconds <- readByte
+  frames  <- readByte
+  pure RawPlayTime
+    { rawPlayHours   = hours
+    , rawPlayMaxed   = maxed
+    , rawPlayMinutes = minutes
+    , rawPlaySeconds = seconds
+    , rawPlayFrames  = frames
+    }
 
-parseRawDaycare :: NameLength -> Gen1SaveOffsets -> Cursor -> RawDaycare
-parseRawDaycare nameLen offsets cursor =
-  let nameLenInt       = unNameLength nameLen
-      (inUse, _)       = readByte (seekTo (g1DaycareInUse offsets) cursor)
-      (speciesByte, _) = readByte (seekTo (g1DaycarePokemon offsets) cursor)
-      (nickname, _)    = readBytes nameLenInt (seekTo (g1DaycareNickname offsets) cursor)
-      (otName, _)      = readBytes nameLenInt (seekTo (g1DaycareOTName offsets) cursor)
-  in RawDaycare
-      { rawDaycareInUse    = inUse
-      , rawDaycarePokemon      = InternalIndex speciesByte
-      , rawDaycareNickname = nickname
-      , rawDaycareOTName   = otName
-      }
+parseRawDaycare :: NameLength -> Gen1SaveOffsets -> Parser RawDaycare
+parseRawDaycare nameLen offsets = do
+  let nameLenInt = unNameLength nameLen
+  seek (g1DaycareInUse offsets)
+  inUse <- readByte
+  seek (g1DaycarePokemon offsets)
+  speciesByte <- readByte
+  seek (g1DaycareNickname offsets)
+  nickname <- readBytes nameLenInt
+  seek (g1DaycareOTName offsets)
+  otName <- readBytes nameLenInt
+  pure RawDaycare
+    { rawDaycareInUse    = inUse
+    , rawDaycarePokemon      = InternalIndex speciesByte
+    , rawDaycareNickname = nickname
+    , rawDaycareOTName   = otName
+    }
 
-parseRawProgress :: Gen1SaveOffsets -> Cursor -> RawProgressFlags
-parseRawProgress offsets cursor =
-  let (eventFlags, _)      = readBytes 320 (seekTo (g1EventFlags offsets) cursor)
-      (toggleFlags, _)     = readBytes 32 (seekTo (g1ToggleFlags offsets) cursor)
-      (mapScripts, _)      = readBytes 256 (seekTo (g1MapScripts offsets) cursor)
-      (defeatedGyms, _)    = readByte (seekTo (g1DefeatedGyms offsets) cursor)
-      (playerStarter, _)   = readByte (seekTo (g1PlayerStarter offsets) cursor)
-      (rivalStarter, _)    = readByte (seekTo (g1RivalStarter offsets) cursor)
-      (townsVisited, _)    = readBytes 2 (seekTo (g1TownsVisited offsets) cursor)
-      (movementStatus, _)  = readByte (seekTo (g1MovementStatus offsets) cursor)
-      (varFlags1, _)       = readByte (seekTo (g1VarFlags1 offsets) cursor)
-      (varFlags2, _)       = readByte (seekTo (g1VarFlags2 offsets) cursor)
-      (varFlags3, _)       = readByte (seekTo (g1VarFlags3 offsets) cursor)
-      (varFlags4, _)       = readByte (seekTo (g1VarFlags4 offsets) cursor)
-      (varFlags5, _)       = readByte (seekTo (g1VarFlags5 offsets) cursor)
-      (varFlags6, _)          = readByte (seekTo (g1VarFlags6 offsets) cursor)
-      (varFlags7, _)          = readByte (seekTo (g1VarFlags7 offsets) cursor)
-      (varFlags8, _)          = readByte (seekTo (g1VarFlags8 offsets) cursor)
-      (defeatedLorelei, _)    = readBytes 2 (seekTo (g1DefeatedLorelei offsets) cursor)
-      (inGameTrades, _)       = readBytes 2 (seekTo (g1InGameTrades offsets) cursor)
-      (hiddenItems, _)        = readBytes 14 (seekTo (g1HiddenItems offsets) cursor)
-      (hiddenCoins, _)        = readBytes 2 (seekTo (g1HiddenCoins offsets) cursor)
-      (currentMap, _)         = readByte (seekTo (g1CurrentMap offsets) cursor)
-  in RawProgressFlags
-      { rawEventFlags      = eventFlags
-      , rawToggleFlags     = toggleFlags
-      , rawMapScripts      = mapScripts
-      , rawDefeatedGyms    = defeatedGyms
-      , rawPlayerStarter   = InternalIndex playerStarter
-      , rawRivalStarter    = InternalIndex rivalStarter
-      , rawTownsVisited    = townsVisited
-      , rawMovementStatus  = movementStatus
-      , rawVarFlags1       = varFlags1
-      , rawVarFlags2       = varFlags2
-      , rawVarFlags3       = varFlags3
-      , rawVarFlags4       = varFlags4
-      , rawVarFlags5       = varFlags5
-      , rawVarFlags6       = varFlags6
-      , rawVarFlags7       = varFlags7
-      , rawVarFlags8       = varFlags8
-      , rawDefeatedLorelei = defeatedLorelei
-      , rawInGameTrades    = inGameTrades
-      , rawHiddenItems     = hiddenItems
-      , rawHiddenCoins     = hiddenCoins
-      , rawCurrentMap      = currentMap
-      }
+parseRawProgress :: Gen1SaveOffsets -> Parser RawProgressFlags
+parseRawProgress offsets = do
+  seek (g1EventFlags offsets)
+  eventFlags <- readBytes 320
+  seek (g1ToggleFlags offsets)
+  toggleFlags <- readBytes 32
+  seek (g1MapScripts offsets)
+  mapScripts <- readBytes 256
+  seek (g1DefeatedGyms offsets)
+  defeatedGyms <- readByte
+  seek (g1PlayerStarter offsets)
+  playerStarter <- readByte
+  seek (g1RivalStarter offsets)
+  rivalStarter <- readByte
+  seek (g1TownsVisited offsets)
+  townsVisited <- readBytes 2
+  seek (g1MovementStatus offsets)
+  movementStatus <- readByte
+  seek (g1VarFlags1 offsets)
+  varFlags1 <- readByte
+  seek (g1VarFlags2 offsets)
+  varFlags2 <- readByte
+  seek (g1VarFlags3 offsets)
+  varFlags3 <- readByte
+  seek (g1VarFlags4 offsets)
+  varFlags4 <- readByte
+  seek (g1VarFlags5 offsets)
+  varFlags5 <- readByte
+  seek (g1VarFlags6 offsets)
+  varFlags6 <- readByte
+  seek (g1VarFlags7 offsets)
+  varFlags7 <- readByte
+  seek (g1VarFlags8 offsets)
+  varFlags8 <- readByte
+  seek (g1DefeatedLorelei offsets)
+  defeatedLorelei <- readBytes 2
+  seek (g1InGameTrades offsets)
+  inGameTrades <- readBytes 2
+  seek (g1HiddenItems offsets)
+  hiddenItems <- readBytes 14
+  seek (g1HiddenCoins offsets)
+  hiddenCoins <- readBytes 2
+  seek (g1CurrentMap offsets)
+  currentMap <- readByte
+  pure RawProgressFlags
+    { rawEventFlags      = eventFlags
+    , rawToggleFlags     = toggleFlags
+    , rawMapScripts      = mapScripts
+    , rawDefeatedGyms    = defeatedGyms
+    , rawPlayerStarter   = InternalIndex playerStarter
+    , rawRivalStarter    = InternalIndex rivalStarter
+    , rawTownsVisited    = townsVisited
+    , rawMovementStatus  = movementStatus
+    , rawVarFlags1       = varFlags1
+    , rawVarFlags2       = varFlags2
+    , rawVarFlags3       = varFlags3
+    , rawVarFlags4       = varFlags4
+    , rawVarFlags5       = varFlags5
+    , rawVarFlags6       = varFlags6
+    , rawVarFlags7       = varFlags7
+    , rawVarFlags8       = varFlags8
+    , rawDefeatedLorelei = defeatedLorelei
+    , rawInGameTrades    = inGameTrades
+    , rawHiddenItems     = hiddenItems
+    , rawHiddenCoins     = hiddenCoins
+    , rawCurrentMap      = currentMap
+    }
 
-parseRawPlayerPosition :: Gen1SaveOffsets -> Cursor -> RawPlayerPosition
-parseRawPlayerPosition offsets cursor =
-  let (playerY, _)        = readByte (seekTo (g1PlayerY offsets) cursor)
-      (playerX, _)        = readByte (seekTo (g1PlayerX offsets) cursor)
-      (lastMap, _)        = readByte (seekTo (g1LastMap offsets) cursor)
-      (blackoutMap, _)    = readByte (seekTo (g1LastBlackoutMap offsets) cursor)
-      (destinationMap, _) = readByte (seekTo (g1DestinationMap offsets) cursor)
-  in RawPlayerPosition
-      { rawPlayerY         = playerY
-      , rawPlayerX         = playerX
-      , rawLastMap         = lastMap
-      , rawLastBlackoutMap = blackoutMap
-      , rawDestinationMap  = destinationMap
-      }
+parseRawPlayerPosition :: Gen1SaveOffsets -> Parser RawPlayerPosition
+parseRawPlayerPosition offsets = do
+  seek (g1PlayerY offsets)
+  playerY <- readByte
+  seek (g1PlayerX offsets)
+  playerX <- readByte
+  seek (g1LastMap offsets)
+  lastMap <- readByte
+  seek (g1LastBlackoutMap offsets)
+  blackoutMap <- readByte
+  seek (g1DestinationMap offsets)
+  destinationMap <- readByte
+  pure RawPlayerPosition
+    { rawPlayerY         = playerY
+    , rawPlayerX         = playerX
+    , rawLastMap         = lastMap
+    , rawLastBlackoutMap = blackoutMap
+    , rawDestinationMap  = destinationMap
+    }
 
-parseRawSafari :: Gen1SaveOffsets -> Cursor -> RawSafariState
-parseRawSafari offsets cursor =
-  let (safariSteps, _) = readWord16BE (seekTo (g1SafariSteps offsets) cursor)
-      (ballCount, _)   = readByte (seekTo (g1SafariBallCount offsets) cursor)
-      (gameOver, _)    = readByte (seekTo (g1SafariGameOver offsets) cursor)
-  in RawSafariState
-      { rawSafariSteps     = safariSteps
-      , rawSafariBallCount = ballCount
-      , rawSafariGameOver  = gameOver
-      }
+parseRawSafari :: Gen1SaveOffsets -> Parser RawSafariState
+parseRawSafari offsets = do
+  seek (g1SafariSteps offsets)
+  safariSteps <- readWord16BE
+  seek (g1SafariBallCount offsets)
+  ballCount <- readByte
+  seek (g1SafariGameOver offsets)
+  gameOver <- readByte
+  pure RawSafariState
+    { rawSafariSteps     = safariSteps
+    , rawSafariBallCount = ballCount
+    , rawSafariGameOver  = gameOver
+    }
 
-parseRawFossil :: Gen1SaveOffsets -> Cursor -> RawFossilState
-parseRawFossil offsets cursor =
-  let (itemGiven, _)     = readByte (seekTo (g1FossilItem offsets) cursor)
-      (fossilResult, _)  = readBytes 3 (seekTo (g1FossilResult offsets) cursor)
-  in RawFossilState
-      { rawFossilItemGiven = itemGiven
-      , rawFossilResult    = fossilResult
-      }
+parseRawFossil :: Gen1SaveOffsets -> Parser RawFossilState
+parseRawFossil offsets = do
+  seek (g1FossilItem offsets)
+  itemGiven <- readByte
+  seek (g1FossilResult offsets)
+  fossilResult <- readBytes 3
+  pure RawFossilState
+    { rawFossilItemGiven = itemGiven
+    , rawFossilResult    = fossilResult
+    }
 
-parseRawTransient :: Gen1SaveOffsets -> Cursor -> RawTransientState
-parseRawTransient offsets cursor =
-  let (letterDelay, _)     = readByte (seekTo (g1LetterDelay offsets) cursor)
-      (musicId, _)         = readByte (seekTo (g1MusicId offsets) cursor)
-      (musicBank, _)       = readByte (seekTo (g1MusicBank offsets) cursor)
-      (contrastId, _)      = readByte (seekTo (g1ContrastId offsets) cursor)
-      (trainerClass, _)    = readByte (seekTo (g1EnemyTrainerClass offsets) cursor)
-      (boulderSprite, _)   = readByte (seekTo (g1BoulderSpriteIndex offsets) cursor)
-      (dungeonDest, _)     = readByte (seekTo (g1DungeonWarpDest offsets) cursor)
-      (dungeonUsed, _)     = readByte (seekTo (g1DungeonWarpUsed offsets) cursor)
-      (warpedWarp, _)      = readByte (seekTo (g1WarpedFromWarp offsets) cursor)
-      (warpedMap, _)       = readByte (seekTo (g1WarpedFromMap offsets) cursor)
-      (cardKeyY, _)        = readByte (seekTo (g1CardKeyDoorY offsets) cursor)
-      (cardKeyX, _)        = readByte (seekTo (g1CardKeyDoorX offsets) cursor)
-      (trashLock1, _)      = readByte (seekTo (g1TrashCanLock1 offsets) cursor)
-      (trashLock2, _)      = readByte (seekTo (g1TrashCanLock2 offsets) cursor)
-      (mapScript, _)       = readByte (seekTo (g1CurrentMapScript offsets) cursor)
-  in RawTransientState
-      { rawLetterDelay        = letterDelay
-      , rawMusicId            = musicId
-      , rawMusicBank          = musicBank
-      , rawContrastId         = contrastId
-      , rawEnemyTrainerClass  = trainerClass
-      , rawBoulderSpriteIndex = boulderSprite
-      , rawDungeonWarpDest    = dungeonDest
-      , rawDungeonWarpUsed    = dungeonUsed
-      , rawWarpedFromWarp     = warpedWarp
-      , rawWarpedFromMap      = warpedMap
-      , rawCardKeyDoorY       = cardKeyY
-      , rawCardKeyDoorX       = cardKeyX
-      , rawTrashCanLock1      = trashLock1
-      , rawTrashCanLock2      = trashLock2
-      , rawCurrentMapScript   = mapScript
-      }
+parseRawTransient :: Gen1SaveOffsets -> Parser RawTransientState
+parseRawTransient offsets = do
+  seek (g1LetterDelay offsets)
+  letterDelay <- readByte
+  seek (g1MusicId offsets)
+  musicId <- readByte
+  seek (g1MusicBank offsets)
+  musicBank <- readByte
+  seek (g1ContrastId offsets)
+  contrastId <- readByte
+  seek (g1EnemyTrainerClass offsets)
+  trainerClass <- readByte
+  seek (g1BoulderSpriteIndex offsets)
+  boulderSprite <- readByte
+  seek (g1DungeonWarpDest offsets)
+  dungeonDest <- readByte
+  seek (g1DungeonWarpUsed offsets)
+  dungeonUsed <- readByte
+  seek (g1WarpedFromWarp offsets)
+  warpedWarp <- readByte
+  seek (g1WarpedFromMap offsets)
+  warpedMap <- readByte
+  seek (g1CardKeyDoorY offsets)
+  cardKeyY <- readByte
+  seek (g1CardKeyDoorX offsets)
+  cardKeyX <- readByte
+  seek (g1TrashCanLock1 offsets)
+  trashLock1 <- readByte
+  seek (g1TrashCanLock2 offsets)
+  trashLock2 <- readByte
+  seek (g1CurrentMapScript offsets)
+  mapScript <- readByte
+  pure RawTransientState
+    { rawLetterDelay        = letterDelay
+    , rawMusicId            = musicId
+    , rawMusicBank          = musicBank
+    , rawContrastId         = contrastId
+    , rawEnemyTrainerClass  = trainerClass
+    , rawBoulderSpriteIndex = boulderSprite
+    , rawDungeonWarpDest    = dungeonDest
+    , rawDungeonWarpUsed    = dungeonUsed
+    , rawWarpedFromWarp     = warpedWarp
+    , rawWarpedFromMap      = warpedMap
+    , rawCardKeyDoorY       = cardKeyY
+    , rawCardKeyDoorX       = cardKeyX
+    , rawTrashCanLock1      = trashLock1
+    , rawTrashCanLock2      = trashLock2
+    , rawCurrentMapScript   = mapScript
+    }
 
 
 -- ── Hall of Fame Parser ─────────────────────────────────────────
 
-parseHallOfFame :: NameLength -> Cursor -> [RawGen1HoFRecord]
-parseHallOfFame nameLen cursor0 =
-  [ parseHoFRecord nameLen (skip (recordIndex * gen1HoFRecordSize) cursor0) | recordIndex <- [0 .. gen1HoFRecordCount - 1] ]
+parseHallOfFame :: NameLength -> Parser [RawGen1HoFRecord]
+parseHallOfFame nameLen = replicateM gen1HoFRecordCount (parseHoFRecord nameLen)
 
-parseHoFRecord :: NameLength -> Cursor -> RawGen1HoFRecord
-parseHoFRecord nameLen cursor0 =
-  let (entries, _) = parseHoFEntries nameLen gen1HoFSlotsPerRecord cursor0
-  in RawGen1HoFRecord { rawGen1HoFEntries = entries }
+parseHoFRecord :: NameLength -> Parser RawGen1HoFRecord
+parseHoFRecord nameLen = do
+  entries <- replicateM gen1HoFSlotsPerRecord (parseHoFEntry nameLen)
+  pure RawGen1HoFRecord { rawGen1HoFEntries = entries }
 
-parseHoFEntries :: NameLength -> Int -> Cursor -> ([RawGen1HoFEntry], Cursor)
-parseHoFEntries _ 0 cursor = ([], cursor)
-parseHoFEntries nameLen remaining cursor0 =
-  let nameLenInt                 = unNameLength nameLen
-      paddingLen               = gen1HoFEntrySize - 2 - nameLenInt
-      (speciesByte, cursor1)   = readByte cursor0
-      (levelByte, cursor2)     = readByte cursor1
-      (nickname, cursor3)      = readBytes nameLenInt cursor2
-      (padding, cursor4)       = readBytes paddingLen cursor3
-      entry = RawGen1HoFEntry
-        { rawGen1HoFSpecies  = InternalIndex speciesByte
-        , rawGen1HoFLevel    = levelByte
-        , rawGen1HoFNickname = nickname
-        , rawGen1HoFPadding  = padding
-        }
-      (rest, finalCursor) = parseHoFEntries nameLen (remaining - 1) cursor4
-  in (entry : rest, finalCursor)
+parseHoFEntry :: NameLength -> Parser RawGen1HoFEntry
+parseHoFEntry nameLen = do
+  let nameLenInt = unNameLength nameLen
+      paddingLen = gen1HoFEntrySize - 2 - nameLenInt
+  speciesByte <- readByte
+  levelByte   <- readByte
+  nickname    <- readBytes nameLenInt
+  padding     <- readBytes paddingLen
+  pure RawGen1HoFEntry
+    { rawGen1HoFSpecies  = InternalIndex speciesByte
+    , rawGen1HoFLevel    = levelByte
+    , rawGen1HoFNickname = nickname
+    , rawGen1HoFPadding  = padding
+    }
 
 
 -- ── Container Parsers ──────────────────────────────────────────
 
-parseGen1Party :: NameLength -> Cursor -> (RawGen1Party, Cursor)
-parseGen1Party nameLen cursor0 =
-  let nameLenInt        = unNameLength nameLen
-      (count, cursor1)  = readByte cursor0
-      entryCount        = fromIntegral count
-      speciesListSize   = gen1PartyCapacity + 1
-      (species, cursor2) = parseSpeciesList gen1PartyCapacity speciesListSize cursor1
-      (members, cursor3)    = parseFixedArray entryCount gen1PartyCapacity
-                             gen1PartyPokemonSize parseGen1PartyPokemon cursor2
-      (otNames, cursor4) = parseFixedArray entryCount gen1PartyCapacity
-                             nameLenInt (readBytes nameLenInt) cursor3
-      (nicknames, cursor5)   = parseFixedArray entryCount gen1PartyCapacity
-                             nameLenInt (readBytes nameLenInt) cursor4
-  in ( RawGen1Party
-        { rawGen1PartyCount   = count
-        , rawGen1PartySpecies = species
-        , rawGen1PartyMembers    = members
-        , rawGen1PartyOTNames = otNames
-        , rawGen1PartyNicknames   = nicknames
-        }
-     , cursor5
-     )
+parseGen1Party :: NameLength -> Parser RawGen1Party
+parseGen1Party nameLen = do
+  let nameLenInt      = unNameLength nameLen
+      speciesListSize = gen1PartyCapacity + 1
+  count   <- readByte
+  let entryCount = fromIntegral count
+  species <- parseSpeciesList gen1PartyCapacity speciesListSize
+  members <- parseFixedArray entryCount gen1PartyCapacity
+               gen1PartyPokemonSize parseGen1PartyPokemon
+  otNames <- parseFixedArray entryCount gen1PartyCapacity
+               nameLenInt (readBytes nameLenInt)
+  nicknames <- parseFixedArray entryCount gen1PartyCapacity
+                 nameLenInt (readBytes nameLenInt)
+  pure RawGen1Party
+    { rawGen1PartyCount     = count
+    , rawGen1PartySpecies   = species
+    , rawGen1PartyMembers   = members
+    , rawGen1PartyOTNames   = otNames
+    , rawGen1PartyNicknames = nicknames
+    }
 
-parseGen1Box :: NameLength -> BoxCapacity -> Cursor -> (RawGen1Box, Cursor)
-parseGen1Box nameLen boxCapacity cursor0 =
-  let nameLenInt        = unNameLength nameLen
-      boxCapInt         = unBoxCapacity boxCapacity
-      (count, cursor1)  = readByte cursor0
-      entryCount        = fromIntegral count
-      speciesListSize   = boxCapInt + 1
-      (species, cursor2) = parseSpeciesList boxCapInt speciesListSize cursor1
-      (members, cursor3)    = parseFixedArray entryCount boxCapInt
-                             gen1BoxPokemonSize parseGen1BoxPokemon cursor2
-      (otNames, cursor4) = parseFixedArray entryCount boxCapInt
-                             nameLenInt (readBytes nameLenInt) cursor3
-      (nicknames, cursor5)   = parseFixedArray entryCount boxCapInt
-                             nameLenInt (readBytes nameLenInt) cursor4
-  in ( RawGen1Box
-        { rawGen1BoxCount   = count
-        , rawGen1BoxSpecies = species
-        , rawGen1BoxMembers    = members
-        , rawGen1BoxOTNames = otNames
-        , rawGen1BoxNicknames   = nicknames
-        }
-     , cursor5
-     )
+parseGen1Box :: NameLength -> BoxCapacity -> Parser RawGen1Box
+parseGen1Box nameLen boxCapacity = do
+  let nameLenInt = unNameLength nameLen
+      boxCapInt  = unBoxCapacity boxCapacity
+      speciesListSize = boxCapInt + 1
+  count   <- readByte
+  let entryCount = fromIntegral count
+  species <- parseSpeciesList boxCapInt speciesListSize
+  members <- parseFixedArray entryCount boxCapInt
+               gen1BoxPokemonSize parseGen1BoxPokemon
+  otNames <- parseFixedArray entryCount boxCapInt
+               nameLenInt (readBytes nameLenInt)
+  nicknames <- parseFixedArray entryCount boxCapInt
+                 nameLenInt (readBytes nameLenInt)
+  pure RawGen1Box
+    { rawGen1BoxCount     = count
+    , rawGen1BoxSpecies   = species
+    , rawGen1BoxMembers   = members
+    , rawGen1BoxOTNames   = otNames
+    , rawGen1BoxNicknames = nicknames
+    }
 
 
 -- ── Fixed-Array Helpers ────────────────────────────────────────
 
 -- | Read species bytes until 0xFF or capacity reached, then
 -- advance past the full fixed-size species list region.
-parseSpeciesList :: Int -> Int -> Cursor -> ([InternalIndex], Cursor)
-parseSpeciesList capacity totalSize cursor0 =
-  (collectSpecies capacity cursor0, skip totalSize cursor0)
+parseSpeciesList :: Int -> Int -> Parser [InternalIndex]
+parseSpeciesList capacity totalSize = do
+  species <- collectSpecies capacity
+  -- The species list region is fixed-size; we already read some bytes
+  -- collecting species (up to capacity + 1 for the terminator), but
+  -- the simple approach is: seek back and skip the whole region.
+  -- Instead, skip the remaining bytes we didn't consume.
+  -- We consumed: length species bytes (the species) + 1 if terminated by 0xFF
+  -- (or 0 if we hit capacity). Total region is totalSize bytes.
+  -- Simpler: just skip the difference.
+  let consumed = length species + if length species < capacity then 1 else 0
+  skip (totalSize - consumed)
+  pure species
   where
-    collectSpecies 0 _ = []
-    collectSpecies remaining cursor =
-      let (byte, nextCursor) = readByte cursor
-      in if byte == 0xFF
-        then []
-        else InternalIndex byte : collectSpecies (remaining - 1) nextCursor
+    collectSpecies :: Int -> Parser [InternalIndex]
+    collectSpecies 0 = pure []
+    collectSpecies remaining = do
+      byte <- readByte
+      if byte == 0xFF
+        then pure []
+        else do
+          rest <- collectSpecies (remaining - 1)
+          pure (InternalIndex byte : rest)
 
 -- | Parse count entries using the given parser, then skip past
 -- the remaining unused slots to maintain correct cursor position.
-parseFixedArray :: Int -> Int -> Int -> (Cursor -> (a, Cursor)) -> Cursor -> ([a], Cursor)
-parseFixedArray count capacity slotSize parser cursor0 =
-  let (entries, cursorAfterEntries) = readEntries count cursor0
-      unusedSlots = capacity - count
-  in (entries, skip (unusedSlots * slotSize) cursorAfterEntries)
-  where
-    readEntries 0 cursor = ([], cursor)
-    readEntries remaining cursor =
-      let (entry, nextCursor)  = parser cursor
-          (rest, finalCursor) = readEntries (remaining - 1) nextCursor
-      in (entry : rest, finalCursor)
+parseFixedArray :: Int -> Int -> Int -> Parser a -> Parser [a]
+parseFixedArray count capacity slotSize parser = do
+  entries <- replicateM count parser
+  let unusedSlots = capacity - count
+  skip (unusedSlots * slotSize)
+  pure entries
 
 
 -- ── Box Bank Parsers ─────────────────────────────────────────
 
-parseBoxBanks :: NameLength -> BoxCapacity -> ByteString -> [BoxBankInfo] -> ([RawGen1Box], [RawBankValidity])
-parseBoxBanks nameLen boxCapacity bytes banks =
-  let results = map (parseBoxBank nameLen boxCapacity bytes) banks
-  in (concatMap fst results, map snd results)
+parseBoxBanks :: NameLength -> BoxCapacity -> ByteString -> [BoxBankInfo] -> Either SaveError ([RawGen1Box], [RawBankValidity])
+parseBoxBanks nameLen boxCapacity bytes banks = do
+  results <- mapM (parseBoxBank nameLen boxCapacity bytes) banks
+  pure (concatMap fst results, map snd results)
 
-parseBoxBank :: NameLength -> BoxCapacity -> ByteString -> BoxBankInfo -> ([RawGen1Box], RawBankValidity)
-parseBoxBank nameLen boxCapacity bytes bank =
-  let cursor = mkCursor bytes
+parseBoxBank :: NameLength -> BoxCapacity -> ByteString -> BoxBankInfo -> Either SaveError ([RawGen1Box], RawBankValidity)
+parseBoxBank nameLen boxCapacity bytes bank = do
+  boxes <- sequence
+    [ runParser (do seek (bankStartOffset bank + boxIndex * bankBoxDataSize bank)
+                    parseGen1Box nameLen boxCapacity
+                ) bytes
+    | boxIndex <- [0 .. bankBoxCount bank - 1]
+    ]
 
-      boxes =
-        [ fst (parseGen1Box nameLen boxCapacity
-                (seekTo (bankStartOffset bank + boxIndex * bankBoxDataSize bank) cursor))
-        | boxIndex <- [0 .. bankBoxCount bank - 1]
-        ]
-
-      storedBankChecksum = ByteString.index bytes (bankAllChecksum bank)
+  let storedBankChecksum = ByteString.index bytes (bankAllChecksum bank)
       calculatedBankChecksum = calculateGen1Checksum bytes
                                  (bankStartOffset bank) (bankAllChecksum bank - 1)
       bankValid = storedBankChecksum == calculatedBankChecksum
 
       boxValid =
-        [ let boxOffset = bankStartOffset bank + boxIndex * bankBoxDataSize bank
+        [ let boxOffset  = bankStartOffset bank + boxIndex * bankBoxDataSize bank
               stored     = ByteString.index bytes (bankBoxChecksums bank + boxIndex)
               calculated = calculateGen1Checksum bytes
                              boxOffset (boxOffset + bankBoxDataSize bank - 1)
@@ -645,4 +727,4 @@ parseBoxBank nameLen boxCapacity bytes bank =
         | boxIndex <- [0 .. bankBoxCount bank - 1]
         ]
 
-  in (boxes, RawBankValidity { bankChecksumValid = bankValid, boxChecksumsValid = boxValid })
+  pure (boxes, RawBankValidity { bankChecksumValid = bankValid, boxChecksumsValid = boxValid })

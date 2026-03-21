@@ -1,14 +1,21 @@
 -- | Cursor-based reader for fixed-layout binary formats.
 --
--- Pure functions over ByteString. No IO, no Either — this is for
--- known-good offsets in fixed-size files. Out-of-bounds reads are
--- programming bugs, not data errors.
+-- Safe reads via StateT that return Either SaveError, suitable for
+-- untrusted input. Write and patch functions remain pure (they
+-- operate on known-good data from a successful parse).
 
 module Cinnabar.Binary
-  ( -- * Cursor
-    Cursor
+  ( -- * Errors
+    SaveError (..)
+
+    -- * Cursor
+  , Cursor
   , mkCursor
   , cursorOffset
+
+    -- * Parser
+  , Parser
+  , runParser
 
     -- * Reading
   , readByte
@@ -27,14 +34,30 @@ module Cinnabar.Binary
   , patchSlots
 
     -- * Navigation
-  , seekTo
+  , seek
   , skip
   ) where
 
+import Control.Monad (when)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.State.Strict (StateT, get, put, evalStateT)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
+import Data.Text (Text)
 import Data.Word (Word8, Word16)
+
+import Cinnabar.Types (Gen (..))
+
+
+-- ── Errors ────────────────────────────────────────────────────
+
+data SaveError
+  = WrongFileSize !Int !Int
+  | UnsupportedLayout !Text
+  | UnimplementedGen !Gen
+  | CursorOverrun !Int !Int !Int  -- offset, bytes needed, bytes available
+  deriving (Eq, Show)
 
 
 -- ── Cursor ──────────────────────────────────────────────────────
@@ -44,49 +67,81 @@ import Data.Word (Word8, Word16)
 data Cursor = Cursor
   { cursorSource :: !ByteString
   , cursorOffset :: !Int
+  , cursorLength :: !Int
   }
 
 -- | Create a cursor at the beginning of a ByteString.
 mkCursor :: ByteString -> Cursor
-mkCursor source = Cursor { cursorSource = source, cursorOffset = 0 }
+mkCursor source = Cursor
+  { cursorSource = source
+  , cursorOffset = 0
+  , cursorLength = ByteString.length source
+  }
+
+
+-- ── Parser ──────────────────────────────────────────────────────
+
+-- | A parser that threads a Cursor through a computation,
+-- failing with SaveError on out-of-bounds reads.
+type Parser a = StateT Cursor (Either SaveError) a
+
+-- | Run a parser on raw bytes, returning either an error or the result.
+runParser :: Parser a -> ByteString -> Either SaveError a
+runParser parser bytes = evalStateT parser (mkCursor bytes)
 
 
 -- ── Reading ─────────────────────────────────────────────────────
 
 -- | Read one byte and advance.
-readByte :: Cursor -> (Word8, Cursor)
-readByte cursor =
-  let byte = ByteString.index (cursorSource cursor) (cursorOffset cursor)
-  in (byte, cursor { cursorOffset = cursorOffset cursor + 1 })
+readByte :: Parser Word8
+readByte = do
+  cursor <- get
+  let offset = cursorOffset cursor
+  when (offset >= cursorLength cursor) $
+    lift $ Left (CursorOverrun offset 1 (cursorLength cursor))
+  let byte = ByteString.index (cursorSource cursor) offset
+  put cursor { cursorOffset = offset + 1 }
+  pure byte
 
 -- | Read a 16-bit big-endian value and advance by 2.
-readWord16BE :: Cursor -> (Word16, Cursor)
-readWord16BE cursor =
+readWord16BE :: Parser Word16
+readWord16BE = do
+  cursor <- get
+  let offset = cursorOffset cursor
+  when (offset + 2 > cursorLength cursor) $
+    lift $ Left (CursorOverrun offset 2 (cursorLength cursor))
   let source = cursorSource cursor
-      offset = cursorOffset cursor
       highByte = fromIntegral (ByteString.index source offset) :: Word16
       lowByte  = fromIntegral (ByteString.index source (offset + 1)) :: Word16
-  in (highByte `shiftL` 8 .|. lowByte, cursor { cursorOffset = offset + 2 })
+  put cursor { cursorOffset = offset + 2 }
+  pure (highByte `shiftL` 8 .|. lowByte)
 
 -- | Read a 24-bit big-endian value as Int and advance by 3.
 -- Used for experience values (0–16,777,215).
-readWord24BE :: Cursor -> (Int, Cursor)
-readWord24BE cursor =
+readWord24BE :: Parser Int
+readWord24BE = do
+  cursor <- get
+  let offset = cursorOffset cursor
+  when (offset + 3 > cursorLength cursor) $
+    lift $ Left (CursorOverrun offset 3 (cursorLength cursor))
   let source = cursorSource cursor
-      offset = cursorOffset cursor
       highByte = fromIntegral (ByteString.index source offset)
       midByte  = fromIntegral (ByteString.index source (offset + 1))
       lowByte  = fromIntegral (ByteString.index source (offset + 2))
-  in ( highByte `shiftL` 16 .|. midByte `shiftL` 8 .|. lowByte
-     , cursor { cursorOffset = offset + 3 }
-     )
+  put cursor { cursorOffset = offset + 3 }
+  pure (highByte `shiftL` 16 .|. midByte `shiftL` 8 .|. lowByte)
 
 -- | Read a slice of n bytes and advance. Zero-copy — uses
 -- ByteString's take/drop which share the underlying buffer.
-readBytes :: Int -> Cursor -> (ByteString, Cursor)
-readBytes count cursor =
-  let slice = ByteString.take count (ByteString.drop (cursorOffset cursor) (cursorSource cursor))
-  in (slice, cursor { cursorOffset = cursorOffset cursor + count })
+readBytes :: Int -> Parser ByteString
+readBytes count = do
+  cursor <- get
+  let offset = cursorOffset cursor
+  when (offset + count > cursorLength cursor) $
+    lift $ Left (CursorOverrun offset count (cursorLength cursor))
+  let slice = ByteString.take count (ByteString.drop offset (cursorSource cursor))
+  put cursor { cursorOffset = offset + count }
+  pure slice
 
 
 -- ── Writing ───────────────────────────────────────────────────
@@ -133,9 +188,18 @@ patchSlots start stride items bytes =
 -- ── Navigation ────────────────────────────────────────────────
 
 -- | Jump to an absolute offset.
-seekTo :: Int -> Cursor -> Cursor
-seekTo offset cursor = cursor { cursorOffset = offset }
+seek :: Int -> Parser ()
+seek offset = do
+  cursor <- get
+  when (offset < 0 || offset > cursorLength cursor) $
+    lift $ Left (CursorOverrun offset 0 (cursorLength cursor))
+  put cursor { cursorOffset = offset }
 
 -- | Advance by n bytes without reading.
-skip :: Int -> Cursor -> Cursor
-skip count cursor = cursor { cursorOffset = cursorOffset cursor + count }
+skip :: Int -> Parser ()
+skip count = do
+  cursor <- get
+  let newOffset = cursorOffset cursor + count
+  when (newOffset < 0 || newOffset > cursorLength cursor) $
+    lift $ Left (CursorOverrun (cursorOffset cursor) count (cursorLength cursor))
+  put cursor { cursorOffset = newOffset }

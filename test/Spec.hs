@@ -19,7 +19,7 @@ import Cinnabar.Data (loadAllGameData)
 import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
 import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, displayText, terminator)
-import Cinnabar.Binary (mkCursor, cursorOffset, patchByte, patchBytes)
+import Cinnabar.Binary (runParser, patchByte, patchBytes)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
 import Cinnabar.Save.Layout
@@ -243,16 +243,18 @@ main = hspec $ do
             , 0x00, 0x6E                    -- speed: 110
             , 0x00, 0x46                    -- special: 70
             ]
-          (partyPokemon, partyCursor) = parseGen1PartyPokemon (mkCursor pikachuBytes)
-          (boxPokemon, boxCursor)     = parseGen1BoxPokemon (mkCursor pikachuBytes)
-      rawG1SpeciesIndex partyPokemon `shouldBe` InternalIndex 0x54
-      rawG1Exp partyPokemon `shouldBe` 50000
-      rawG1DVBytes partyPokemon `shouldBe` 0xFAD8
-      rawG1OTID partyPokemon `shouldBe` 12345
-      rawG1Level partyPokemon `shouldBe` 25
-      rawG1BoxSpeciesIndex boxPokemon `shouldBe` rawG1SpeciesIndex partyPokemon
-      cursorOffset partyCursor `shouldBe` 44
-      cursorOffset boxCursor `shouldBe` 33
+      case runParser parseGen1PartyPokemon pikachuBytes of
+        Left parseError -> expectationFailure (show parseError)
+        Right partyPokemon -> do
+          rawG1SpeciesIndex partyPokemon `shouldBe` InternalIndex 0x54
+          rawG1Exp partyPokemon `shouldBe` 50000
+          rawG1DVBytes partyPokemon `shouldBe` 0xFAD8
+          rawG1OTID partyPokemon `shouldBe` 12345
+          rawG1Level partyPokemon `shouldBe` 25
+      case runParser parseGen1BoxPokemon pikachuBytes of
+        Left parseError -> expectationFailure (show parseError)
+        Right boxPokemon ->
+          rawG1BoxSpeciesIndex boxPokemon `shouldBe` InternalIndex 0x54
 
   describe "Save file parser" $ do
     it "parses a real Yellow save file" $ do

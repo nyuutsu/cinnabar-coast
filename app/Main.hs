@@ -429,6 +429,10 @@ renderSaveError (UnsupportedLayout description) =
   "unsupported layout: " ++ Text.unpack description
 renderSaveError (UnimplementedGen gen) =
   "unimplemented: " ++ show gen
+renderSaveError (CursorOverrun offset needed available) =
+  "read out of bounds at offset " ++ show offset
+  ++ ": needed " ++ show needed ++ " bytes, "
+  ++ show available ++ " available"
 
 
 renderWarningContext :: WarningContext -> String
