@@ -241,7 +241,10 @@ data InterpretedSave = InterpretedSave
   , interpPlayTimeMaxed :: !Bool
   , interpCurrentBox    :: !Int
   , interpHoFCount      :: !Int
-  , interpPikachuFriend   :: !(Maybe Int)
+  , interpPikachuHappiness :: !(Maybe Int)     -- Nothing for R/B
+  , interpPikachuMood      :: !(Maybe Int)     -- Nothing for R/B
+  , interpSurfingHiScore   :: !(Maybe Int)     -- Nothing for R/B, decoded BCD
+  , interpPrinterSettings  :: !(Maybe Word8)   -- Nothing for R/B, raw byte
   , interpDaycare         :: !(Maybe InterpretedDaycare)
   , interpPlayerY         :: !Int
   , interpPlayerX         :: !Int
@@ -446,7 +449,10 @@ interpretGen1Save gameData codec rawSave =
       , interpPlayTimeMaxed = rawPlayMaxed rawPlayTimeRecord /= 0
       , interpCurrentBox    = currentBoxNumber
       , interpHoFCount      = fromIntegral (rawGen1HoFCount rawSave)
-      , interpPikachuFriend   = resolvePikachuFriend gameVariant (rawGen1PikachuFriend rawSave)
+      , interpPikachuHappiness = yellowOnly gameVariant (fromIntegral (rawGen1PikachuHappiness rawSave))
+      , interpPikachuMood     = yellowOnly gameVariant (fromIntegral (rawGen1PikachuMood rawSave))
+      , interpSurfingHiScore  = yellowOnly gameVariant (decodeBCDLE (rawGen1SurfingHiScore rawSave))
+      , interpPrinterSettings = yellowOnly gameVariant (rawGen1PrinterSettings rawSave)
       , interpDaycare         = interpretedDaycare
       , interpPlayerY         = fromIntegral (rawPlayerY positionRecord)
       , interpPlayerX         = fromIntegral (rawPlayerX positionRecord)
@@ -755,9 +761,18 @@ promotePlayTime raw = PlayTime
   , playSeconds = fromIntegral (rawPlaySeconds raw)
   }
 
-resolvePikachuFriend :: GameVariant -> Word8 -> Maybe Int
-resolvePikachuFriend Yellow byte = Just (fromIntegral byte)
-resolvePikachuFriend _      _    = Nothing
+yellowOnly :: GameVariant -> a -> Maybe a
+yellowOnly Yellow value = Just value
+yellowOnly _      _     = Nothing
+
+-- | Decode a 2-byte little-endian Binary-Coded Decimal value.
+-- Low byte first, high byte second. Each nybble is one decimal digit.
+decodeBCDLE :: ByteString -> Int
+decodeBCDLE bytes =
+  let low  = ByteString.index bytes 0
+      high = ByteString.index bytes 1
+      decodeByte byte = fromIntegral (byte `shiftR` 4) * 10 + fromIntegral (byte .&. 0x0F)
+  in decodeByte low + decodeByte high * 100
 
 resolveFossil
   :: Map.Map InternalIndex DexNumber

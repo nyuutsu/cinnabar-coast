@@ -431,9 +431,9 @@ main = hspec $ do
                 interpMoney interpreted `shouldSatisfy` (>= 0)
                 progBadges (interpProgress interpreted) `shouldSatisfy` (not . null)
                 Set.size (interpPokedexOwned interpreted) `shouldSatisfy` (> 0)
-                case interpPikachuFriend interpreted of
+                case interpPikachuHappiness interpreted of
                   Just _  -> pure ()
-                  Nothing -> expectationFailure "expected Pikachu friendship for Yellow save"
+                  Nothing -> expectationFailure "expected Pikachu happiness for Yellow save"
 
   -- ── PC box bank parsing ──────────────────────────────────
 

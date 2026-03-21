@@ -178,8 +178,18 @@ printSaveSummary interpreted = do
       mapM_ printInventoryEntry boxItems
       putStrLn ""
 
-  case interpPikachuFriend interpreted of
-    Just friendship -> putStrLn $ "Pikachu Friendship: " ++ show friendship
+  case interpPikachuHappiness interpreted of
+    Just happiness -> do
+      let moodStr = case interpPikachuMood interpreted of
+            Just mood -> ", mood " ++ show mood
+            Nothing   -> ""
+      putStrLn $ "Pikachu: happiness " ++ show happiness ++ moodStr
+    Nothing -> pure ()
+  case interpSurfingHiScore interpreted of
+    Just score -> putStrLn $ "Surfing Pikachu hi-score: " ++ show score
+    Nothing -> pure ()
+  case interpPrinterSettings interpreted of
+    Just settings -> putStrLn $ "Printer settings: 0x" ++ showHexByte settings
     Nothing -> pure ()
   putStrLn $ "Position: (" ++ show (interpPlayerY interpreted)
     ++ ", " ++ show (interpPlayerX interpreted)

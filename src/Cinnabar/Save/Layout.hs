@@ -104,7 +104,10 @@ data Gen1SaveOffsets = Gen1SaveOffsets
   , g1Options           :: !Int   -- 1 byte
   , g1Badges            :: !Int   -- 1 byte bitfield
   , g1PlayerID          :: !Int   -- 2 bytes big-endian
-  , g1PikachuFriendship :: !Int   -- 1 byte (Yellow only; unused in R/B)
+  , g1PikachuHappiness  :: !Int   -- 1 byte (Yellow only; unused in R/B)
+  , g1PikachuMood       :: !Int   -- 1 byte (Yellow only; unused in R/B)
+  , g1SurfingHiScore    :: !Int   -- 2 bytes little-endian BCD (Yellow only)
+  , g1PrinterSettings   :: !Int   -- 1 byte (Yellow only)
   , g1BoxItems          :: !Int
   , g1CurrentBoxNumber  :: !Int   -- 1 byte
   , g1HoFCount          :: !Int   -- 1 byte
@@ -263,7 +266,10 @@ westernGen1Layout game = CartridgeLayout
 -- Player Y:              Bank 1, 0x260D (1 byte)
 -- Player X:              Bank 1, 0x260E (1 byte)
 -- Last map:              Bank 1, 0x2611 (1 byte)
--- Pikachu friendship:    Bank 1, 0x271C (1 byte, Yellow only)
+-- Pikachu happiness:     Bank 1, 0x271B (1 byte, Yellow only)
+-- Pikachu mood:          Bank 1, 0x271C (1 byte, Yellow only)
+-- Surfing hi-score:      Bank 1, 0x2740 (2 bytes little-endian BCD, Yellow only)
+-- Printer settings:      Bank 1, 0x2743 (1 byte, Yellow only)
 -- PC box items:          Bank 1, 0x27E6 (count + pairs + 0xFF)
 -- Current box number:    Bank 1, 0x284C (1 byte)
 -- Hall of Fame count:    Bank 1, 0x284E (1 byte)
@@ -341,7 +347,10 @@ westernGen1Offsets = Gen1SaveOffsets
   , g1PlayerY           = 0x260D
   , g1PlayerX           = 0x260E
   , g1LastMap           = 0x2611
-  , g1PikachuFriendship = 0x271C
+  , g1PikachuHappiness  = 0x271B
+  , g1PikachuMood       = 0x271C
+  , g1SurfingHiScore    = 0x2740
+  , g1PrinterSettings   = 0x2743
   , g1BoxItems          = 0x27E6
   , g1CurrentBoxNumber  = 0x284C
   , g1HoFCount          = 0x284E
@@ -400,6 +409,20 @@ westernGen1Offsets = Gen1SaveOffsets
                     , bankAllChecksum = 0x7A4C, bankBoxChecksums = 0x7A4D }
       ]
   }
+
+-- ── Yellow Pikachu overworld state (not parsed) ─────────────
+--
+-- Yellow fills a 128-byte reserved block with Pikachu AI state:
+-- overworld flags, spawn state, movement command buffer, expression
+-- and animation numbers, movement script pointers. Some of these
+-- may be transient (movement buffers) while others may affect
+-- game behavior on reload (spawn state, overworld flags). We
+-- haven't verified which fields the game reads back on load vs
+-- which it reinitializes.
+--
+-- The meaningful fields from this block (happiness, mood, surfing
+-- hi-score, printer settings) are parsed as individual fields.
+-- The rest can be added if a use case emerges.
 
 -- ── Intentionally not parsed ────────────────────────────────
 --

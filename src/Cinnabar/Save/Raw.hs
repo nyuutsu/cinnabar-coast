@@ -97,7 +97,10 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1CurrentBoxNum    :: !Word8
   , rawGen1HoFCount         :: !Word8
   , rawGen1PlayTime         :: !RawPlayTime
-  , rawGen1PikachuFriend    :: !Word8
+  , rawGen1PikachuHappiness :: !Word8     -- Yellow only; unused in R/B
+  , rawGen1PikachuMood     :: !Word8     -- Yellow only; unused in R/B
+  , rawGen1SurfingHiScore  :: !ByteString -- 2 bytes, little-endian BCD (Yellow only)
+  , rawGen1PrinterSettings :: !Word8     -- Yellow only
   , rawGen1Daycare          :: !RawDaycare
   , rawGen1PCBoxes          :: ![RawGen1Box]
   , rawGen1BoxBankValid     :: ![RawBankValidity]
@@ -274,7 +277,10 @@ parseGen1Save layout offsets bytes =
       (boxNumber, _)    = readByte (seekTo (g1CurrentBoxNumber offsets) cursor)
       (hofCount, _)     = readByte (seekTo (g1HoFCount offsets) cursor)
       playTime          = parseRawPlayTime (seekTo (g1PlayTime offsets) cursor)
-      (pikachuFriend, _) = readByte (seekTo (g1PikachuFriendship offsets) cursor)
+      (pikachuHappiness, _) = readByte (seekTo (g1PikachuHappiness offsets) cursor)
+      (pikachuMood, _)      = readByte (seekTo (g1PikachuMood offsets) cursor)
+      (surfingHiScore, _)   = readBytes 2 (seekTo (g1SurfingHiScore offsets) cursor)
+      (printerSettings, _)  = readByte (seekTo (g1PrinterSettings offsets) cursor)
       daycare           = parseRawDaycare nameLen offsets cursor
       progress          = parseRawProgress offsets cursor
       playerPosition    = parseRawPlayerPosition offsets cursor
@@ -311,7 +317,10 @@ parseGen1Save layout offsets bytes =
       , rawGen1CurrentBoxNum    = boxNumber
       , rawGen1HoFCount         = hofCount
       , rawGen1PlayTime         = playTime
-      , rawGen1PikachuFriend    = pikachuFriend
+      , rawGen1PikachuHappiness = pikachuHappiness
+      , rawGen1PikachuMood     = pikachuMood
+      , rawGen1SurfingHiScore  = surfingHiScore
+      , rawGen1PrinterSettings = printerSettings
       , rawGen1Daycare          = daycare
       , rawGen1PCBoxes          = pcBoxes
       , rawGen1BoxBankValid     = boxBankValidity
