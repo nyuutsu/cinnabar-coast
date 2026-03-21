@@ -24,6 +24,7 @@ module Cinnabar.Save.Interpret
   , InterpretedBox (..)
   , FlagState (..)
   , MapScriptState (..)
+  , MovementMode (..)
   , InterpretedProgress (..)
   , InterpretedHoFEntry (..)
   , InterpretedDaycare (..)
@@ -161,13 +162,20 @@ data MapScriptState = MapScriptState
   , scriptStep :: !Int
   } deriving (Eq, Show)
 
+data MovementMode
+  = Walking
+  | Biking
+  | Surfing
+  | UnknownMovement !Word8
+  deriving (Eq, Show)
+
 data InterpretedProgress = InterpretedProgress
   { progPlayerStarter     :: !InterpretedSpecies
   , progRivalStarter      :: !RivalStarter
   , progBadges            :: ![FlagState]
   , progDefeatedGyms      :: ![FlagState]
   , progTownsVisited      :: ![FlagState]
-  , progMovementMode      :: !Text
+  , progMovementMode      :: !MovementMode
   , progEventFlags        :: ![FlagState]
   , progToggleFlags       :: ![FlagState]
   , progMapScripts        :: ![MapScriptState]
@@ -896,10 +904,10 @@ interpretProgress gameData rawSave =
           in (RivalStarterSpecies species, warnings)
 
       movementMode = case rawMovementStatus progress of
-        0 -> "Walking"
-        1 -> "Biking"
-        2 -> "Surfing"
-        _ -> "Unknown"
+        0 -> Walking
+        1 -> Biking
+        2 -> Surfing
+        byte -> UnknownMovement byte
 
       badgeList = case flagNames of
         Nothing    -> []

@@ -322,83 +322,83 @@ westernGen1Layout game = CartridgeLayout
 -- Bank 3 box checks:     0x7A4D (6 bytes, one per box)
 westernGen1Offsets :: Gen1SaveOffsets
 westernGen1Offsets = Gen1SaveOffsets
-  { g1PlayerName        = 0x2598
-  , g1RivalName         = 0x25F6
-  , g1PartyData         = 0x2F2C
-  , g1CurrentBox        = 0x30C0
-  , g1Checksum          = 0x3523
+  { g1HallOfFame        = 0x0598
+  , g1PlayerName        = 0x2598
   , g1ChecksumStart     = 0x2598
-  , g1ChecksumEnd       = 0x3522
-  , g1BoxBanks          =
-      [ BoxBankInfo { bankStartOffset = 0x4000, bankBoxCount = 6, bankBoxDataSize = 1122
-                    , bankAllChecksum = 0x5A4C, bankBoxChecksums = 0x5A4D }
-      , BoxBankInfo { bankStartOffset = 0x6000, bankBoxCount = 6, bankBoxDataSize = 1122
-                    , bankAllChecksum = 0x7A4C, bankBoxChecksums = 0x7A4D }
-      ]
   , g1PokedexOwned      = 0x25A3
   , g1PokedexSeen       = 0x25B6
   , g1BagItems          = 0x25C9
   , g1Money             = 0x25F3
+  , g1RivalName         = 0x25F6
   , g1Options           = 0x2601
   , g1Badges            = 0x2602
+  , g1LetterDelay       = 0x2604
   , g1PlayerID          = 0x2605
+  , g1MusicId           = 0x2607
+  , g1MusicBank         = 0x2608
+  , g1ContrastId        = 0x2609
+  , g1CurrentMap        = 0x260A
+  , g1PlayerY           = 0x260D
+  , g1PlayerX           = 0x260E
+  , g1LastMap           = 0x2611
   , g1PikachuFriendship = 0x271C
   , g1BoxItems          = 0x27E6
   , g1CurrentBoxNumber  = 0x284C
   , g1HoFCount          = 0x284E
-  , g1HallOfFame        = 0x0598
   , g1CasinoCoins       = 0x2850
-  , g1PlayTime          = 0x2CED
-  , g1DaycareInUse      = 0x2CF4
-  , g1DaycarePokemon        = 0x2D0B
-  , g1EventFlags        = 0x29F3
   , g1ToggleFlags       = 0x2852
   , g1MapScripts        = 0x289C
-  , g1DefeatedGyms      = 0x29D6
-  , g1PlayerStarter     = 0x29C3
-  , g1RivalStarter      = 0x29C1
-  , g1TownsVisited      = 0x29B7
+  , g1HiddenItems       = 0x299C
+  , g1HiddenCoins       = 0x29AA
   , g1MovementStatus    = 0x29AC
+  , g1TownsVisited      = 0x29B7
+  , g1SafariSteps       = 0x29B9
+  , g1FossilItem        = 0x29BB
+  , g1FossilResult      = 0x29BC
+  , g1EnemyTrainerClass = 0x29BF
+  , g1RivalStarter      = 0x29C1
+  , g1PlayerStarter     = 0x29C3
+  , g1BoulderSpriteIndex = 0x29C4
+  , g1LastBlackoutMap   = 0x29C5
+  , g1DestinationMap    = 0x29C6
+  , g1DungeonWarpDest   = 0x29C9
+  , g1DungeonWarpUsed   = 0x29CA
   , g1VarFlags1         = 0x29D4
+  , g1DefeatedGyms      = 0x29D6
   , g1VarFlags2         = 0x29D8
   , g1VarFlags3         = 0x29D9
   , g1VarFlags4         = 0x29DA
   , g1VarFlags5         = 0x29DC
   , g1VarFlags6         = 0x29DE
-  , g1InGameTrades      = 0x29E3
-  , g1HiddenItems       = 0x299C
-  , g1HiddenCoins       = 0x29AA
-  , g1CurrentMap        = 0x260A
-  , g1DaycareNickname   = 0x2CF5
-  , g1DaycareOTName     = 0x2D00
   , g1VarFlags7         = 0x29DF
-  , g1VarFlags8         = 0x29E2
   , g1DefeatedLorelei   = 0x29E0
-  , g1PlayerY           = 0x260D
-  , g1PlayerX           = 0x260E
-  , g1LastMap           = 0x2611
-  , g1LastBlackoutMap   = 0x29C5
-  , g1DestinationMap    = 0x29C6
-  , g1SafariSteps       = 0x29B9
-  , g1SafariBallCount   = 0x2CF3
-  , g1SafariGameOver    = 0x2CF2
-  , g1FossilItem        = 0x29BB
-  , g1FossilResult      = 0x29BC
-  , g1LetterDelay       = 0x2604
-  , g1MusicId           = 0x2607
-  , g1MusicBank         = 0x2608
-  , g1ContrastId        = 0x2609
-  , g1EnemyTrainerClass = 0x29BF
-  , g1BoulderSpriteIndex = 0x29C4
-  , g1DungeonWarpDest   = 0x29C9
-  , g1DungeonWarpUsed   = 0x29CA
+  , g1VarFlags8         = 0x29E2
+  , g1InGameTrades      = 0x29E3
   , g1WarpedFromWarp    = 0x29E7
   , g1WarpedFromMap     = 0x29E8
   , g1CardKeyDoorY      = 0x29EB
   , g1CardKeyDoorX      = 0x29EC
   , g1TrashCanLock1     = 0x29EF
   , g1TrashCanLock2     = 0x29F0
+  , g1EventFlags        = 0x29F3
   , g1CurrentMapScript  = 0x2CE5
+  , g1PlayTime          = 0x2CED
+  , g1SafariGameOver    = 0x2CF2
+  , g1SafariBallCount   = 0x2CF3
+  , g1DaycareInUse      = 0x2CF4
+  , g1DaycareNickname   = 0x2CF5
+  , g1DaycareOTName     = 0x2D00
+  , g1DaycarePokemon    = 0x2D0B
+  , g1PartyData         = 0x2F2C
+  , g1CurrentBox        = 0x30C0
+  , g1ChecksumEnd       = 0x3522
+  , g1Checksum          = 0x3523
+  , g1BoxBanks          =
+      [ BoxBankInfo { bankStartOffset = 0x4000, bankBoxCount = 6, bankBoxDataSize = 1122
+                    , bankAllChecksum = 0x5A4C, bankBoxChecksums = 0x5A4D }
+      , BoxBankInfo { bankStartOffset = 0x6000, bankBoxCount = 6, bankBoxDataSize = 1122
+                    , bankAllChecksum = 0x7A4C, bankBoxChecksums = 0x7A4D }
+      ]
   }
 
 -- ── Intentionally not parsed ────────────────────────────────

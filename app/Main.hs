@@ -27,7 +27,7 @@ import Cinnabar.Save.Interpret
   , InterpretedDaycare (..)
   , WarningContext (..), SaveWarning (..)
   , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
-  , InterpretedProgress (..), FlagState (..), MapScriptState (..)
+  , InterpretedProgress (..), MovementMode (..), FlagState (..), MapScriptState (..)
   , InventoryEntry (..), PlayTime (..)
   )
 import Cinnabar.Save.Layout
@@ -362,6 +362,12 @@ renderMove EmptyMove          = Nothing
 renderMove (KnownMove _ move) = Just (Text.unpack (moveName move))
 renderMove (UnknownMove byte) = Just ("Unknown [0x" ++ showHexByte byte ++ "]")
 
+renderMovementMode :: MovementMode -> String
+renderMovementMode Walking = "Walking"
+renderMovementMode Biking = "Biking"
+renderMovementMode Surfing = "Surfing"
+renderMovementMode (UnknownMovement byte) = "Unknown (0x" ++ showHexByte byte ++ ")"
+
 
 renderSaveError :: SaveError -> String
 renderSaveError (WrongFileSize expected actual) =
@@ -440,7 +446,7 @@ printProgressSummary progress = do
     then putStrLn "Lapras: received"
     else pure ()
 
-  putStrLn $ "Movement: " ++ Text.unpack (progMovementMode progress)
+  putStrLn $ "Movement: " ++ renderMovementMode (progMovementMode progress)
 
   if progTradesCompleted progress > 0
     then putStrLn $ "Trades completed: " ++ show (progTradesCompleted progress)
@@ -453,17 +459,7 @@ printAllFlags progress = do
   printFlagSection "Badges" "earned" "not earned" (progBadges progress)
   printFlagSection "Gyms defeated" "defeated" "not defeated" (progDefeatedGyms progress)
   printFlagSection "Towns visited" "visited" "not visited" (progTownsVisited progress)
-
-  let events    = progEventFlags progress
-      setCount  = length (filter flagIsSet events)
-      unsetCount = length events - setCount
-  putStrLn $ "Event flags (" ++ show setCount ++ " set, "
-    ++ show unsetCount ++ " unset of " ++ show (length events) ++ " named):"
-  if null events
-    then putStrLn "  (none)"
-    else mapM_ (\flag -> TextIO.putStrLn $ "  " <> padRight 40 (flagName flag)
-      <> if flagIsSet flag then "set" else "unset") events
-  putStrLn ""
+  printFlagSection "Event flags" "set" "unset" (progEventFlags progress)
 
   putStrLn "Various flags:"
   putStrLn $ "  Received Old Rod: " ++ showYesNo (progReceivedOldRod progress)
@@ -484,16 +480,7 @@ printAllFlags progress = do
   putStrLn $ "  Beaten Lorelei (E4 run): " ++ showYesNo (progBeatenLorelei progress)
   putStrLn ""
 
-  let toggles      = progToggleFlags progress
-      hiddenCount  = length (filter flagIsSet toggles)
-      visibleCount = length toggles - hiddenCount
-  putStrLn $ "Toggleable objects (" ++ show hiddenCount ++ " hidden, "
-    ++ show visibleCount ++ " visible of " ++ show (length toggles) ++ " named):"
-  if null toggles
-    then putStrLn "  (none)"
-    else mapM_ (\flag -> TextIO.putStrLn $ "  " <> padRight 40 (flagName flag)
-      <> if flagIsSet flag then "hidden" else "visible") toggles
-  putStrLn ""
+  printFlagSection "Toggleable objects" "hidden" "visible" (progToggleFlags progress)
 
   let scripts      = progMapScripts progress
       nonZeroCount = length (filter (\state -> scriptStep state /= 0) scripts)
