@@ -28,6 +28,8 @@ import Cinnabar.Save.Interpret
   , WarningContext (..), SaveWarning (..)
   , InterpretedBox (..), InterpretedHoFEntry (..), InterpretedHoFRecord (..)
   , InterpretedProgress (..), MovementMode (..), FlagState (..), MapScriptState (..)
+  , TextSpeed (..), BattleAnimation (..), BattleStyle (..), SoundSetting (..)
+  , InterpretedOptions (..)
   , InventoryEntry (..), PlayTime (..)
   )
 import Cinnabar.Save.Layout
@@ -191,6 +193,14 @@ printSaveSummary interpreted = do
   case interpPrinterSettings interpreted of
     Just settings -> putStrLn $ "Printer settings: 0x" ++ showHexByte settings
     Nothing -> pure ()
+  let opts = interpOptions interpreted
+      soundStr = case optSound opts of
+        Nothing    -> ""
+        Just sound -> ", sound " ++ renderSoundSetting sound
+  putStrLn $ "Options: text speed " ++ renderTextSpeed (optTextSpeed opts)
+    ++ ", animations " ++ renderBattleAnimation (optBattleAnimation opts)
+    ++ ", battle style " ++ renderBattleStyle (optBattleStyle opts)
+    ++ soundStr
   putStrLn $ "Position: (" ++ show (interpPlayerY interpreted)
     ++ ", " ++ show (interpPlayerX interpreted)
     ++ ") on map " ++ show (interpCurrentMap interpreted)
@@ -377,6 +387,26 @@ renderMovementMode Walking = "Walking"
 renderMovementMode Biking = "Biking"
 renderMovementMode Surfing = "Surfing"
 renderMovementMode (UnknownMovement byte) = "Unknown (0x" ++ showHexByte byte ++ ")"
+
+renderTextSpeed :: TextSpeed -> String
+renderTextSpeed TextFast = "fast"
+renderTextSpeed TextMedium = "medium"
+renderTextSpeed TextSlow = "slow"
+renderTextSpeed (TextSpeedUnknown n) = "unknown (" ++ show n ++ ")"
+
+renderBattleAnimation :: BattleAnimation -> String
+renderBattleAnimation AnimationsOn = "on"
+renderBattleAnimation AnimationsOff = "off"
+
+renderBattleStyle :: BattleStyle -> String
+renderBattleStyle BattleShift = "shift"
+renderBattleStyle BattleSet = "set"
+
+renderSoundSetting :: SoundSetting -> String
+renderSoundSetting Mono = "mono"
+renderSoundSetting Earphone1 = "earphone1"
+renderSoundSetting Earphone2 = "earphone2"
+renderSoundSetting Earphone3 = "earphone3"
 
 
 renderSaveError :: SaveError -> String

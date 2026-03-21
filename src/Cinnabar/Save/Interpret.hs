@@ -30,6 +30,11 @@ module Cinnabar.Save.Interpret
   , InterpretedDaycare (..)
   , InterpretedTransient (..)
   , InterpretedHoFRecord (..)
+  , TextSpeed (..)
+  , BattleAnimation (..)
+  , BattleStyle (..)
+  , SoundSetting (..)
+  , InterpretedOptions (..)
   , InterpretedSave (..)
 
     -- * Decoded sub-records
@@ -227,6 +232,25 @@ data InterpretedTransient = InterpretedTransient
   , transCurrentMapScript   :: !Int
   } deriving (Eq, Show)
 
+data TextSpeed = TextFast | TextMedium | TextSlow | TextSpeedUnknown !Int
+  deriving (Eq, Show)
+
+data BattleAnimation = AnimationsOn | AnimationsOff
+  deriving (Eq, Show)
+
+data BattleStyle = BattleShift | BattleSet
+  deriving (Eq, Show)
+
+data SoundSetting = Mono | Earphone1 | Earphone2 | Earphone3
+  deriving (Eq, Show)
+
+data InterpretedOptions = InterpretedOptions
+  { optTextSpeed       :: !TextSpeed
+  , optBattleAnimation :: !BattleAnimation
+  , optBattleStyle     :: !BattleStyle
+  , optSound           :: !(Maybe SoundSetting)  -- Nothing for R/B
+  } deriving (Eq, Show)
+
 data InterpretedSave = InterpretedSave
   { interpPlayerName    :: !GameText
   , interpRivalName     :: !GameText
@@ -257,7 +281,7 @@ data InterpretedSave = InterpretedSave
   , interpFossilItem      :: !(Maybe Text)
   , interpFossilResult    :: !(Maybe InterpretedSpecies)
   , interpTransient       :: !InterpretedTransient
-  , interpOptions         :: !Word8
+  , interpOptions         :: !InterpretedOptions
   , interpParty         :: ![InterpretedPokemon]
   , interpPCBoxes       :: ![InterpretedBox]
   , interpHallOfFame    :: ![InterpretedHoFRecord]
@@ -466,7 +490,7 @@ interpretGen1Save gameData codec rawSave =
       , interpFossilItem      = fossilItemName
       , interpFossilResult    = fossilSpecies
       , interpTransient       = promoteTransient transientRecord
-      , interpOptions         = rawGen1Options rawSave
+      , interpOptions         = interpretOptions gameVariant (rawGen1Options rawSave)
       , interpParty         = take partyCount interpretedMembers
       , interpPCBoxes       = interpretedBoxes
       , interpHallOfFame    = interpretedHoF
@@ -759,6 +783,22 @@ promotePlayTime raw = PlayTime
   { playHours   = fromIntegral (rawPlayHours raw)
   , playMinutes = fromIntegral (rawPlayMinutes raw)
   , playSeconds = fromIntegral (rawPlaySeconds raw)
+  }
+
+interpretOptions :: GameVariant -> Word8 -> InterpretedOptions
+interpretOptions variant byte = InterpretedOptions
+  { optTextSpeed       = case byte .&. 0x07 of
+      1 -> TextFast
+      3 -> TextMedium
+      5 -> TextSlow
+      n -> TextSpeedUnknown (fromIntegral n)
+  , optBattleAnimation = if testBit byte 7 then AnimationsOff else AnimationsOn
+  , optBattleStyle     = if testBit byte 6 then BattleShift else BattleSet
+  , optSound           = yellowOnly variant $ case (byte .&. 0x30) `shiftR` 4 of
+      0 -> Mono
+      1 -> Earphone1
+      2 -> Earphone2
+      _ -> Earphone3
   }
 
 yellowOnly :: GameVariant -> a -> Maybe a
