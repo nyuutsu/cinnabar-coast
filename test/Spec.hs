@@ -270,7 +270,7 @@ main = hspec $ do
               Left err -> expectationFailure (show err)
               Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
               Right (RawGen1Save save) -> do
-                rawGen1ChecksumValid save `shouldBe` True
+                rawGen1Checksum save `shouldBe` rawGen1CalculatedChecksum save
                 let party = rawGen1Party save
                     count = fromIntegral (rawGen1PartyCount party)
                 count `shouldSatisfy` (\n -> n >= 1 && n <= (6 :: Int))
@@ -454,7 +454,8 @@ main = hspec $ do
               Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
               Right (RawGen1Save save) -> do
                 length (rawGen1PCBoxes save) `shouldBe` 12
-                map bankChecksumValid (rawGen1BoxBankValid save) `shouldBe` [True, True]
+                map (\v -> bankStoredChecksum v == bankCalculatedChecksum v)
+                  (rawGen1BoxBankValid save) `shouldBe` [True, True]
                 serializeGen1Save save `shouldBe` bytes
 
   -- ── PC box interpretation ────────────────────────────────

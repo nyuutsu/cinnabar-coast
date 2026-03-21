@@ -67,7 +67,6 @@ import Data.Word (Word8, Word16)
 import Cinnabar.Types
 import Cinnabar.Stats (CalcStats (..), calcAllStats)
 import Cinnabar.TextCodec (TextCodec, decodeText, showHexByte)
-import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Layout
   ( CartridgeLayout (..), SaveOffsets (..), Gen1SaveOffsets (..), GameVariant (..)
   , BoxBankInfo (..)
@@ -390,15 +389,9 @@ interpretGen1Save gameData codec rawSave =
         ]
 
       checksumWarnings
-        | rawGen1ChecksumValid rawSave = []
-        | otherwise =
-            let stored = rawGen1Checksum rawSave
-                calculated = case layoutOffsets (rawGen1Layout rawSave) of
-                  Gen1Offsets offsets ->
-                    calculateGen1Checksum (rawGen1Bytes rawSave)
-                      (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
-                  Gen2Offsets _ -> stored
-            in [ChecksumMismatch stored calculated]
+        | rawGen1Checksum rawSave == rawGen1CalculatedChecksum rawSave = []
+        | otherwise = [ChecksumMismatch (rawGen1Checksum rawSave)
+                                        (rawGen1CalculatedChecksum rawSave)]
 
       currentBoxNumber = fromIntegral (rawGen1CurrentBoxNum rawSave .&. 0x7F) + 1
 
@@ -452,34 +445,20 @@ interpretGen1Save gameData codec rawSave =
         ]
 
       -- Box bank checksum warnings
-      boxBankWarnings = case layoutOffsets (rawGen1Layout rawSave) of
-        Gen2Offsets _ -> []
-        Gen1Offsets offsets ->
-          let bankInfos   = g1BoxBanks offsets
-              bankResults = rawGen1BoxBankValid rawSave
-              saveBytes   = rawGen1Bytes rawSave
-          in concat
-            [ bankWarning ++ perBoxWarnings
-            | (bankIdx, bankInfo, validity) <- zip3 [0 :: Int ..] bankInfos bankResults
-            , let bankWarning
-                    | bankChecksumValid validity = []
-                    | otherwise =
-                        let stored     = ByteString.index saveBytes (bankAllChecksum bankInfo)
-                            calculated = calculateGen1Checksum saveBytes
-                                           (bankStartOffset bankInfo)
-                                           (bankAllChecksum bankInfo - 1)
-                        in [BoxBankChecksumMismatch bankIdx stored calculated]
-                  perBoxWarnings =
-                    [ BoxChecksumMismatch bankIdx boxInBankIdx
-                        (ByteString.index saveBytes (bankBoxChecksums bankInfo + boxInBankIdx))
-                        (calculateGen1Checksum saveBytes boxOffset
-                           (boxOffset + bankBoxDataSize bankInfo - 1))
-                    | (boxInBankIdx, valid) <- zip [0 :: Int ..] (boxChecksumsValid validity)
-                    , not valid
-                    , let boxOffset = bankStartOffset bankInfo
-                                    + boxInBankIdx * bankBoxDataSize bankInfo
-                    ]
-            ]
+      boxBankWarnings = concat
+        [ bankWarning ++ perBoxWarnings
+        | (bankIdx, validity) <- zip [0 :: Int ..] (rawGen1BoxBankValid rawSave)
+        , let bankWarning
+                | bankStoredChecksum validity == bankCalculatedChecksum validity = []
+                | otherwise = [BoxBankChecksumMismatch bankIdx
+                    (bankStoredChecksum validity) (bankCalculatedChecksum validity)]
+              perBoxWarnings =
+                [ BoxChecksumMismatch bankIdx boxInBankIdx stored calculated
+                | (boxInBankIdx, (stored, calculated)) <-
+                    zip [0 :: Int ..] (boxChecksumPairs validity)
+                , stored /= calculated
+                ]
+        ]
 
       -- Progress interpretation
       (progress, progressSpeciesWarnings) = interpretProgress gameData rawSave

@@ -79,8 +79,8 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1RivalName        :: !ByteString
   , rawGen1Party            :: !RawGen1Party
   , rawGen1CurrentBox       :: !RawGen1Box
-  , rawGen1Checksum         :: !Word8
-  , rawGen1ChecksumValid    :: !Bool
+  , rawGen1Checksum            :: !Word8
+  , rawGen1CalculatedChecksum :: !Word8
   , rawGen1PokedexOwned     :: !ByteString
   , rawGen1PokedexSeen      :: !ByteString
   , rawGen1BagItems         :: ![RawItemEntry]
@@ -218,8 +218,9 @@ data RawGen1Party = RawGen1Party
   } deriving (Eq, Show)
 
 data RawBankValidity = RawBankValidity
-  { bankChecksumValid :: !Bool
-  , boxChecksumsValid :: ![Bool]
+  { bankStoredChecksum     :: !Word8
+  , bankCalculatedChecksum :: !Word8
+  , boxChecksumPairs       :: ![(Word8, Word8)]  -- (stored, calculated) per box
   } deriving (Eq, Show)
 
 data RawGen1Box = RawGen1Box
@@ -340,8 +341,8 @@ parseGen1Save layout offsets bytes = do
     , rawGen1RivalName        = rivalName
     , rawGen1Party            = party
     , rawGen1CurrentBox       = currentBox
-    , rawGen1Checksum         = storedChecksum
-    , rawGen1ChecksumValid    = storedChecksum == calculatedChecksum
+    , rawGen1Checksum            = storedChecksum
+    , rawGen1CalculatedChecksum = calculatedChecksum
     , rawGen1PokedexOwned     = pokedexOwned
     , rawGen1PokedexSeen      = pokedexSeen
     , rawGen1BagItems         = bagItems
@@ -716,15 +717,20 @@ parseBoxBank nameLen boxCapacity bytes bank = do
   storedBankChecksum <- readByteAt (bankAllChecksum bank) bytes
   let calculatedBankChecksum = calculateGen1Checksum bytes
                                  (bankStartOffset bank) (bankAllChecksum bank - 1)
-      bankValid = storedBankChecksum == calculatedBankChecksum
 
-  boxValid <- sequence
+  boxPairs <- sequence
     [ do stored <- readByteAt (bankBoxChecksums bank + boxIndex) bytes
          let boxOffset  = bankStartOffset bank + boxIndex * bankBoxDataSize bank
              calculated = calculateGen1Checksum bytes
                             boxOffset (boxOffset + bankBoxDataSize bank - 1)
-         pure (stored == calculated)
+         pure (stored, calculated)
     | boxIndex <- [0 .. bankBoxCount bank - 1]
     ]
 
-  pure (boxes, RawBankValidity { bankChecksumValid = bankValid, boxChecksumsValid = boxValid })
+  pure ( boxes
+       , RawBankValidity
+           { bankStoredChecksum     = storedBankChecksum
+           , bankCalculatedChecksum = calculatedBankChecksum
+           , boxChecksumPairs       = boxPairs
+           }
+       )
