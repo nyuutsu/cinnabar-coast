@@ -473,6 +473,9 @@ renderWarning ActiveBoxDesync =
 renderWarning (UnexpectedEeveelution byte) =
   renderWarningContext RivalStarterSlot ++ ": unexpected Eeveelution byte 0x"
     ++ showHexByte byte
+renderWarning (CountExceedsCapacity field rawCount capacity) =
+  Text.unpack field ++ " count " ++ show rawCount
+    ++ " exceeds capacity " ++ show capacity ++ ", clamped"
 
 
 -- ── Progress Display ──────────────────────────────────────────

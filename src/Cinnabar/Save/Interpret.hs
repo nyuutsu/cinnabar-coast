@@ -67,7 +67,11 @@ import Data.Word (Word8, Word16)
 import Cinnabar.Types
 import Cinnabar.Stats (CalcStats (..), calcAllStats)
 import Cinnabar.TextCodec (TextCodec, decodeText, showHexByte)
-import Cinnabar.Save.Layout (CartridgeLayout (..), GameVariant (..))
+import Cinnabar.Save.Layout
+  ( CartridgeLayout (..), GameVariant (..), BoxCapacity (..)
+  , gen1PartyCapacity, gen1BagCapacity, gen1PCItemCapacity
+  , gen1HoFRecordCount
+  )
 import Cinnabar.Save.Raw
   ( RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..)
   , RawGen1Box (..), RawBankValidity (..)
@@ -351,6 +355,7 @@ data SaveWarning
   | BoxChecksumMismatch !Int !Int !Word8 !Word8       -- bank index, box-within-bank index, stored, calculated
   | ActiveBoxDesync
   | UnexpectedEeveelution !Word8
+  | CountExceedsCapacity !Text !Int !Int   -- field name, raw count, capacity
   deriving (Eq, Show)
 
 
@@ -464,6 +469,25 @@ interpretGen1Save gameData codec rawSave =
         | progActiveBoxSynced progress = []
         | otherwise = [ActiveBoxDesync]
 
+      -- Count-exceeds-capacity warnings
+      boxCapacity = unBoxCapacity (layoutBoxCapacity (rawGen1Layout rawSave))
+      checkCount fieldName rawCount capacity
+        | rawCount > capacity = Just (CountExceedsCapacity fieldName rawCount capacity)
+        | otherwise = Nothing
+      countWarnings = catMaybes $
+        [ checkCount "Party" (fromIntegral (rawGen1PartyCount party)) gen1PartyCapacity
+        , checkCount "Bag items" (fromIntegral (rawGen1BagItemCount rawSave)) gen1BagCapacity
+        , checkCount "PC items" (fromIntegral (rawGen1BoxItemCount rawSave)) gen1PCItemCapacity
+        , checkCount "Hall of Fame" (fromIntegral (rawGen1HoFCount rawSave)) gen1HoFRecordCount
+        , checkCount ("Current box " <> Text.pack (show currentBoxNumber))
+            (fromIntegral (rawGen1BoxCount (rawGen1CurrentBox rawSave))) boxCapacity
+        ] ++
+        [ checkCount ("Box " <> Text.pack (show boxNum))
+            (fromIntegral (rawGen1BoxCount rawBox)) boxCapacity
+        | (boxIdx, rawBox) <- zip [0 :: Int ..] (rawGen1PCBoxes rawSave)
+        , let boxNum = boxIdx + 1
+        ]
+
   in InterpretedSave
       { interpPlayerName    = decodeText codec (rawGen1PlayerName rawSave)
       , interpRivalName     = decodeText codec (rawGen1RivalName rawSave)
@@ -501,7 +525,8 @@ interpretGen1Save gameData codec rawSave =
       , interpHallOfFame    = interpretedHoF
       , interpActiveBoxNum  = currentBoxNumber
       , interpProgress      = progress
-      , interpWarnings      = concat pokemonWarnings ++ checksumWarnings
+      , interpWarnings      = countWarnings
+                           ++ concat pokemonWarnings ++ checksumWarnings
                            ++ concat boxPokemonWarnings ++ boxBankWarnings
                            ++ concat hofWarnings ++ daycareWarnings
                            ++ fossilWarnings

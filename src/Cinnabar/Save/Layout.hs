@@ -24,6 +24,8 @@ module Cinnabar.Save.Layout
   , gen1PartyCapacity
   , gen1PartyPokemonSize
   , gen1BoxPokemonSize
+  , gen1BagCapacity
+  , gen1PCItemCapacity
   , gen1HoFRecordCount
   , gen1HoFSlotsPerRecord
   , gen1HoFEntrySize
@@ -205,6 +207,12 @@ gen1PartyPokemonSize = 44
 
 gen1BoxPokemonSize :: Int
 gen1BoxPokemonSize = 33
+
+gen1BagCapacity :: Int
+gen1BagCapacity = 20
+
+gen1PCItemCapacity :: Int
+gen1PCItemCapacity = 50
 
 gen1HoFRecordCount :: Int
 gen1HoFRecordCount = 50

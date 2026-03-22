@@ -62,6 +62,7 @@ import Cinnabar.Save.Layout
   , Gen1SaveOffsets (..)
   , BoxBankInfo (..)
   , gen1PartyCapacity, gen1PartyPokemonSize, gen1BoxPokemonSize
+  , gen1BagCapacity, gen1PCItemCapacity
   , gen1HoFRecordCount, gen1HoFSlotsPerRecord, gen1HoFEntrySize
   )
 import Cinnabar.Types (Gen (..), InternalIndex (..))
@@ -84,7 +85,9 @@ data RawGen1SaveFile = RawGen1SaveFile
   , rawGen1CalculatedChecksum :: !Word8
   , rawGen1PokedexOwned     :: !ByteString
   , rawGen1PokedexSeen      :: !ByteString
+  , rawGen1BagItemCount     :: !Word8
   , rawGen1BagItems         :: ![RawItemEntry]
+  , rawGen1BoxItemCount     :: !Word8
   , rawGen1BoxItems         :: ![RawItemEntry]
   , rawGen1Money            :: !ByteString
   , rawGen1CasinoCoins      :: !ByteString
@@ -278,10 +281,10 @@ parseGen1Save layout offsets bytes = do
   pokedexSeen <- readBytes 19
 
   seek (g1BagItems offsets)
-  bagItems <- parseItemList
+  (bagItemCount, bagItems) <- parseItemList gen1BagCapacity
 
   seek (g1BoxItems offsets)
-  boxItems <- parseItemList
+  (boxItemCount, boxItems) <- parseItemList gen1PCItemCapacity
 
   seek (g1Money offsets)
   money <- readBytes 3
@@ -347,7 +350,9 @@ parseGen1Save layout offsets bytes = do
     , rawGen1CalculatedChecksum = calculatedChecksum
     , rawGen1PokedexOwned     = pokedexOwned
     , rawGen1PokedexSeen      = pokedexSeen
+    , rawGen1BagItemCount     = bagItemCount
     , rawGen1BagItems         = bagItems
+    , rawGen1BoxItemCount     = boxItemCount
     , rawGen1BoxItems         = boxItems
     , rawGen1Money            = money
     , rawGen1CasinoCoins      = casinoCoins
@@ -377,13 +382,15 @@ parseGen1Save layout offsets bytes = do
 -- ── Item List Parser ─────────────────────────────────────────
 
 -- | Parse a Gen 1 item list: 1 byte count, count x (item ID, quantity)
--- pairs, then a 0xFF terminator.
-parseItemList :: Parser [RawItemEntry]
-parseItemList = do
+-- pairs, then a 0xFF terminator. Clamps the count to the given
+-- capacity; the raw count byte is returned for warning checks.
+parseItemList :: Int -> Parser (Word8, [RawItemEntry])
+parseItemList capacity = do
   count <- readByte
-  items <- replicateM (fromIntegral count) parseItemEntry
+  let entryCount = min (fromIntegral count) capacity
+  items <- replicateM entryCount parseItemEntry
   _ <- readByte  -- terminator
-  pure items
+  pure (count, items)
   where
     parseItemEntry :: Parser RawItemEntry
     parseItemEntry = do
@@ -624,7 +631,7 @@ parseGen1Party nameLen = do
   let nameLenInt      = unNameLength nameLen
       speciesListSize = gen1PartyCapacity + 1
   count   <- readByte
-  let entryCount = fromIntegral count
+  let entryCount = min (fromIntegral count) gen1PartyCapacity
   species <- parseSpeciesList gen1PartyCapacity speciesListSize
   members <- parseFixedArray entryCount gen1PartyCapacity
                gen1PartyPokemonSize parseGen1PartyPokemon
@@ -646,7 +653,7 @@ parseGen1Box nameLen boxCapacity = do
       boxCapInt  = unBoxCapacity boxCapacity
       speciesListSize = boxCapInt + 1
   count   <- readByte
-  let entryCount = fromIntegral count
+  let entryCount = min (fromIntegral count) boxCapInt
   species <- parseSpeciesList boxCapInt speciesListSize
   members <- parseFixedArray entryCount boxCapInt
                gen1BoxPokemonSize parseGen1BoxPokemon
