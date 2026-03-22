@@ -58,6 +58,27 @@ main :: IO ()
 main = hspec $ do
   (gen1Data, gen2Data) <- runIO (loadOrDie =<< loadAllGameData)
 
+  let withYellowSave :: (RawGen1SaveFile -> Expectation) -> Expectation
+      withYellowSave action = do
+        let savePath = "test/data/yellow.sav"
+        exists <- doesFileExist savePath
+        if not exists
+          then pendingWith "test/data/yellow.sav not present"
+          else do
+            bytes <- ByteString.readFile savePath
+            case cartridgeLayout Yellow RegionWestern of
+              Left msg -> expectationFailure (Text.unpack msg)
+              Right layout -> case parseRawSave layout bytes of
+                Left err -> expectationFailure (show err)
+                Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save, got Gen 2"
+                Right (RawGen1Save save) -> action save
+
+      withInterpretedSave :: (InterpretedSave -> Expectation) -> Expectation
+      withInterpretedSave action = do
+        (codec, _namingScreens) <- loadOrDie =<< loadCodec Gen1 English
+        withYellowSave $ \rawSave ->
+          action (interpretGen1Save gen1Data codec rawSave)
+
   -- ── Property tests ──────────────────────────────────────────
 
   describe "dvHP" $
@@ -258,25 +279,13 @@ main = hspec $ do
           rawG1BoxSpeciesIndex boxPokemon `shouldBe` InternalIndex 0x54
 
   describe "Save file parser" $ do
-    it "parses a real Yellow save file" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save save) -> do
-                rawGen1Checksum save `shouldBe` rawGen1CalculatedChecksum save
-                let party = rawGen1Party save
-                    count = fromIntegral (rawGen1PartyCount party)
-                count `shouldSatisfy` (\n -> n >= 1 && n <= (6 :: Int))
-                length (rawGen1PartySpecies party) `shouldBe` count
-                length (rawGen1PartyMembers party) `shouldBe` count
+    it "parses a real Yellow save file" $ withYellowSave $ \save -> do
+      rawGen1Checksum save `shouldBe` rawGen1CalculatedChecksum save
+      let party = rawGen1Party save
+          count = fromIntegral (rawGen1PartyCount party)
+      count `shouldSatisfy` (\n -> n >= 1 && n <= (6 :: Int))
+      length (rawGen1PartySpecies party) `shouldBe` count
+      length (rawGen1PartyMembers party) `shouldBe` count
 
     it "parses an empty party without crashing" $
       case cartridgeLayout Yellow RegionWestern of
@@ -414,216 +423,97 @@ main = hspec $ do
 
   -- ── Interpreted trainer profile ──────────────────────────
 
-  describe "Interpreted trainer profile" $ do
-    profileCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
-
-    it "decodes profile fields from a real Yellow save" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save rawSave) -> do
-                let interpreted = interpretGen1Save gen1Data profileCodec rawSave
-                interpMoney interpreted `shouldSatisfy` (>= 0)
-                progBadges (interpProgress interpreted) `shouldSatisfy` (not . null)
-                Set.size (interpPokedexOwned interpreted) `shouldSatisfy` (> 0)
-                case interpPikachuHappiness interpreted of
-                  Just _  -> pure ()
-                  Nothing -> expectationFailure "expected Pikachu happiness for Yellow save"
+  describe "Interpreted trainer profile" $
+    it "decodes profile fields from a real Yellow save" $ withInterpretedSave $ \interpreted -> do
+      interpMoney interpreted `shouldSatisfy` (>= 0)
+      progBadges (interpProgress interpreted) `shouldSatisfy` (not . null)
+      Set.size (interpPokedexOwned interpreted) `shouldSatisfy` (> 0)
+      case interpPikachuHappiness interpreted of
+        Just _  -> pure ()
+        Nothing -> expectationFailure "expected Pikachu happiness for Yellow save"
 
   -- ── PC box bank parsing ──────────────────────────────────
 
   describe "PC box bank parsing" $
-    it "parses all 12 boxes with valid bank checksums and round-trips" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save save) -> do
-                length (rawGen1PCBoxes save) `shouldBe` 12
-                map (\v -> bankStoredChecksum v == bankCalculatedChecksum v)
-                  (rawGen1BoxBankValid save) `shouldBe` [True, True]
-                serializeGen1Save save `shouldBe` bytes
+    it "parses all 12 boxes with valid bank checksums and round-trips" $ withYellowSave $ \save -> do
+      bytes <- ByteString.readFile "test/data/yellow.sav"
+      length (rawGen1PCBoxes save) `shouldBe` 12
+      map (\v -> bankStoredChecksum v == bankCalculatedChecksum v)
+        (rawGen1BoxBankValid save) `shouldBe` [True, True]
+      serializeGen1Save save `shouldBe` bytes
 
   -- ── PC box interpretation ────────────────────────────────
 
-  describe "PC box interpretation" $ do
-    boxCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
-
-    it "interprets PC boxes with valid checksums from a real Yellow save" $ do
+  describe "PC box interpretation" $
+    it "interprets PC boxes with valid checksums from a real Yellow save" $ withInterpretedSave $ \interpreted -> do
       let hasKnownSpecies pokemon = case interpSpecies pokemon of
             KnownSpecies _ _ -> True
             _                -> False
           isBoxWarning (BoxBankChecksumMismatch {}) = True
           isBoxWarning (BoxChecksumMismatch {})     = True
           isBoxWarning _                            = False
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save rawSave) -> do
-                let interpreted = interpretGen1Save gen1Data boxCodec rawSave
-                interpPCBoxes interpreted `shouldSatisfy` (not . null)
-                case interpPCBoxes interpreted of
-                  [] -> expectationFailure "expected non-empty PC boxes"
-                  (firstBox : _) ->
-                    any hasKnownSpecies (interpBoxMembers firstBox) `shouldBe` True
-                let boxWarnings = filter isBoxWarning (interpWarnings interpreted)
-                boxWarnings `shouldBe` []
+      interpPCBoxes interpreted `shouldSatisfy` (not . null)
+      case interpPCBoxes interpreted of
+        [] -> expectationFailure "expected non-empty PC boxes"
+        (firstBox : _) ->
+          any hasKnownSpecies (interpBoxMembers firstBox) `shouldBe` True
+      let boxWarnings = filter isBoxWarning (interpWarnings interpreted)
+      boxWarnings `shouldBe` []
 
   -- ── Hall of Fame ────────────────────────────────────────────
 
-  describe "Hall of Fame" $ do
-    hofCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
-
-    it "parses all records and interprets valid entries" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save save) -> do
-                length (rawGen1HallOfFame save) `shouldBe` 50
-                let interpreted = interpretGen1Save gen1Data hofCodec save
-                length (interpHallOfFame interpreted) `shouldBe` interpHoFCount interpreted
-                case interpHallOfFame interpreted of
-                  (firstRecord : _) -> do
-                    let hasKnownSpecies entry = case hofSpecies entry of
-                          KnownSpecies _ _ -> True
-                          _                -> False
-                    any hasKnownSpecies (hofEntries firstRecord) `shouldBe` True
-                  [] -> pure ()
+  describe "Hall of Fame" $
+    it "parses all records and interprets valid entries" $ withYellowSave $ \save -> do
+      length (rawGen1HallOfFame save) `shouldBe` 50
+      (codec, _namingScreens) <- loadOrDie =<< loadCodec Gen1 English
+      let interpreted = interpretGen1Save gen1Data codec save
+      length (interpHallOfFame interpreted) `shouldBe` interpHoFCount interpreted
+      case interpHallOfFame interpreted of
+        (firstRecord : _) -> do
+          let hasKnownSpecies entry = case hofSpecies entry of
+                KnownSpecies _ _ -> True
+                _                -> False
+          any hasKnownSpecies (hofEntries firstRecord) `shouldBe` True
+        [] -> pure ()
 
   -- ── Progress flags ───────────────────────────────────────
 
   describe "Progress flags" $
-    it "parses event flags and player starter from a real Yellow save" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save save) -> do
-                ByteString.length (rawEventFlags (rawGen1Progress save)) `shouldBe` 320
-                rawPlayerStarter (rawGen1Progress save) `shouldSatisfy` (/= InternalIndex 0)
+    it "parses event flags and player starter from a real Yellow save" $ withYellowSave $ \save -> do
+      ByteString.length (rawEventFlags (rawGen1Progress save)) `shouldBe` 320
+      rawPlayerStarter (rawGen1Progress save) `shouldSatisfy` (/= InternalIndex 0)
 
   -- ── New sub-record fields ──────────────────────────────
 
   describe "New sub-record fields" $
-    it "parses player position and daycare nickname from a real Yellow save" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save save) -> do
-                rawPlayerY (rawGen1PlayerPosition save) `shouldSatisfy` (/= 0)
-                ByteString.length (rawDaycareNickname (rawGen1Daycare save)) `shouldBe` 11
+    it "parses player position and daycare nickname from a real Yellow save" $ withYellowSave $ \save -> do
+      rawPlayerY (rawGen1PlayerPosition save) `shouldSatisfy` (/= 0)
+      ByteString.length (rawDaycareNickname (rawGen1Daycare save)) `shouldBe` 11
 
   -- ── Interpreted remaining fields ─────────────────────────
 
-  describe "Interpreted remaining fields" $ do
-    remainingCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
-
-    it "interprets player position and daycare from a real Yellow save" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save rawSave) -> do
-                let interpreted = interpretGen1Save gen1Data remainingCodec rawSave
-                interpPlayerY interpreted `shouldSatisfy` (> 0)
-                case interpDaycare interpreted of
-                  Just daycare ->
-                    displayText (daycareNickname daycare) `shouldSatisfy` (not . Text.null)
-                  Nothing -> pure ()
+  describe "Interpreted remaining fields" $
+    it "interprets player position and daycare from a real Yellow save" $ withInterpretedSave $ \interpreted -> do
+      interpPlayerY interpreted `shouldSatisfy` (> 0)
+      case interpDaycare interpreted of
+        Just daycare ->
+          displayText (daycareNickname daycare) `shouldSatisfy` (not . Text.null)
+        Nothing -> pure ()
 
   -- ── Progress interpretation ──────────────────────────────
 
-  describe "Progress interpretation" $ do
-    progressCodec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
-
-    it "interprets progress flags from a real Yellow save" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save rawSave) -> do
-                let interpreted = interpretGen1Save gen1Data progressCodec rawSave
-                    progress = interpProgress interpreted
-                    isKnownStarterSpecies (KnownSpecies _ _) = True
-                    isKnownStarterSpecies _ = False
-                progPlayerStarter progress `shouldSatisfy` isKnownStarterSpecies
-                progEventFlags progress `shouldSatisfy` (not . null)
-                progReceivedStarter progress `shouldBe` True
+  describe "Progress interpretation" $
+    it "interprets progress flags from a real Yellow save" $ withInterpretedSave $ \interpreted -> do
+      let progress = interpProgress interpreted
+          isKnownStarterSpecies (KnownSpecies _ _) = True
+          isKnownStarterSpecies _ = False
+      progPlayerStarter progress `shouldSatisfy` isKnownStarterSpecies
+      progEventFlags progress `shouldSatisfy` (not . null)
+      progReceivedStarter progress `shouldBe` True
 
   -- ── Serialization round-trip ──────────────────────────────
 
   describe "Gen 1 serialize round-trip" $
-    it "parse then serialize produces identical bytes" $ do
-      let savePath = "test/data/yellow.sav"
-      exists <- doesFileExist savePath
-      if not exists
-        then pendingWith "test/data/yellow.sav not present"
-        else do
-          bytes <- ByteString.readFile savePath
-          case cartridgeLayout Yellow RegionWestern of
-            Left msg -> expectationFailure (Text.unpack msg)
-            Right layout -> case parseRawSave layout bytes of
-              Left err -> expectationFailure (show err)
-              Right (RawGen2Save _) -> expectationFailure "expected Gen 1 save"
-              Right (RawGen1Save save) ->
-                serializeGen1Save save `shouldBe` bytes
+    it "parse then serialize produces identical bytes" $ withYellowSave $ \save -> do
+      bytes <- ByteString.readFile "test/data/yellow.sav"
+      serializeGen1Save save `shouldBe` bytes
