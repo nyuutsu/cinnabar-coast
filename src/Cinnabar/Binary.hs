@@ -33,6 +33,7 @@ module Cinnabar.Binary
   , patchByte
   , patchBytes
   , patchSlots
+  , applyPatches
 
     -- * Navigation
   , seek
@@ -45,6 +46,9 @@ import Control.Monad.Trans.State.Strict (StateT, get, put, evalStateT)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy as LazyByteString
+import Data.List (sortOn)
 import Data.Text (Text)
 import Data.Word (Word8, Word16)
 
@@ -192,6 +196,22 @@ patchSlots :: Int -> Int -> [ByteString] -> ByteString -> ByteString
 patchSlots start stride items bytes =
   foldr (\(index, item) acc -> patchBytes (start + index * stride) item acc)
     bytes (zip [0..] items)
+
+-- | Apply a batch of non-overlapping patches in a single left-to-right pass.
+-- Each patch is (offset, replacement). Patches are sorted by offset internally,
+-- then the result is built with ByteString Builder — O(n + k log k) instead
+-- of O(n × k) for chained patchByte/patchBytes calls.
+applyPatches :: [(Int, ByteString)] -> ByteString -> ByteString
+applyPatches patches original =
+  LazyByteString.toStrict
+    (Builder.toLazyByteString (buildPatched (sortOn fst patches) 0))
+  where
+    buildPatched [] position =
+      Builder.byteString (ByteString.drop position original)
+    buildPatched ((offset, replacement) : rest) position =
+      Builder.byteString (ByteString.take (offset - position) (ByteString.drop position original))
+      <> Builder.byteString replacement
+      <> buildPatched rest (offset + ByteString.length replacement)
 
 
 -- ── Navigation ────────────────────────────────────────────────
