@@ -246,10 +246,11 @@ main = hspec $ do
       case runParser parseGen1PartyPokemon pikachuBytes of
         Left parseError -> expectationFailure (show parseError)
         Right partyPokemon -> do
-          rawG1SpeciesIndex partyPokemon `shouldBe` InternalIndex 0x54
-          rawG1Exp partyPokemon `shouldBe` 50000
-          rawG1DVBytes partyPokemon `shouldBe` 0xFAD8
-          rawG1OTID partyPokemon `shouldBe` 12345
+          let base = rawG1PartyBase partyPokemon
+          rawG1BoxSpeciesIndex base `shouldBe` InternalIndex 0x54
+          rawG1BoxExp base `shouldBe` 50000
+          rawG1BoxDVBytes base `shouldBe` 0xFAD8
+          rawG1BoxOTID base `shouldBe` 12345
           rawG1Level partyPokemon `shouldBe` 25
       case runParser parseGen1BoxPokemon pikachuBytes of
         Left parseError -> expectationFailure (show parseError)

@@ -32,31 +32,13 @@ data RawStatExp = RawStatExp
   } deriving (Eq, Show)
 
 data RawGen1PartyPokemon = RawGen1PartyPokemon
-  { rawG1SpeciesIndex :: !InternalIndex
-  , rawG1CurrentHP    :: !Word16
-  , rawG1BoxLevel     :: !Word8
-  , rawG1Status       :: !Word8
-  , rawG1Type1        :: !Word8
-  , rawG1Type2        :: !Word8
-  , rawG1CatchRate    :: !Word8
-  , rawG1Move1        :: !Word8
-  , rawG1Move2        :: !Word8
-  , rawG1Move3        :: !Word8
-  , rawG1Move4        :: !Word8
-  , rawG1OTID         :: !Word16
-  , rawG1Exp          :: !Int       -- 24-bit big-endian; no Word24 in Haskell
-  , rawG1StatExp      :: !RawStatExp
-  , rawG1DVBytes      :: !Word16   -- packed: Atk[15:12] Def[11:8] Spd[7:4] Spc[3:0]
-  , rawG1PP1          :: !Word8    -- bits 7-6: PP Ups, bits 5-0: current PP
-  , rawG1PP2          :: !Word8
-  , rawG1PP3          :: !Word8
-  , rawG1PP4          :: !Word8
-  , rawG1Level        :: !Word8
-  , rawG1MaxHP        :: !Word16
-  , rawG1Attack       :: !Word16
-  , rawG1Defense      :: !Word16
-  , rawG1Speed        :: !Word16
-  , rawG1Special      :: !Word16
+  { rawG1PartyBase :: !RawGen1BoxPokemon
+  , rawG1Level     :: !Word8
+  , rawG1MaxHP     :: !Word16
+  , rawG1Attack    :: !Word16
+  , rawG1Defense   :: !Word16
+  , rawG1Speed     :: !Word16
+  , rawG1Special   :: !Word16
   } deriving (Eq, Show)
 
 data RawGen1BoxPokemon = RawGen1BoxPokemon
@@ -149,7 +131,7 @@ parseGen1BoxPokemon = parseBoxFields
 
 parseGen1PartyPokemon :: Parser RawGen1PartyPokemon
 parseGen1PartyPokemon = do
-  boxPokemon <- parseBoxFields
+  base    <- parseBoxFields
   level   <- readByte
   maxHP   <- readWord16BE
   attack  <- readWord16BE
@@ -157,29 +139,11 @@ parseGen1PartyPokemon = do
   speed   <- readWord16BE
   special <- readWord16BE
   pure RawGen1PartyPokemon
-    { rawG1SpeciesIndex = rawG1BoxSpeciesIndex boxPokemon
-    , rawG1CurrentHP    = rawG1BoxCurrentHP boxPokemon
-    , rawG1BoxLevel     = rawG1BoxBoxLevel boxPokemon
-    , rawG1Status       = rawG1BoxStatus boxPokemon
-    , rawG1Type1        = rawG1BoxType1 boxPokemon
-    , rawG1Type2        = rawG1BoxType2 boxPokemon
-    , rawG1CatchRate    = rawG1BoxCatchRate boxPokemon
-    , rawG1Move1        = rawG1BoxMove1 boxPokemon
-    , rawG1Move2        = rawG1BoxMove2 boxPokemon
-    , rawG1Move3        = rawG1BoxMove3 boxPokemon
-    , rawG1Move4        = rawG1BoxMove4 boxPokemon
-    , rawG1OTID         = rawG1BoxOTID boxPokemon
-    , rawG1Exp          = rawG1BoxExp boxPokemon
-    , rawG1StatExp      = rawG1BoxStatExp boxPokemon
-    , rawG1DVBytes      = rawG1BoxDVBytes boxPokemon
-    , rawG1PP1          = rawG1BoxPP1 boxPokemon
-    , rawG1PP2          = rawG1BoxPP2 boxPokemon
-    , rawG1PP3          = rawG1BoxPP3 boxPokemon
-    , rawG1PP4          = rawG1BoxPP4 boxPokemon
-    , rawG1Level        = level
-    , rawG1MaxHP        = maxHP
-    , rawG1Attack       = attack
-    , rawG1Defense      = defense
-    , rawG1Speed        = speed
-    , rawG1Special      = special
+    { rawG1PartyBase = base
+    , rawG1Level     = level
+    , rawG1MaxHP     = maxHP
+    , rawG1Attack    = attack
+    , rawG1Defense   = defense
+    , rawG1Speed     = speed
+    , rawG1Special   = special
     }

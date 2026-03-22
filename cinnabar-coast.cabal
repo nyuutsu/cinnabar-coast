@@ -34,6 +34,14 @@ library
     Cinnabar.Save.Checksum
     Cinnabar.Save.Gen1.Raw
     Cinnabar.Save.Interpret
+    Cinnabar.Save.Interpret.Types
+    Cinnabar.Save.Interpret.Decode
+    Cinnabar.Save.Interpret.Gen1
+    Cinnabar.Save.Interpret.Gen1.Pokemon
+    Cinnabar.Save.Interpret.Gen1.Progress
+    Cinnabar.Save.Interpret.Gen1.Items
+    Cinnabar.Save.Interpret.Gen1.HallOfFame
+    Cinnabar.Save.Interpret.Gen1.Misc
     Cinnabar.Save.Raw
     Cinnabar.Save.Serialize
   build-depends:
