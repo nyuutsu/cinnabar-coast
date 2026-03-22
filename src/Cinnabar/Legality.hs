@@ -91,17 +91,18 @@ checkLevelUp levelUpMap dex moveId level =
 -- species is compatible with it.
 checkMachine :: MachineData -> DexNumber -> MoveId -> [LearnSource]
 checkMachine machineData dex moveId =
-  case Map.lookup dex (gameMachineCompat machineData) of
-    Nothing               -> []
-    Just compatibleMachines ->
-      [ LearnSource method (Text.pack label) []
-      | (machine, machineMoveId) <- Map.toList (gameMachines machineData)
-      , machineMoveId == moveId
-      , Set.member machine compatibleMachines
-      , let (method, label) = case machine of
-              TM (MachineNumber machineNumber) -> (TMMachine, "TM" ++ padMachineNumber machineNumber)
-              HM (MachineNumber machineNumber) -> (HMMachine, "HM" ++ padMachineNumber machineNumber)
-      ]
+  case Map.lookup moveId (gameMoveToMachine machineData) of
+    Nothing      -> []
+    Just machine ->
+      case Map.lookup dex (gameMachineCompat machineData) of
+        Nothing               -> []
+        Just compatibleMachines
+          | Set.member machine compatibleMachines ->
+              let (method, label) = case machine of
+                    TM (MachineNumber machineNumber) -> (TMMachine, "TM" ++ padMachineNumber machineNumber)
+                    HM (MachineNumber machineNumber) -> (HMMachine, "HM" ++ padMachineNumber machineNumber)
+              in [LearnSource method (Text.pack label) []]
+          | otherwise -> []
 
 
 -- | Check if this is an egg move for the species (Gen 2 only).

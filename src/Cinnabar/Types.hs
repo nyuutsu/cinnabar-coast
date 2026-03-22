@@ -492,6 +492,7 @@ data LearnSource = LearnSource
 -- species are compatible. Always used as a pair.
 data MachineData = MachineData
   { gameMachines      :: !(Map Machine MoveId)          -- machine → move ID
+  , gameMoveToMachine :: !(Map MoveId Machine)           -- move ID → machine (reverse)
   , gameMachineCompat :: !(Map DexNumber (Set Machine)) -- dex → compatible machines
   } deriving (Show)
 

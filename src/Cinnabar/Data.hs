@@ -101,6 +101,8 @@ loadAllGameData = do
             { gameGen          = gen
             , gameMachineData  = MachineData
                 { gameMachines      = machines
+                , gameMoveToMachine = Map.fromList
+                    [ (moveId, machine) | (machine, moveId) <- Map.toList machines ]
                 , gameMachineCompat = compat
                 }
             , gameLearnsetData = LearnsetData
@@ -148,7 +150,7 @@ data Row = Row
 -- | A parsed CSV file: source path, column names, and provenance-stamped rows.
 data CSV = CSV
   { csvFilePath    :: !FilePath
-  , csvColumnNames :: ![ColumnName]
+  , csvColumnNames :: !(Set ColumnName)
   , csvRows        :: ![Row]
   }
 
@@ -170,7 +172,7 @@ readCSV path = do
           expectedCount = length headers
       in do
         rows <- sequence (zipWith (buildRow headers expectedCount) [1..] dataLines)
-        pure CSV { csvFilePath = path, csvColumnNames = headers, csvRows = rows }
+        pure CSV { csvFilePath = path, csvColumnNames = Set.fromList headers, csvRows = rows }
   where
     buildRow headers expectedCount lineNumber line =
       let values = map Text.strip (Text.splitOn "," line)
@@ -191,10 +193,10 @@ readCSV path = do
 -- used by the typed accessor functions below.
 column :: CSV -> ColumnName -> Either LoadError (Row -> Text)
 column csv name
-  | name `elem` csvColumnNames csv =
+  | Set.member name (csvColumnNames csv) =
       Right (\row -> Map.findWithDefault "" name (rowFields row))
   | otherwise =
-      Left (MissingColumn (csvFilePath csv) name (csvColumnNames csv))
+      Left (MissingColumn (csvFilePath csv) name (Set.toAscList (csvColumnNames csv)))
 
 -- | Integer column: empty → EmptyRequiredField, non-numeric → UnparseableInt.
 intColumn :: CSV -> ColumnName -> Either LoadError (Row -> Either LoadError Int)
