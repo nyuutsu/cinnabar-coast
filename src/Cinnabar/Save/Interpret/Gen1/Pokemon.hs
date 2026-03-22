@@ -197,8 +197,8 @@ resolveMoves
   -> [Word8]
   -> ([InterpretedMove], [SaveWarning])
 resolveMoves moveMap context rawBytes =
-  let results = zipWith (resolveOneMove moveMap context) [1 ..] rawBytes
-  in (map fst results, concatMap snd results)
+  let (moves, warningLists) = unzip (zipWith (resolveOneMove moveMap context) [1 ..] rawBytes)
+  in (moves, concat warningLists)
 
 resolveOneMove
   :: Map.Map MoveId Move

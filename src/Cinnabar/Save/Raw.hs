@@ -713,7 +713,8 @@ parseFixedArray count capacity slotSize parser = do
 parseBoxBanks :: NameLength -> BoxCapacity -> ByteString -> [BoxBankInfo] -> Either SaveError ([RawGen1Box], [RawBankValidity])
 parseBoxBanks nameLen boxCapacity bytes banks = do
   results <- mapM (parseBoxBank nameLen boxCapacity bytes) banks
-  pure (concatMap fst results, map snd results)
+  let (boxLists, validities) = unzip results
+  pure (concat boxLists, validities)
 
 parseBoxBank :: NameLength -> BoxCapacity -> ByteString -> BoxBankInfo -> Either SaveError ([RawGen1Box], RawBankValidity)
 parseBoxBank nameLen boxCapacity bytes bank = do

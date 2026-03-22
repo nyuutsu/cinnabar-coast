@@ -194,7 +194,7 @@ patchBytes offset chunk bytes =
 -- bytes in the region untouched.
 patchSlots :: Int -> Int -> [ByteString] -> ByteString -> ByteString
 patchSlots start stride items bytes =
-  foldr (\(index, item) acc -> patchBytes (start + index * stride) item acc)
+  foldr (\(index, item) current -> patchBytes (start + index * stride) item current)
     bytes (zip [0..] items)
 
 -- | Apply a batch of non-overlapping patches in a single left-to-right pass.

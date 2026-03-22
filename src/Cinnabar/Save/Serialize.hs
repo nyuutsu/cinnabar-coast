@@ -204,7 +204,7 @@ serializeGen1Box nameLen boxCapacity original box =
 
 serializeGen1PartyPokemon :: RawGen1PartyPokemon -> ByteString
 serializeGen1PartyPokemon pokemon =
-  serializeBoxFields pokemon
+  serializeGen1BoxPokemon (rawG1PartyBase pokemon)
   <> writeByte (rawG1Level pokemon)
   <> writeWord16BE (rawG1MaxHP pokemon)
   <> writeWord16BE (rawG1Attack pokemon)
@@ -236,12 +236,6 @@ serializeGen1BoxPokemon pokemon =
 
 
 -- ── Internal Helpers ─────────────────────────────────────────
-
--- | The first 33 bytes of a party struct are the embedded box struct.
--- Shares field order with parseBoxFields.
-serializeBoxFields :: RawGen1PartyPokemon -> ByteString
-serializeBoxFields pokemon =
-  serializeGen1BoxPokemon (rawG1PartyBase pokemon)
 
 serializeRawStatExp :: RawStatExp -> ByteString
 serializeRawStatExp statExp =

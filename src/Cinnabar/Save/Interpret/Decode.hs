@@ -72,8 +72,8 @@ yellowOnly _      _     = Nothing
 decodeBCD :: ByteString -> Int
 decodeBCD = ByteString.foldl' addByte 0
   where
-    addByte acc byte =
-      acc * 100 + fromIntegral (byte `shiftR` 4) * 10 + fromIntegral (byte .&. 0x0F)
+    addByte total byte =
+      total * 100 + fromIntegral (byte `shiftR` 4) * 10 + fromIntegral (byte .&. 0x0F)
 
 -- | Decode a 2-byte little-endian Binary-Coded Decimal value.
 -- Low byte first, high byte second. Each nybble is one decimal digit.
