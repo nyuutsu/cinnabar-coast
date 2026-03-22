@@ -58,7 +58,8 @@ extractGen1Badges path = do
 -- decodeNamedBitFlags over a 2-byte ByteString works directly.
 extractGen2Badges :: FilePath -> IO [[Text]]
 extractGen2Badges path = do
-  (johtoBadges, kantoBadges) <- parseFile parseBadgeBlocks path
+  johtoBadges <- parseFile parseJohtoBadges path
+  kantoBadges <- parseFile parseKantoBadges path
   let kantoBadgeOffset = length johtoBadges
       allBadges = johtoBadges
                ++ [(idx + kantoBadgeOffset, name) | (idx, name) <- kantoBadges]
@@ -100,18 +101,21 @@ spawnsHeader = ["bit_index", "spawn_name"]
 
 -- ── Parsers ─────────────────────────────────────────────────
 
--- | Parse the wJohtoBadges and wKantoBadges const_def blocks from
--- Gen 2 ram_constants.asm. Returns (johto, kanto) entry lists,
--- each as (bit_index, name) pairs with indices starting at 0.
--- The two blocks are identified by their section label comments
--- ("; wJohtoBadges::" and "; wKantoBadges::").
-parseBadgeBlocks :: Parser ([(Int, Text)], [(Int, Text)])
-parseBadgeBlocks = do
+-- | Parse the wJohtoBadges const_def block from Gen 2
+-- ram_constants.asm. Seeks to the section label and parses entries
+-- until DEF.
+parseJohtoBadges :: Parser [(Int, Text)]
+parseJohtoBadges = do
   skipToLineContaining "wJohtoBadges"
-  johtoBadges <- parseConstEntriesUntil (keyword "DEF")
+  parseConstEntriesUntil (keyword "DEF")
+
+-- | Parse the wKantoBadges const_def block from Gen 2
+-- ram_constants.asm. Seeks to the section label and parses entries
+-- until DEF.
+parseKantoBadges :: Parser [(Int, Text)]
+parseKantoBadges = do
   skipToLineContaining "wKantoBadges"
-  kantoBadges <- parseConstEntriesUntil (keyword "DEF")
-  pure (johtoBadges, kantoBadges)
+  parseConstEntriesUntil (keyword "DEF")
 
 -- | Parse map_const entries up to the DEF NUM_CITY_MAPS boundary.
 -- Uses map_const macros (not const directives), so the shared

@@ -281,10 +281,12 @@ parseGen1Save layout offsets bytes = do
   pokedexSeen <- readBytes 19
 
   seek (g1BagItems offsets)
-  (bagItemCount, bagItems) <- parseItemList gen1BagCapacity
+  bagItemCount <- readByte
+  bagItems <- parseItems (min (fromIntegral bagItemCount) gen1BagCapacity)
 
   seek (g1BoxItems offsets)
-  (boxItemCount, boxItems) <- parseItemList gen1PCItemCapacity
+  boxItemCount <- readByte
+  boxItems <- parseItems (min (fromIntegral boxItemCount) gen1PCItemCapacity)
 
   seek (g1Money offsets)
   money <- readBytes 3
@@ -381,16 +383,14 @@ parseGen1Save layout offsets bytes = do
 
 -- ── Item List Parser ─────────────────────────────────────────
 
--- | Parse a Gen 1 item list: 1 byte count, count x (item ID, quantity)
--- pairs, then a 0xFF terminator. Clamps the count to the given
--- capacity; the raw count byte is returned for warning checks.
-parseItemList :: Int -> Parser (Word8, [RawItemEntry])
-parseItemList capacity = do
-  count <- readByte
-  let entryCount = min (fromIntegral count) capacity
-  items <- replicateM entryCount parseItemEntry
+-- | Parse N item entries (item ID + quantity pairs) followed by a
+-- 0xFF terminator. The caller is responsible for reading and clamping
+-- the count byte.
+parseItems :: Int -> Parser [RawItemEntry]
+parseItems count = do
+  items <- replicateM count parseItemEntry
   _ <- readByte  -- terminator
-  pure (count, items)
+  pure items
   where
     parseItemEntry :: Parser RawItemEntry
     parseItemEntry = do
