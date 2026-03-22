@@ -56,7 +56,7 @@ module Cinnabar.Types
   , MoveType (..)
   , Move (..)
   , MoveSlot (..)
-  , mkMoveSlots
+  , buildMoveSlots
 
     -- * DVs and Stat Exp
   , DVs (..)
@@ -376,8 +376,8 @@ data MoveSlot = MoveSlot
   } deriving (Eq, Show)
 
 -- | Smart constructor: validates 1–4 moves.
-mkMoveSlots :: [MoveSlot] -> Either Text (NonEmpty MoveSlot)
-mkMoveSlots moves
+buildMoveSlots :: [MoveSlot] -> Either Text (NonEmpty MoveSlot)
+buildMoveSlots moves
   | length moves > 4 = Left "Pokemon cannot have more than four moves"
   | otherwise = case NE.nonEmpty moves of
       Nothing         -> Left "Pokemon must have at least one move"

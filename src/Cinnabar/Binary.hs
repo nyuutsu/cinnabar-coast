@@ -10,7 +10,7 @@ module Cinnabar.Binary
 
     -- * Cursor
   , Cursor
-  , mkCursor
+  , buildCursor
   , cursorOffset
 
     -- * Parser
@@ -76,8 +76,8 @@ data Cursor = Cursor
   }
 
 -- | Create a cursor at the beginning of a ByteString.
-mkCursor :: ByteString -> Cursor
-mkCursor source = Cursor
+buildCursor :: ByteString -> Cursor
+buildCursor source = Cursor
   { cursorSource = source
   , cursorOffset = 0
   , cursorLength = ByteString.length source
@@ -92,7 +92,7 @@ type Parser a = StateT Cursor (Either SaveError) a
 
 -- | Run a parser on raw bytes, returning either an error or the result.
 runParser :: Parser a -> ByteString -> Either SaveError a
-runParser parser bytes = evalStateT parser (mkCursor bytes)
+runParser parser bytes = evalStateT parser (buildCursor bytes)
 
 
 -- ── Reading ─────────────────────────────────────────────────────

@@ -207,9 +207,9 @@ charsetFilename gen lang = prefix ++ "-" ++ suffix ++ ".json"
 buildFromJSON :: Gen -> Language -> Aeson.Value -> Either String (TextCodec, [NamingScreen])
 buildFromJSON gen lang jsonValue = do
   charsets <- parseCharsets jsonValue
-  mapM_ (\(entries, label) -> checkDuplicateBytes entries label) charsets
+  mapM_ (\variant -> checkDuplicateBytes (variantEntries variant) (variantLabel variant)) charsets
   -- All variants share the same encoding; only choosable differs
-  let allEntries = concatMap fst charsets
+  let allEntries = concatMap variantEntries charsets
       decodeMap = Map.fromList
         [ (entryByte entry, entryGameChar entry) | entry <- allEntries ]
       codec = TextCodec
@@ -218,8 +218,9 @@ buildFromJSON gen lang jsonValue = do
         , codecDecode   = decodeMap
         }
       screens =
-        [ NamingScreen label (Set.fromList [entryGameChar entry | entry <- entries, entryChoosable entry])
-        | (entries, label) <- charsets
+        [ NamingScreen (variantLabel variant)
+            (Set.fromList [entryGameChar entry | entry <- variantEntries variant, entryChoosable entry])
+        | variant <- charsets
         ]
   pure (codec, screens)
 
@@ -244,9 +245,17 @@ data CharEntry = CharEntry
   , entryChoosable :: !Bool
   }
 
--- | Parse the JSON value into a list of (entries, label) pairs.
--- Flat JSON → one pair. Variant JSON (gen2-de) → one pair per variant.
-parseCharsets :: Aeson.Value -> Either String [([CharEntry], Text)]
+-- | One charset variant — a group of character entries with a label.
+-- Flat JSONs produce a single variant; multi-variant JSONs (German
+-- Gen 2) produce one per game version.
+data CharsetVariant = CharsetVariant
+  { variantEntries :: ![CharEntry]
+  , variantLabel   :: !Text
+  }
+
+-- | Parse the JSON value into a list of charset variants.
+-- Flat JSON → one variant. Variant JSON (gen2-de) → one per game version.
+parseCharsets :: Aeson.Value -> Either String [CharsetVariant]
 parseCharsets = Aeson.parseEither $ \jsonValue -> do
   jsonObject <- Aeson.parseJSON jsonValue
   -- Check for "variants" key (gen2-de.json structure)
@@ -261,13 +270,13 @@ parseCharsets = Aeson.parseEither $ \jsonValue -> do
         gen <- jsonObject Aeson..: "generation" :: Aeson.Parser Int
         region <- jsonObject Aeson..: "region" :: Aeson.Parser Text
         pure $ "Gen " <> Text.pack (show gen) <> " " <> Text.toUpper region
-      pure [(entries, label)]
+      pure [CharsetVariant entries label]
   where
     parseVariant (label, variantValue) = do
       jsonObject <- Aeson.parseJSON variantValue
       chars <- jsonObject Aeson..: "characters"
       entries <- mapM parseCharEntry chars
-      pure (entries, label)
+      pure (CharsetVariant entries label)
 
 
 -- | Parse one character entry from the JSON characters array.
