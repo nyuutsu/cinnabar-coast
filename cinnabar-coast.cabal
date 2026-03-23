@@ -2,7 +2,7 @@ cabal-version:   3.0
 name:            cinnabar-coast
 version:         0.1.0.0
 synopsis:        Pokemon Gen 1/2 save file engine
-license:         BSD-3-Clause
+license:         MIT
 build-type:      Simple
 
 data-dir:        data

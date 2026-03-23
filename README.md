@@ -59,4 +59,4 @@ CSVs use pret ASM constant names throughout. We map these to domain types.
 
 ## License
 
-BSD-3-Clause
+MIT
