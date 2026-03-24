@@ -8,7 +8,7 @@ A Pokemon Gen 1/2 save editor — CLI tool for reading and editing
 save files (like git or ffmpeg — no UI baked in, a GUI would be a
 separate program). Domain logic covers species, moves, learnsets,
 evolutions, text encoding, and save file parsing. Loads static
-game data and reads/interprets Gen 1 save files.
+game data and reads Gen 1 save files (Western English so far).
 
 Core logic lives in the cabal library stanza so the executable and
 tests can share code, but there are no external consumers.
@@ -30,9 +30,7 @@ tests can share code, but there are no external consumers.
 - `src/Cinnabar/` — Library. Core types, static data loading,
   stat calculation, move legality, text encoding, and save file
   parsing. Types.hs is the central type catalog; Types/Internal.hs
-  restricts GameChar construction. Save/ handles binary format
-  parsing and interpretation (layout, checksum, raw field access,
-  interpreted views).
+  restricts GameChar construction.
 - `extract/` — Standalone executable. Reads pret disassemblies
   (pokered, pokecrystal) with Megaparsec and writes all CSVs.
   One module per data domain (species, moves, evolutions, TM/HM,
@@ -43,6 +41,29 @@ tests can share code, but there are no external consumers.
 - `data/charsets/` — Character encoding JSONs per language/gen.
 - `data/event-pokemon/` — Event distribution CSVs.
 - `test/` — Tests (stats, codec round-trip, move legality).
+
+### Save pipeline
+
+Save parsing follows a five-layer pipeline with strict separation:
+
+1. **Layout** — offset tables and struct sizes. Data, not code.
+   Adding a new game/region means adding a value, not modifying
+   the parser.
+2. **Raw** — binary parsing via a cursor-based StateT parser.
+   Bounds-checked reads, count clamping, checksum computation.
+   No interpretation. No game knowledge.
+3. **Interpret** — raw values to domain types. Split into focused
+   modules by domain (pokemon, items, progress, etc.). No binary
+   access, no display strings.
+4. **Serialize** — declarative patch list applied in a single pass
+   via ByteString Builder. Preserves everything including fields
+   we don't parse.
+5. **CLI** — rendering and display. All display strings live here,
+   not in interpretation.
+
+Layer boundaries are strict: Raw never interprets. Interpret
+never touches bytes. Serialize never reads structure. CLI never
+holds domain logic.
 
 ### Key types
 
@@ -125,6 +146,23 @@ are only the types whose design isn't obvious from the code alone.
   Either, not error calls. The pure query layer (Legality, Stats)
   is total; errors live at the loading boundary.
 
+## Quality standards
+
+- **Zero warnings.** `-Wall` clean.
+- **No partial functions.** No `head`, `tail`, `!!`, `fromJust`,
+  `undefined`. The raw parser is total via `StateT Cursor
+  (Either SaveError)`.
+- **No bare `Bool` for domain concepts.** Sum types:
+  `AnimationsOn | AnimationsOff`, not `Bool`.
+- **No tuples for domain data.** Named records.
+- **No display strings in interpretation.** Sum types in
+  Interpret, render functions in CLI.
+- **Unknown values preserved, not crashed.**
+  `TextSpeedUnknown !Int`, `UnknownMovement !Word8` — the
+  pattern for values outside expected range.
+- **Newtypes for non-interchangeable Ints.**
+  `NameLength`, `BoxCapacity` prevent silent argument swaps.
+
 ## Data provenance
 
 CSV files are extracted directly from pret disassemblies (pokered,
@@ -142,10 +180,11 @@ from Bulbapedia's "Character encoding" and "Text entry" pages
 
 ## What's next (rough order)
 
-1. **Save parser** — Gen 1 reading and interpretation is working;
-   Gen 2 and write-back are next
-2. **Event matching** — constraint checking against event profiles
-3. **CLI interface** — subcommands (info, edit, classify, etc.)
+1. **Save reading** — Western English Gen 1 works. Extending to
+   remaining regions, languages, and Gen 2.
+2. **Save editing** — mutation and write-back.
+3. **Event matching** — constraint checking against event profiles.
+4. **CLI interface** — subcommands (info, edit, classify, etc.).
 
 ## Known tricky areas
 
