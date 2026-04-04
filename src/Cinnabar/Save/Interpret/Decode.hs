@@ -31,8 +31,10 @@ import Cinnabar.Save.Interpret.Types
 
 
 -- | Decode the status byte. Bits 0-2 are sleep turns, bits 3-6 are
--- PSN/BRN/FRZ/PAR (mutually exclusive). The game enforces at most one
--- condition, but a save editor could create invalid combinations.
+-- PSN/BRN/FRZ/PAR (mutually exclusive), bit 7 is unused. The mask
+-- covers bits 3-7 so any unexpected bit 7 is caught as invalid.
+-- The game enforces at most one condition, but a save editor could
+-- create invalid combinations.
 interpretStatus :: Word8 -> StatusCondition
 interpretStatus byte
   | sleepTurns /= 0 && statusBits /= 0 = MultipleStatuses byte

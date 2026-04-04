@@ -123,10 +123,10 @@ quoteValue value = "\"" <> value <> "\""
 
 -- ── Convenience ───────────────────────────────────────────────────
 
--- | Crash with rendered error messages on Left. Intended for the
--- current error-or-die loading style; will be replaced with proper
--- error handling when the save parser introduces untrusted input.
--- Returns IO so it chains cleanly with =<< on IO (Either ...) actions.
+-- | Crash with rendered error messages on Left. Used for loading
+-- curated data (CSVs, charsets) where errors indicate a build problem,
+-- not user input. The save parser has its own error handling via Either
+-- SaveError. Returns IO so it chains cleanly with =<< on IO (Either ...) actions.
 loadOrDie :: Either [LoadError] a -> IO a
 loadOrDie (Right value) = pure value
 loadOrDie (Left errors) = error $ Text.unpack $

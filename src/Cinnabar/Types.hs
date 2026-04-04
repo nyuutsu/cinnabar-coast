@@ -185,7 +185,7 @@ data GenderRatio
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | The raw byte threshold for gender determination.
--- Used by stat calculation: Attack DV * 17 > threshold → male.
+-- Attack DV compared against threshold to determine gender.
 genderThreshold :: GenderRatio -> Int
 genderThreshold AllMale    = 0
 genderThreshold Female12_5 = 31
@@ -366,8 +366,8 @@ maxStatExp = StatExp 65535 65535 65535 65535 65535
 
 -- ── Move Slot ───────────────────────────────────────────────────
 
--- | One of four move slots. Nothing = empty slot.
--- slotCurrentPP is remaining uses (numerator). Max PP is derived:
+-- | One of four move slots. A Pokemon carries NonEmpty MoveSlot (1-4 entries);
+-- shorter lists mean fewer moves. slotCurrentPP is remaining uses. Max PP is derived:
 --   max_pp = base_pp + (base_pp * slotPPUps / 5)
 data MoveSlot = MoveSlot
   { slotMoveId   :: !MoveId -- move ID
@@ -488,8 +488,8 @@ data LearnSource = LearnSource
 
 -- ── Game Data ───────────────────────────────────────────────────
 
--- | TM/HM machine data: which moves machines teach and which
--- species are compatible. Always used as a pair.
+-- | TM/HM machine data: which moves machines teach, reverse
+-- lookup from move to machine, and species compatibility.
 data MachineData = MachineData
   { gameMachines      :: !(Map Machine MoveId)          -- machine → move ID
   , gameMoveToMachine :: !(Map MoveId Machine)           -- move ID → machine (reverse)

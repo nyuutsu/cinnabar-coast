@@ -51,7 +51,7 @@ data StatInput = StatInput
 -- | Calculate a non-HP stat.
 --
 -- >>> calcStat (StatInput 65 15 65535) (Level 100)
--- 238
+-- 228
 calcStat :: StatInput -> Level -> Int
 calcStat StatInput{statBase, statDV, statStatExp} (Level level) =
   ((statBase + statDV) * 2 + statExpBonus statStatExp) * level `div` 100 + 5
@@ -61,7 +61,7 @@ calcStat StatInput{statBase, statDV, statStatExp} (Level level) =
 -- Pass the derived HP DV (from 'dvHP'), not a raw DV field.
 --
 -- >>> calcHP (StatInput 45 15 65535) (Level 100)
--- 198
+-- 293
 calcHP :: StatInput -> Level -> Int
 calcHP StatInput{statBase, statDV, statStatExp} (Level level) =
   ((statBase + statDV) * 2 + statExpBonus statStatExp) * level `div` 100 + level + 10

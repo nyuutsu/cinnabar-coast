@@ -12,7 +12,8 @@
 -- PreEvo walks backward through evolution chains to find moves
 -- learnable by earlier stages but not the current species.
 --
--- EventMove is a stub until event data is loaded.
+-- EventMove classification is unimplemented (event data exists but
+-- the classification logic doesn't check it yet).
 
 module Cinnabar.Legality
   ( classifyMove
