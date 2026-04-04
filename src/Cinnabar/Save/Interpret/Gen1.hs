@@ -84,7 +84,7 @@ interpretGen1Save gameData codec rawSave =
 
       rawPlayTimeRecord = rawGen1PlayTime rawSave
       daycareRecord     = rawGen1Daycare rawSave
-      WithWarnings interpretedDaycare daycareWarnings =
+      WithWarnings { computedResult = interpretedDaycare, encounteredWarnings = daycareWarnings } =
         resolveDaycare indexMap speciesMap codec daycareRecord
 
       -- Player position
@@ -95,7 +95,7 @@ interpretGen1Save gameData codec rawSave =
 
       -- Fossil resolution
       fossilRecord = rawGen1Fossil rawSave
-      WithWarnings fossilResult fossilWarnings =
+      WithWarnings { computedResult = fossilResult, encounteredWarnings = fossilWarnings } =
         resolveFossil indexMap speciesMap itemMap fossilRecord
 
       -- Transient state
@@ -153,7 +153,8 @@ interpretGen1Save gameData codec rawSave =
         ]
 
       -- Progress interpretation
-      WithWarnings progress progressSpeciesWarnings = interpretProgress gameData rawSave
+      WithWarnings { computedResult = progress, encounteredWarnings = progressSpeciesWarnings } =
+        interpretProgress gameData rawSave
 
       progressWarnings
         | progActiveBoxSynced progress = []

@@ -28,7 +28,7 @@ interpretHoFRecord indexMap speciesMap codec recordIndex record =
         [1 ..] (rawGen1HoFEntries record)
       entries  = catMaybes (map computedResult results)
       warnings = concatMap encounteredWarnings results
-  in WithWarnings (InterpretedHoFRecord { hofEntries = entries }) warnings
+  in WithWarnings { computedResult = InterpretedHoFRecord { hofEntries = entries }, encounteredWarnings = warnings }
 
 interpretHoFEntry
   :: Map.Map InternalIndex DexNumber
@@ -39,16 +39,17 @@ interpretHoFEntry
   -> RawGen1HoFEntry
   -> WithWarnings (Maybe InterpretedHoFEntry)
 interpretHoFEntry indexMap speciesMap codec recordIndex entryIndex entry
-  | unInternalIndex (rawGen1HoFSpecies entry) == 0x00 = WithWarnings Nothing []
+  | unInternalIndex (rawGen1HoFSpecies entry) == 0x00 =
+      WithWarnings { computedResult = Nothing, encounteredWarnings = [] }
   | otherwise =
       let context = HoFSlot recordIndex entryIndex
-          WithWarnings species warnings =
+          WithWarnings { computedResult = species, encounteredWarnings = warnings } =
             resolveSpecies indexMap speciesMap context (rawGen1HoFSpecies entry)
       in WithWarnings
-           ( Just InterpretedHoFEntry
+           { computedResult = Just InterpretedHoFEntry
               { hofSpecies  = species
               , hofLevel    = Level (fromIntegral (rawGen1HoFLevel entry))
               , hofNickname = decodeText codec (rawGen1HoFNickname entry)
               }
-           )
-           warnings
+           , encounteredWarnings = warnings
+           }

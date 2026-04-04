@@ -57,7 +57,7 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
 
       -- Species resolution
       context = PartySlot (slotIndex + 1)
-      WithWarnings interpSpeciesResult speciesWarnings =
+      WithWarnings { computedResult = interpSpeciesResult, encounteredWarnings = speciesWarnings } =
         resolveSpecies indexMap speciesMap context structSpecies
 
       -- Species list cross-check (compare raw bytes)
@@ -70,7 +70,7 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
       -- Move resolution
       rawMoveBytes = [rawG1BoxMove1 base, rawG1BoxMove2 base,
                       rawG1BoxMove3 base, rawG1BoxMove4 base]
-      WithWarnings interpMovesResult moveWarnings =
+      WithWarnings { computedResult = interpMovesResult, encounteredWarnings = moveWarnings } =
         resolveMoves moveMap context rawMoveBytes
 
       -- Stat cross-check
@@ -86,7 +86,7 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
         _                      -> []
 
   in WithWarnings
-       ( InterpretedPokemon
+       { computedResult = InterpretedPokemon
           { interpSpecies    = interpSpeciesResult
           , interpNickname   = decodeText codec nickBytes
           , interpOTName     = decodeText codec otNameBytes
@@ -108,8 +108,8 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
               { interpCatchRate = rawG1BoxCatchRate base
               }
           }
-       )
-       (speciesWarnings ++ listWarnings ++ moveWarnings ++ statWarnings)
+       , encounteredWarnings = speciesWarnings ++ listWarnings ++ moveWarnings ++ statWarnings
+       }
 
 interpretGen1BoxPokemon
   :: Map.Map InternalIndex DexNumber
@@ -133,7 +133,7 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
 
       -- Species resolution
       context = BoxSlot boxNumber (slotIndex + 1)
-      WithWarnings resolvedSpecies speciesWarnings =
+      WithWarnings { computedResult = resolvedSpecies, encounteredWarnings = speciesWarnings } =
         resolveSpecies indexMap speciesMap context structSpecies
 
       -- Species list cross-check
@@ -146,7 +146,7 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
       -- Move resolution
       rawMoveBytes = [rawG1BoxMove1 boxPokemon, rawG1BoxMove2 boxPokemon,
                       rawG1BoxMove3 boxPokemon, rawG1BoxMove4 boxPokemon]
-      WithWarnings resolvedMoves moveWarnings =
+      WithWarnings { computedResult = resolvedMoves, encounteredWarnings = moveWarnings } =
         resolveMoves moveMap context rawMoveBytes
 
       -- Compute stats from base stats + DVs + stat exp + level
@@ -155,7 +155,7 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
         _                      -> Nothing
 
   in WithWarnings
-       ( InterpretedPokemon
+       { computedResult = InterpretedPokemon
           { interpSpecies    = resolvedSpecies
           , interpNickname   = decodeText codec nickBytes
           , interpOTName     = decodeText codec otNameBytes
@@ -177,8 +177,8 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
               { interpCatchRate = rawG1BoxCatchRate boxPokemon
               }
           }
-       )
-       (speciesWarnings ++ listWarnings ++ moveWarnings)
+       , encounteredWarnings = speciesWarnings ++ listWarnings ++ moveWarnings
+       }
 
 
 -- ── Resolution Helpers ─────────────────────────────────────
@@ -191,10 +191,19 @@ resolveSpecies
   -> WithWarnings InterpretedSpecies
 resolveSpecies indexMap speciesMap context internalIdx =
   case Map.lookup internalIdx indexMap of
-    Nothing  -> WithWarnings (UnknownSpecies internalIdx) [UnknownSpeciesIndex context internalIdx]
+    Nothing  -> WithWarnings
+      { computedResult = UnknownSpecies internalIdx
+      , encounteredWarnings = [UnknownSpeciesIndex context internalIdx]
+      }
     Just dex -> case Map.lookup dex speciesMap of
-      Nothing      -> WithWarnings (UnknownSpecies internalIdx) [UnknownSpeciesIndex context internalIdx]
-      Just species -> WithWarnings (KnownSpecies dex species) []
+      Nothing      -> WithWarnings
+        { computedResult = UnknownSpecies internalIdx
+        , encounteredWarnings = [UnknownSpeciesIndex context internalIdx]
+        }
+      Just species -> WithWarnings
+        { computedResult = KnownSpecies dex species
+        , encounteredWarnings = []
+        }
 
 resolveMoves
   :: Map.Map MoveId Move
@@ -205,7 +214,7 @@ resolveMoves moveMap context rawBytes =
   let results = zipWith (resolveOneMove moveMap context) [1 ..] rawBytes
       moves    = map computedResult results
       warnings = concatMap encounteredWarnings results
-  in WithWarnings moves warnings
+  in WithWarnings { computedResult = moves, encounteredWarnings = warnings }
 
 resolveOneMove
   :: Map.Map MoveId Move
@@ -213,12 +222,19 @@ resolveOneMove
   -> Int           -- move slot (1-4)
   -> Word8         -- raw move byte
   -> WithWarnings InterpretedMove
-resolveOneMove _moveMap _context _moveSlot 0x00 = WithWarnings EmptyMove []
+resolveOneMove _moveMap _context _moveSlot 0x00 =
+  WithWarnings { computedResult = EmptyMove, encounteredWarnings = [] }
 resolveOneMove moveMap context moveSlot rawByte =
   let moveId = MoveId (fromIntegral rawByte)
   in case Map.lookup moveId moveMap of
-    Just move -> WithWarnings (KnownMove moveId move) []
-    Nothing   -> WithWarnings (UnknownMove rawByte) [UnknownMoveId context moveSlot rawByte]
+    Just move -> WithWarnings
+      { computedResult = KnownMove moveId move
+      , encounteredWarnings = []
+      }
+    Nothing -> WithWarnings
+      { computedResult = UnknownMove rawByte
+      , encounteredWarnings = [UnknownMoveId context moveSlot rawByte]
+      }
 
 promoteStatExp :: RawStatExp -> StatExp
 promoteStatExp raw = StatExp

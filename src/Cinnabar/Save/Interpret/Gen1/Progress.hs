@@ -26,23 +26,41 @@ interpretProgress gameData rawSave =
       flagNames  = gameGen1FlagNames gameData
       progress   = rawGen1Progress rawSave
 
-      WithWarnings playerStarter playerStarterWarnings =
+      WithWarnings { computedResult = playerStarter, encounteredWarnings = playerStarterWarnings } =
         resolveSpecies indexMap speciesMap PlayerStarter (rawPlayerStarter progress)
       gameVariant = layoutGame (rawGen1Layout rawSave)
-      WithWarnings rivalStarter rivalStarterWarnings = case gameVariant of
-        Yellow ->
-          let rawByte = unInternalIndex (rawRivalStarter progress)
-          in case rawByte of
-            0 -> WithWarnings (RivalEeveelution EeveelutionPending) []
-            1 -> WithWarnings (RivalEeveelution (EeveelutionKnown JolteonPath)) []
-            2 -> WithWarnings (RivalEeveelution (EeveelutionKnown FlareonPath)) []
-            3 -> WithWarnings (RivalEeveelution (EeveelutionKnown VaporeonPath)) []
-            _ -> WithWarnings (RivalEeveelution (EeveelutionUnknown rawByte))
-                              [UnexpectedEeveelution rawByte]
-        _ ->
-          let WithWarnings species warnings =
-                resolveSpecies indexMap speciesMap RivalStarterSlot (rawRivalStarter progress)
-          in WithWarnings (RivalStarterSpecies species) warnings
+      WithWarnings { computedResult = rivalStarter, encounteredWarnings = rivalStarterWarnings } =
+        case gameVariant of
+          Yellow ->
+            let rawByte = unInternalIndex (rawRivalStarter progress)
+            in case rawByte of
+              0 -> WithWarnings
+                { computedResult = RivalEeveelution EeveelutionPending
+                , encounteredWarnings = []
+                }
+              1 -> WithWarnings
+                { computedResult = RivalEeveelution (EeveelutionKnown JolteonPath)
+                , encounteredWarnings = []
+                }
+              2 -> WithWarnings
+                { computedResult = RivalEeveelution (EeveelutionKnown FlareonPath)
+                , encounteredWarnings = []
+                }
+              3 -> WithWarnings
+                { computedResult = RivalEeveelution (EeveelutionKnown VaporeonPath)
+                , encounteredWarnings = []
+                }
+              _ -> WithWarnings
+                { computedResult = RivalEeveelution (EeveelutionUnknown rawByte)
+                , encounteredWarnings = [UnexpectedEeveelution rawByte]
+                }
+          _ ->
+            let WithWarnings { computedResult = species, encounteredWarnings = warnings } =
+                  resolveSpecies indexMap speciesMap RivalStarterSlot (rawRivalStarter progress)
+            in WithWarnings
+              { computedResult = RivalStarterSpecies species
+              , encounteredWarnings = warnings
+              }
 
       movementMode = case rawMovementStatus progress of
         0 -> Walking
@@ -93,7 +111,7 @@ interpretProgress gameData rawSave =
       starterWarnings = playerStarterWarnings ++ rivalStarterWarnings
 
   in WithWarnings
-     ( InterpretedProgress
+     { computedResult = InterpretedProgress
         { progPlayerStarter      = playerStarter
         , progRivalStarter       = rivalStarter
         , progBadges             = badgeList
@@ -122,5 +140,5 @@ interpretProgress gameData rawSave =
         , progBeatenLorelei      = testBit (ByteString.index (rawDefeatedLorelei progress) 0) 1
         , progActiveBoxSynced    = rawGen1ActiveBoxSynced rawSave
         }
-     )
-     starterWarnings
+     , encounteredWarnings = starterWarnings
+     }
