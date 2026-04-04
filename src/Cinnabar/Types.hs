@@ -173,7 +173,7 @@ data GrowthRate
 -- ── Gender Ratio ──────────────────────────────────────────────────
 
 -- | Gender ratio as stored in the ROM. The byte value is the threshold
--- for DV comparison: if Attack DV * 17 > threshold, the Pokémon is male.
+-- for DV comparison: if Attack DV * 17 >= threshold, the Pokémon is male.
 data GenderRatio
   = AllMale         -- 0% female
   | Female12_5      -- 12.5% female

@@ -57,7 +57,7 @@ interpretOptions variant byte = InterpretedOptions
       5 -> TextSlow
       n -> TextSpeedUnknown (fromIntegral n)
   , optBattleAnimation = if testBit byte 7 then AnimationsOff else AnimationsOn
-  , optBattleStyle     = if testBit byte 6 then BattleShift else BattleSet
+  , optBattleStyle     = if testBit byte 6 then BattleSet else BattleShift
   , optSound           = yellowOnly variant $ case (byte .&. 0x30) `shiftR` 4 of
       0 -> Mono
       1 -> Earphone1
