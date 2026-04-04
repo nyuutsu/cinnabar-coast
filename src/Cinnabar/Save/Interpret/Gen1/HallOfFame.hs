@@ -21,14 +21,14 @@ interpretHoFRecord
   -> TextCodec
   -> Int                              -- record index (1-based)
   -> RawGen1HoFRecord
-  -> (InterpretedHoFRecord, [SaveWarning])
+  -> WithWarnings InterpretedHoFRecord
 interpretHoFRecord indexMap speciesMap codec recordIndex record =
   let results = zipWith
         (interpretHoFEntry indexMap speciesMap codec recordIndex)
         [1 ..] (rawGen1HoFEntries record)
-      (maybeEntries, warningLists) = unzip results
-      entries = catMaybes maybeEntries
-  in (InterpretedHoFRecord { hofEntries = entries }, concat warningLists)
+      entries  = catMaybes (map computedResult results)
+      warnings = concatMap encounteredWarnings results
+  in WithWarnings (InterpretedHoFRecord { hofEntries = entries }) warnings
 
 interpretHoFEntry
   :: Map.Map InternalIndex DexNumber
@@ -37,16 +37,18 @@ interpretHoFEntry
   -> Int                              -- record index (1-based)
   -> Int                              -- entry index (1-based)
   -> RawGen1HoFEntry
-  -> (Maybe InterpretedHoFEntry, [SaveWarning])
+  -> WithWarnings (Maybe InterpretedHoFEntry)
 interpretHoFEntry indexMap speciesMap codec recordIndex entryIndex entry
-  | unInternalIndex (rawGen1HoFSpecies entry) == 0x00 = (Nothing, [])
+  | unInternalIndex (rawGen1HoFSpecies entry) == 0x00 = WithWarnings Nothing []
   | otherwise =
       let context = HoFSlot recordIndex entryIndex
-          (species, warnings) = resolveSpecies indexMap speciesMap context (rawGen1HoFSpecies entry)
-      in ( Just InterpretedHoFEntry
-            { hofSpecies  = species
-            , hofLevel    = Level (fromIntegral (rawGen1HoFLevel entry))
-            , hofNickname = decodeText codec (rawGen1HoFNickname entry)
-            }
-         , warnings
-         )
+          WithWarnings species warnings =
+            resolveSpecies indexMap speciesMap context (rawGen1HoFSpecies entry)
+      in WithWarnings
+           ( Just InterpretedHoFEntry
+              { hofSpecies  = species
+              , hofLevel    = Level (fromIntegral (rawGen1HoFLevel entry))
+              , hofNickname = decodeText codec (rawGen1HoFNickname entry)
+              }
+           )
+           warnings

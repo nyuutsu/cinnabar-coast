@@ -19,7 +19,6 @@ module Cinnabar.Save.Interpret.Gen1.Pokemon
   ) where
 
 import Data.ByteString (ByteString)
-import Data.Text (Text)
 import Data.Word (Word8)
 import qualified Data.Map.Strict as Map
 
@@ -45,7 +44,7 @@ interpretGen1Pokemon
   -> InternalIndex                    -- species list byte
   -> RawGen1PartyPokemon              -- struct data
   -> RawNamePair                      -- OT name and nickname bytes
-  -> (InterpretedPokemon, [SaveWarning])
+  -> WithWarnings InterpretedPokemon
 interpretGen1Pokemon indexMap speciesMap moveMap codec
                  slotIndex listSpecies partyPokemon namePair =
   let base        = rawG1PartyBase partyPokemon
@@ -58,7 +57,8 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
 
       -- Species resolution
       context = PartySlot (slotIndex + 1)
-      (interpSpeciesResult, speciesWarnings) = resolveSpecies indexMap speciesMap context structSpecies
+      WithWarnings interpSpeciesResult speciesWarnings =
+        resolveSpecies indexMap speciesMap context structSpecies
 
       -- Species list cross-check (compare raw bytes)
       listByte   = unInternalIndex listSpecies
@@ -70,7 +70,8 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
       -- Move resolution
       rawMoveBytes = [rawG1BoxMove1 base, rawG1BoxMove2 base,
                       rawG1BoxMove3 base, rawG1BoxMove4 base]
-      (interpMovesResult, moveWarnings) = resolveMoves moveMap context rawMoveBytes
+      WithWarnings interpMovesResult moveWarnings =
+        resolveMoves moveMap context rawMoveBytes
 
       -- Stat cross-check
       storedStats = StoredStats
@@ -84,30 +85,31 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
         KnownSpecies _ species -> checkStats context species dvs promotedExp level storedStats
         _                      -> []
 
-  in ( InterpretedPokemon
-        { interpSpecies    = interpSpeciesResult
-        , interpNickname   = decodeText codec nickBytes
-        , interpOTName     = decodeText codec otNameBytes
-        , interpOTID       = TrainerId (fromIntegral (rawG1BoxOTID base))
-        , interpLevel      = level
-        , interpMoves      = interpMovesResult
-        , interpDVs        = dvs
-        , interpStatExp    = promotedExp
-        , interpExp        = rawG1BoxExp base
-        , interpStatus     = interpretStatus (rawG1BoxStatus base)
-        , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP base)
-        , interpMaxHP      = fromIntegral (rawG1MaxHP partyPokemon)
-        , interpAttack     = fromIntegral (rawG1Attack partyPokemon)
-        , interpDefense    = fromIntegral (rawG1Defense partyPokemon)
-        , interpSpeed      = fromIntegral (rawG1Speed partyPokemon)
-        , interpSpecial    = Unified (fromIntegral (rawG1Special partyPokemon))
-        , interpStatOrigin = StoredFromSave
-        , interpGenFields  = InterpGen1Fields
-            { interpCatchRate = rawG1BoxCatchRate base
-            }
-        }
-     , speciesWarnings ++ listWarnings ++ moveWarnings ++ statWarnings
-     )
+  in WithWarnings
+       ( InterpretedPokemon
+          { interpSpecies    = interpSpeciesResult
+          , interpNickname   = decodeText codec nickBytes
+          , interpOTName     = decodeText codec otNameBytes
+          , interpOTID       = TrainerId (fromIntegral (rawG1BoxOTID base))
+          , interpLevel      = level
+          , interpMoves      = interpMovesResult
+          , interpDVs        = dvs
+          , interpStatExp    = promotedExp
+          , interpExp        = rawG1BoxExp base
+          , interpStatus     = interpretStatus (rawG1BoxStatus base)
+          , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP base)
+          , interpMaxHP      = fromIntegral (rawG1MaxHP partyPokemon)
+          , interpAttack     = fromIntegral (rawG1Attack partyPokemon)
+          , interpDefense    = fromIntegral (rawG1Defense partyPokemon)
+          , interpSpeed      = fromIntegral (rawG1Speed partyPokemon)
+          , interpSpecial    = Unified (fromIntegral (rawG1Special partyPokemon))
+          , interpStatOrigin = StoredFromSave
+          , interpGenFields  = InterpGen1Fields
+              { interpCatchRate = rawG1BoxCatchRate base
+              }
+          }
+       )
+       (speciesWarnings ++ listWarnings ++ moveWarnings ++ statWarnings)
 
 interpretGen1BoxPokemon
   :: Map.Map InternalIndex DexNumber
@@ -119,7 +121,7 @@ interpretGen1BoxPokemon
   -> InternalIndex                    -- species list byte
   -> RawGen1BoxPokemon                -- struct data
   -> RawNamePair                      -- OT name and nickname bytes
-  -> (InterpretedPokemon, [SaveWarning])
+  -> WithWarnings InterpretedPokemon
 interpretGen1BoxPokemon indexMap speciesMap moveMap codec
                     boxNumber slotIndex listSpecies boxPokemon namePair =
   let otNameBytes = rawOTNameBytes namePair
@@ -131,7 +133,8 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
 
       -- Species resolution
       context = BoxSlot boxNumber (slotIndex + 1)
-      (resolvedSpecies, speciesWarnings) = resolveSpecies indexMap speciesMap context structSpecies
+      WithWarnings resolvedSpecies speciesWarnings =
+        resolveSpecies indexMap speciesMap context structSpecies
 
       -- Species list cross-check
       listByte   = unInternalIndex listSpecies
@@ -143,37 +146,39 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
       -- Move resolution
       rawMoveBytes = [rawG1BoxMove1 boxPokemon, rawG1BoxMove2 boxPokemon,
                       rawG1BoxMove3 boxPokemon, rawG1BoxMove4 boxPokemon]
-      (resolvedMoves, moveWarnings) = resolveMoves moveMap context rawMoveBytes
+      WithWarnings resolvedMoves moveWarnings =
+        resolveMoves moveMap context rawMoveBytes
 
       -- Compute stats from base stats + DVs + stat exp + level
       calculatedStats = case resolvedSpecies of
         KnownSpecies _ species -> Just (calcAllStats species dvs promotedExp level)
         _                      -> Nothing
 
-  in ( InterpretedPokemon
-        { interpSpecies    = resolvedSpecies
-        , interpNickname   = decodeText codec nickBytes
-        , interpOTName     = decodeText codec otNameBytes
-        , interpOTID       = TrainerId (fromIntegral (rawG1BoxOTID boxPokemon))
-        , interpLevel      = level
-        , interpMoves      = resolvedMoves
-        , interpDVs        = dvs
-        , interpStatExp    = promotedExp
-        , interpExp        = rawG1BoxExp boxPokemon
-        , interpStatus     = interpretStatus (rawG1BoxStatus boxPokemon)
-        , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP boxPokemon)
-        , interpMaxHP      = maybe 0 statHP calculatedStats
-        , interpAttack     = maybe 0 statAttack calculatedStats
-        , interpDefense    = maybe 0 statDefense calculatedStats
-        , interpSpeed      = maybe 0 statSpeed calculatedStats
-        , interpSpecial    = maybe (Unified 0) statSpecial calculatedStats
-        , interpStatOrigin = ComputedFromBase
-        , interpGenFields  = InterpGen1Fields
-            { interpCatchRate = rawG1BoxCatchRate boxPokemon
-            }
-        }
-     , speciesWarnings ++ listWarnings ++ moveWarnings
-     )
+  in WithWarnings
+       ( InterpretedPokemon
+          { interpSpecies    = resolvedSpecies
+          , interpNickname   = decodeText codec nickBytes
+          , interpOTName     = decodeText codec otNameBytes
+          , interpOTID       = TrainerId (fromIntegral (rawG1BoxOTID boxPokemon))
+          , interpLevel      = level
+          , interpMoves      = resolvedMoves
+          , interpDVs        = dvs
+          , interpStatExp    = promotedExp
+          , interpExp        = rawG1BoxExp boxPokemon
+          , interpStatus     = interpretStatus (rawG1BoxStatus boxPokemon)
+          , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP boxPokemon)
+          , interpMaxHP      = maybe 0 statHP calculatedStats
+          , interpAttack     = maybe 0 statAttack calculatedStats
+          , interpDefense    = maybe 0 statDefense calculatedStats
+          , interpSpeed      = maybe 0 statSpeed calculatedStats
+          , interpSpecial    = maybe (Unified 0) statSpecial calculatedStats
+          , interpStatOrigin = ComputedFromBase
+          , interpGenFields  = InterpGen1Fields
+              { interpCatchRate = rawG1BoxCatchRate boxPokemon
+              }
+          }
+       )
+       (speciesWarnings ++ listWarnings ++ moveWarnings)
 
 
 -- ── Resolution Helpers ─────────────────────────────────────
@@ -183,35 +188,37 @@ resolveSpecies
   -> Map.Map DexNumber Species
   -> WarningContext
   -> InternalIndex
-  -> (InterpretedSpecies, [SaveWarning])
+  -> WithWarnings InterpretedSpecies
 resolveSpecies indexMap speciesMap context internalIdx =
   case Map.lookup internalIdx indexMap of
-    Nothing  -> (UnknownSpecies internalIdx, [UnknownSpeciesIndex context internalIdx])
+    Nothing  -> WithWarnings (UnknownSpecies internalIdx) [UnknownSpeciesIndex context internalIdx]
     Just dex -> case Map.lookup dex speciesMap of
-      Nothing      -> (UnknownSpecies internalIdx, [UnknownSpeciesIndex context internalIdx])
-      Just species -> (KnownSpecies dex species, [])
+      Nothing      -> WithWarnings (UnknownSpecies internalIdx) [UnknownSpeciesIndex context internalIdx]
+      Just species -> WithWarnings (KnownSpecies dex species) []
 
 resolveMoves
   :: Map.Map MoveId Move
   -> WarningContext
   -> [Word8]
-  -> ([InterpretedMove], [SaveWarning])
+  -> WithWarnings [InterpretedMove]
 resolveMoves moveMap context rawBytes =
-  let (moves, warningLists) = unzip (zipWith (resolveOneMove moveMap context) [1 ..] rawBytes)
-  in (moves, concat warningLists)
+  let results = zipWith (resolveOneMove moveMap context) [1 ..] rawBytes
+      moves    = map computedResult results
+      warnings = concatMap encounteredWarnings results
+  in WithWarnings moves warnings
 
 resolveOneMove
   :: Map.Map MoveId Move
   -> WarningContext
   -> Int           -- move slot (1-4)
   -> Word8         -- raw move byte
-  -> (InterpretedMove, [SaveWarning])
-resolveOneMove _moveMap _context _moveSlot 0x00 = (EmptyMove, [])
+  -> WithWarnings InterpretedMove
+resolveOneMove _moveMap _context _moveSlot 0x00 = WithWarnings EmptyMove []
 resolveOneMove moveMap context moveSlot rawByte =
   let moveId = MoveId (fromIntegral rawByte)
   in case Map.lookup moveId moveMap of
-    Just move -> (KnownMove moveId move, [])
-    Nothing   -> (UnknownMove rawByte, [UnknownMoveId context moveSlot rawByte])
+    Just move -> WithWarnings (KnownMove moveId move) []
+    Nothing   -> WithWarnings (UnknownMove rawByte) [UnknownMoveId context moveSlot rawByte]
 
 promoteStatExp :: RawStatExp -> StatExp
 promoteStatExp raw = StatExp
@@ -236,24 +243,26 @@ data StoredStats = StoredStats
 checkStats :: WarningContext -> Species -> DVs -> StatExp -> Level -> StoredStats -> [SaveWarning]
 checkStats context species dvs statExp level stored =
   let calculated = calcAllStats species dvs statExp level
-      checks =
-        [ ("HP",      storedMaxHP stored,   statHP calculated)
-        , ("Attack",  storedAttack stored,  statAttack calculated)
-        , ("Defense", storedDefense stored, statDefense calculated)
-        , ("Speed",   storedSpeed stored,   statSpeed calculated)
-        ] ++ specialChecks (storedSpecial stored) (statSpecial calculated)
-  in [ StatMismatch context name storedValue calculatedValue
-     | (name, storedValue, calculatedValue) <- checks
-     , storedValue /= calculatedValue
-     ]
+      mismatch name storedValue calculatedValue
+        | storedValue /= calculatedValue = [StatMismatch context name storedValue calculatedValue]
+        | otherwise                      = []
+  in mismatch "HP"      (storedMaxHP stored)   (statHP calculated)
+  ++ mismatch "Attack"  (storedAttack stored)  (statAttack calculated)
+  ++ mismatch "Defense" (storedDefense stored) (statDefense calculated)
+  ++ mismatch "Speed"   (storedSpeed stored)   (statSpeed calculated)
+  ++ specialStatWarnings context (storedSpecial stored) (statSpecial calculated)
 
-specialChecks :: Special -> Special -> [(Text, Int, Int)]
-specialChecks (Unified storedValue) (Unified calculatedValue) =
-  [("Special", storedValue, calculatedValue)]
-specialChecks (Split storedAtk storedDef) (Split calcAtk calcDef) =
-  [("Sp.Atk", storedAtk, calcAtk), ("Sp.Def", storedDef, calcDef)]
+specialStatWarnings :: WarningContext -> Special -> Special -> [SaveWarning]
+specialStatWarnings context (Unified storedValue) (Unified calculatedValue)
+  | storedValue /= calculatedValue = [StatMismatch context "Special" storedValue calculatedValue]
+  | otherwise                      = []
+specialStatWarnings context (Split storedAtk storedDef) (Split calcAtk calcDef) =
+  [ StatMismatch context "Sp.Atk" storedAtk calcAtk | storedAtk /= calcAtk ]
+  ++ [ StatMismatch context "Sp.Def" storedDef calcDef | storedDef /= calcDef ]
 -- Mismatched variants shouldn't happen, but handle gracefully
-specialChecks (Unified storedValue) (Split calcAtk _calcDef) =
-  [("Special", storedValue, calcAtk)]
-specialChecks (Split storedAtk _storedDef) (Unified calculatedValue) =
-  [("Special", storedAtk, calculatedValue)]
+specialStatWarnings context (Unified storedValue) (Split calcAtk _calcDef)
+  | storedValue /= calcAtk = [StatMismatch context "Special" storedValue calcAtk]
+  | otherwise               = []
+specialStatWarnings context (Split storedAtk _storedDef) (Unified calculatedValue)
+  | storedAtk /= calculatedValue = [StatMismatch context "Special" storedAtk calculatedValue]
+  | otherwise                     = []

@@ -30,6 +30,7 @@ module Cinnabar.Binary
   , writeWord24BE
 
     -- * Patching
+  , ByteEdit (..)
   , patchByte
   , patchBytes
   , patchSlots
@@ -197,18 +198,24 @@ patchSlots start stride items bytes =
   foldr (\(index, item) current -> patchBytes (start + index * stride) item current)
     bytes (zip [0..] items)
 
--- | Apply a batch of non-overlapping patches in a single left-to-right pass.
--- Each patch is (offset, replacement). Patches are sorted by offset internally,
--- then the result is built with ByteString Builder — O(n + k log k) instead
--- of O(n × k) for chained patchByte/patchBytes calls.
-applyPatches :: [(Int, ByteString)] -> ByteString -> ByteString
-applyPatches patches original =
+-- | A single byte-level edit: an offset and the replacement bytes.
+data ByteEdit = ByteEdit
+  { editOffset :: !Int
+  , editBytes  :: !ByteString
+  } deriving (Show)
+
+-- | Apply a batch of non-overlapping edits in a single left-to-right pass.
+-- Edits are sorted by offset internally, then the result is built with
+-- ByteString Builder — O(n + k log k) instead of O(n × k) for chained
+-- patchByte/patchBytes calls.
+applyPatches :: [ByteEdit] -> ByteString -> ByteString
+applyPatches edits original =
   LazyByteString.toStrict
-    (Builder.toLazyByteString (buildPatched (sortOn fst patches) 0))
+    (Builder.toLazyByteString (buildPatched (sortOn editOffset edits) 0))
   where
     buildPatched [] position =
       Builder.byteString (ByteString.drop position original)
-    buildPatched ((offset, replacement) : rest) position =
+    buildPatched (ByteEdit offset replacement : rest) position =
       Builder.byteString (ByteString.take (offset - position) (ByteString.drop position original))
       <> Builder.byteString replacement
       <> buildPatched rest (offset + ByteString.length replacement)

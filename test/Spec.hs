@@ -18,7 +18,7 @@ import Cinnabar.Stats
 import Cinnabar.Data (loadAllGameData)
 import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
-import Cinnabar.TextCodec (TextCodec (..), loadCodec, encodeText, decodeText, displayText, terminator)
+import Cinnabar.TextCodec (TextCodec (..), LoadedCodec (..), loadCodec, encodeText, decodeText, displayText, terminator)
 import Cinnabar.Binary (runParser, patchByte, patchBytes)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
@@ -75,7 +75,7 @@ main = hspec $ do
 
       withInterpretedSave :: (InterpretedSave -> Expectation) -> Expectation
       withInterpretedSave action = do
-        (codec, _namingScreens) <- loadOrDie =<< loadCodec Gen1 English
+        LoadedCodec codec _namingScreens <- loadOrDie =<< loadCodec Gen1 English
         withYellowSave $ \rawSave ->
           action (interpretGen1Save gen1Data codec rawSave)
 
@@ -103,7 +103,7 @@ main = hspec $ do
         calcHP (StatInput base (dvHP dvs) (expHP statExp)) level > 0
 
   describe "Text codec round-trip" $ do
-    codec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+    codec <- runIO $ loadedTextCodec <$> (loadOrDie =<< loadCodec Gen1 English)
     let safeChars = [ gameChar | (byte, gameChar) <- Map.toList (codecDecode codec)
                          , byte /= terminator ]
     prop "preserves all characters in the decode map" $
@@ -341,7 +341,7 @@ main = hspec $ do
   -- ── Save interpretation ─────────────────────────────────────
 
   describe "Save interpretation" $ do
-    codec <- runIO $ fst <$> (loadOrDie =<< loadCodec Gen1 English)
+    codec <- runIO $ loadedTextCodec <$> (loadOrDie =<< loadCodec Gen1 English)
 
     it "interprets a hand-crafted Gen 1 save correctly" $
       case cartridgeLayout Yellow RegionWestern of
@@ -465,7 +465,7 @@ main = hspec $ do
   describe "Hall of Fame" $
     it "parses all records and interprets valid entries" $ withYellowSave $ \save -> do
       length (rawGen1HallOfFame save) `shouldBe` 50
-      (codec, _namingScreens) <- loadOrDie =<< loadCodec Gen1 English
+      LoadedCodec codec _namingScreens <- loadOrDie =<< loadCodec Gen1 English
       let interpreted = interpretGen1Save gen1Data codec save
       length (interpHallOfFame interpreted) `shouldBe` interpHoFCount interpreted
       case interpHallOfFame interpreted of

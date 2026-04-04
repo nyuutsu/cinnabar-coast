@@ -15,6 +15,7 @@ module Cinnabar.TextCodec
   ( -- * Codec type
     TextCodec (..)
   , NamingScreen (..)
+  , LoadedCodec (..)
 
     -- * Loading
   , loadCodec
@@ -74,6 +75,12 @@ data TextCodec = TextCodec
 data NamingScreen = NamingScreen
   { screenLabel :: !Text
   , screenChars :: !(Set GameChar)
+  } deriving (Show)
+
+-- | A loaded codec paired with its naming screens.
+data LoadedCodec = LoadedCodec
+  { loadedTextCodec     :: !TextCodec
+  , loadedNamingScreens :: ![NamingScreen]
   } deriving (Show)
 
 
@@ -164,7 +171,7 @@ lookupLigature codec target =
 
 -- | Load a TextCodec and its associated NamingScreens for a
 -- (Gen, Language) pair. Reads the appropriate charset JSON file.
-loadCodec :: Gen -> Language -> IO (Either [LoadError] (TextCodec, [NamingScreen]))
+loadCodec :: Gen -> Language -> IO (Either [LoadError] LoadedCodec)
 loadCodec gen lang = do
   dataDir <- getDataDir
   let path = dataDir </> "charsets" </> charsetFilename gen lang
@@ -175,10 +182,7 @@ loadCodec gen lang = do
     Right rawJson -> case Aeson.eitherDecode rawJson of
       Left decodeError -> pure $ Left
         [CharsetParseError path (Text.pack decodeError)]
-      Right jsonValue -> case buildFromJSON gen lang jsonValue of
-        Left parseError -> pure $ Left
-          [CharsetParseError path (Text.pack parseError)]
-        Right result -> pure $ Right result
+      Right jsonValue -> pure $ buildFromJSON path gen lang jsonValue
 
 
 -- | Map (Gen, Language) to the charset JSON filename.
@@ -204,10 +208,10 @@ charsetFilename gen lang = prefix ++ "-" ++ suffix ++ ".json"
 -- | Build a TextCodec and NamingScreens from parsed JSON.
 -- Handles both flat (characters array) and variant (German Gen 2)
 -- JSON structures.
-buildFromJSON :: Gen -> Language -> Aeson.Value -> Either String (TextCodec, [NamingScreen])
-buildFromJSON gen lang jsonValue = do
-  charsets <- parseCharsets jsonValue
-  mapM_ (\variant -> checkDuplicateBytes (variantEntries variant) (variantLabel variant)) charsets
+buildFromJSON :: FilePath -> Gen -> Language -> Aeson.Value -> Either [LoadError] LoadedCodec
+buildFromJSON path gen lang jsonValue = do
+  charsets <- wrapParseError (parseCharsets jsonValue)
+  mapM_ (\variant -> checkDuplicateBytes path (variantEntries variant) (variantLabel variant)) charsets
   -- All variants share the same encoding; only choosable differs
   let allEntries = concatMap variantEntries charsets
       decodeMap = Map.fromList
@@ -222,20 +226,24 @@ buildFromJSON gen lang jsonValue = do
             (Set.fromList [entryGameChar entry | entry <- variantEntries variant, entryChoosable entry])
         | variant <- charsets
         ]
-  pure (codec, screens)
+  pure (LoadedCodec codec screens)
+  where
+    wrapParseError (Left message) = Left [CharsetParseError path (Text.pack message)]
+    wrapParseError (Right value)  = Right value
 
 
 -- | Fail if any byte value appears more than once in a single variant's entries.
-checkDuplicateBytes :: [CharEntry] -> Text -> Either String ()
-checkDuplicateBytes entries variantLabel =
+checkDuplicateBytes :: FilePath -> [CharEntry] -> Text -> Either [LoadError] ()
+checkDuplicateBytes path entries label =
   let byteCounts = Map.fromListWith (+)
         [(entryByte entry, 1 :: Int) | entry <- entries]
       duplicateBytes = Map.keys (Map.filter (> 1) byteCounts)
   in case duplicateBytes of
     []    -> pure ()
-    (_:_) -> Left $ "duplicate byte values in charset variant "
-               ++ Text.unpack variantLabel ++ ": "
-               ++ unwords (map (\byte -> "0x" ++ showHexByte byte) duplicateBytes)
+    (_:_) -> Left [CharsetParseError path $
+               "duplicate byte values in charset variant "
+               <> label <> ": "
+               <> Text.unwords (map (\byte -> Text.pack ("0x" ++ showHexByte byte)) duplicateBytes)]
 
 
 -- | A parsed character entry from JSON.

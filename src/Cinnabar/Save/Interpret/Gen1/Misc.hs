@@ -29,40 +29,43 @@ resolveDaycare
   -> Map.Map DexNumber Species
   -> TextCodec
   -> RawDaycare
-  -> (Maybe InterpretedDaycare, [SaveWarning])
+  -> WithWarnings (Maybe InterpretedDaycare)
 resolveDaycare indexMap speciesMap codec daycare
-  | rawDaycareInUse daycare == 0 = (Nothing, [])
+  | rawDaycareInUse daycare == 0 = WithWarnings Nothing []
   | otherwise =
-      let (species, warnings) = resolveSpecies indexMap speciesMap DaycareSlot (rawDaycarePokemon daycare)
-      in ( Just InterpretedDaycare
-            { daycareSpecies  = species
-            , daycareNickname = decodeText codec (rawDaycareNickname daycare)
-            , daycareOTName   = decodeText codec (rawDaycareOTName daycare)
-            }
-         , warnings
-         )
+      let WithWarnings species warnings =
+            resolveSpecies indexMap speciesMap DaycareSlot (rawDaycarePokemon daycare)
+      in WithWarnings
+           ( Just InterpretedDaycare
+              { daycareSpecies  = species
+              , daycareNickname = decodeText codec (rawDaycareNickname daycare)
+              , daycareOTName   = decodeText codec (rawDaycareOTName daycare)
+              }
+           )
+           warnings
 
 resolveFossil
   :: Map.Map InternalIndex DexNumber
   -> Map.Map DexNumber Species
   -> Map.Map ItemId Text
   -> RawFossilState
-  -> (Maybe Text, Maybe InterpretedSpecies, [SaveWarning])
+  -> WithWarnings FossilResult
 resolveFossil indexMap speciesMap itemMap fossil
-  | rawFossilItemGiven fossil == 0 = (Nothing, Nothing, [])
+  | rawFossilItemGiven fossil == 0 =
+      WithWarnings (FossilResult Nothing Nothing) []
   | otherwise =
       let itemByte = rawFossilItemGiven fossil
           itemName = case Map.lookup (ItemId (fromIntegral itemByte)) itemMap of
             Just name -> name
             Nothing   -> Text.pack ("Unknown [0x" ++ showHexByte itemByte ++ "]")
           speciesByte = ByteString.index (rawFossilResult fossil) 0
-          (resolvedSpecies, speciesWarnings)
-            | speciesByte == 0 = (Nothing, [])
+          WithWarnings resolvedSpecies speciesWarnings
+            | speciesByte == 0 = WithWarnings Nothing []
             | otherwise =
-                let (species, warnings) =
+                let WithWarnings species warnings =
                       resolveSpecies indexMap speciesMap FossilSlot (InternalIndex speciesByte)
-                in (Just species, warnings)
-      in (Just itemName, resolvedSpecies, speciesWarnings)
+                in WithWarnings (Just species) warnings
+      in WithWarnings (FossilResult (Just itemName) resolvedSpecies) speciesWarnings
 
 promotePlayTime :: RawPlayTime -> PlayTime
 promotePlayTime raw = PlayTime

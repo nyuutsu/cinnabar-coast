@@ -19,30 +19,30 @@ import Cinnabar.Save.Interpret.Decode (decodeNamedBitFlags, decodeMapScripts)
 import Cinnabar.Save.Interpret.Gen1.Pokemon (resolveSpecies)
 
 
-interpretProgress :: GameData -> RawGen1SaveFile -> (InterpretedProgress, [SaveWarning])
+interpretProgress :: GameData -> RawGen1SaveFile -> WithWarnings InterpretedProgress
 interpretProgress gameData rawSave =
   let indexMap    = gameInternalIndex (gameSpeciesGraph gameData)
       speciesMap  = gameSpecies (gameSpeciesGraph gameData)
       flagNames  = gameGen1FlagNames gameData
       progress   = rawGen1Progress rawSave
 
-      (playerStarter, playerStarterWarnings) =
+      WithWarnings playerStarter playerStarterWarnings =
         resolveSpecies indexMap speciesMap PlayerStarter (rawPlayerStarter progress)
       gameVariant = layoutGame (rawGen1Layout rawSave)
-      (rivalStarter, rivalStarterWarnings) = case gameVariant of
+      WithWarnings rivalStarter rivalStarterWarnings = case gameVariant of
         Yellow ->
           let rawByte = unInternalIndex (rawRivalStarter progress)
           in case rawByte of
-            0 -> (RivalEeveelution EeveelutionPending, [])
-            1 -> (RivalEeveelution (EeveelutionKnown JolteonPath), [])
-            2 -> (RivalEeveelution (EeveelutionKnown FlareonPath), [])
-            3 -> (RivalEeveelution (EeveelutionKnown VaporeonPath), [])
-            _ -> (RivalEeveelution (EeveelutionUnknown rawByte),
-                  [UnexpectedEeveelution rawByte])
+            0 -> WithWarnings (RivalEeveelution EeveelutionPending) []
+            1 -> WithWarnings (RivalEeveelution (EeveelutionKnown JolteonPath)) []
+            2 -> WithWarnings (RivalEeveelution (EeveelutionKnown FlareonPath)) []
+            3 -> WithWarnings (RivalEeveelution (EeveelutionKnown VaporeonPath)) []
+            _ -> WithWarnings (RivalEeveelution (EeveelutionUnknown rawByte))
+                              [UnexpectedEeveelution rawByte]
         _ ->
-          let (species, warnings) =
+          let WithWarnings species warnings =
                 resolveSpecies indexMap speciesMap RivalStarterSlot (rawRivalStarter progress)
-          in (RivalStarterSpecies species, warnings)
+          in WithWarnings (RivalStarterSpecies species) warnings
 
       movementMode = case rawMovementStatus progress of
         0 -> Walking
@@ -92,7 +92,8 @@ interpretProgress gameData rawSave =
 
       starterWarnings = playerStarterWarnings ++ rivalStarterWarnings
 
-  in ( InterpretedProgress
+  in WithWarnings
+     ( InterpretedProgress
         { progPlayerStarter      = playerStarter
         , progRivalStarter       = rivalStarter
         , progBadges             = badgeList
@@ -121,5 +122,5 @@ interpretProgress gameData rawSave =
         , progBeatenLorelei      = testBit (ByteString.index (rawDefeatedLorelei progress) 0) 1
         , progActiveBoxSynced    = rawGen1ActiveBoxSynced rawSave
         }
-     , starterWarnings
      )
+     starterWarnings

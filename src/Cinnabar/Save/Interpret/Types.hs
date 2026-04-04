@@ -51,6 +51,12 @@ module Cinnabar.Save.Interpret.Types
     -- * Warnings
   , WarningContext (..)
   , SaveWarning (..)
+
+    -- * Warning-carrying result
+  , WithWarnings (..)
+
+    -- * Fossil resolution
+  , FossilResult (..)
   ) where
 
 import Data.Set (Set)
@@ -343,3 +349,21 @@ data SaveWarning
   | UnexpectedEeveelution !Word8
   | CountExceedsCapacity !Text !Int !Int   -- field name, raw count, capacity
   deriving (Eq, Show)
+
+
+-- ── Warning-Carrying Result ────────────────────────────────
+
+-- | A computed result paired with any warnings encountered
+-- during interpretation.
+data WithWarnings a = WithWarnings
+  { computedResult      :: a
+  , encounteredWarnings :: [SaveWarning]
+  } deriving (Show)
+
+
+-- ── Fossil Resolution ──────────────────────────────────────
+
+data FossilResult = FossilResult
+  { fossilItemName :: !(Maybe Text)
+  , fossilSpecies  :: !(Maybe InterpretedSpecies)
+  } deriving (Show)

@@ -40,7 +40,7 @@ import Cinnabar.Save.Raw
   (parseRawSave, SaveError (..), RawSaveFile (..), RawGen1SaveFile (..))
 import Cinnabar.Stats
 import Cinnabar.TextCodec
-  (TextCodec (..), NamingScreen (..), loadCodec, encodeText, decodeText,
+  (TextCodec (..), NamingScreen (..), LoadedCodec (..), loadCodec, encodeText, decodeText,
    displayText, showHexByte, lookupChar, lookupLigature)
 
 
@@ -74,7 +74,7 @@ usage = do
 loadGen1Save :: FilePath -> IO InterpretedSave
 loadGen1Save savePath = do
   gen1Data <- loadOrDie =<< loadGameData Gen1
-  (codec, _) <- loadOrDie =<< loadCodec Gen1 English
+  LoadedCodec codec _ <- loadOrDie =<< loadCodec Gen1 English
 
   readResult <- try (ByteString.readFile savePath)
   saveBytes <- case (readResult :: Either IOException ByteString) of
@@ -738,7 +738,7 @@ methodLabel PreEvo     = "Pre-evo"
 
 demoTextCodec :: IO ()
 demoTextCodec = do
-  (codec, screens) <- loadOrDie =<< loadCodec Gen1 English
+  LoadedCodec codec screens <- loadOrDie =<< loadCodec Gen1 English
   putStrLn $ "  Gen 1 English codec: "
            ++ show (Map.size (codecDecode codec)) ++ " mapped characters"
 

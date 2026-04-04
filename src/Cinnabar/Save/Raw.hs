@@ -33,6 +33,7 @@ module Cinnabar.Save.Raw
   , RawGen1Party (..)
   , RawGen1Box (..)
   , RawBankValidity (..)
+  , ChecksumPair (..)
 
     -- * Parser
   , parseRawSave
@@ -222,10 +223,15 @@ data RawGen1Party = RawGen1Party
   , rawGen1PartyNicknames   :: ![ByteString]
   } deriving (Eq, Show)
 
+data ChecksumPair = ChecksumPair
+  { checksumStored     :: !Word8
+  , checksumCalculated :: !Word8
+  } deriving (Eq, Show)
+
 data RawBankValidity = RawBankValidity
   { bankStoredChecksum     :: !Word8
   , bankCalculatedChecksum :: !Word8
-  , boxChecksumPairs       :: ![(Word8, Word8)]  -- (stored, calculated) per box
+  , boxChecksumPairs       :: ![ChecksumPair]
   } deriving (Eq, Show)
 
 data RawGen1Box = RawGen1Box
@@ -734,7 +740,7 @@ parseBoxBank nameLen boxCapacity bytes bank = do
          let boxOffset  = bankStartOffset bank + boxIndex * bankBoxDataSize bank
              calculated = calculateGen1Checksum bytes
                             boxOffset (boxOffset + bankBoxDataSize bank - 1)
-         pure (stored, calculated)
+         pure (ChecksumPair stored calculated)
     | boxIndex <- [0 .. bankBoxCount bank - 1]
     ]
 

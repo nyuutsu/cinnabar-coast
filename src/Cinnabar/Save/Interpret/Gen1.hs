@@ -23,7 +23,7 @@ import Cinnabar.Save.Layout
   )
 import Cinnabar.Save.Raw
   ( RawSaveFile (..), RawGen1SaveFile (..), RawGen1Party (..)
-  , RawGen1Box (..), RawBankValidity (..)
+  , RawGen1Box (..), RawBankValidity (..), ChecksumPair (..)
   , RawPlayTime (..), RawPlayerPosition (..), RawProgressFlags (..)
   , RawSafariState (..)
   )
@@ -67,11 +67,13 @@ interpretGen1Save gameData codec rawSave =
         (rawGen1PartyMembers party)
         namePairs
 
-      (interpretedMembers, pokemonWarnings) = unzip
+      pokemonResults =
         [ interpretGen1Pokemon indexMap speciesMap moveMap codec
             idx listSpec pokemon names
         | (idx, listSpec, pokemon, names) <- indexedSlots
         ]
+      interpretedMembers = map computedResult pokemonResults
+      pokemonWarnings    = map encounteredWarnings pokemonResults
 
       checksumWarnings
         | rawGen1Checksum rawSave == rawGen1CalculatedChecksum rawSave = []
@@ -82,7 +84,8 @@ interpretGen1Save gameData codec rawSave =
 
       rawPlayTimeRecord = rawGen1PlayTime rawSave
       daycareRecord     = rawGen1Daycare rawSave
-      (interpretedDaycare, daycareWarnings) = resolveDaycare indexMap speciesMap codec daycareRecord
+      WithWarnings interpretedDaycare daycareWarnings =
+        resolveDaycare indexMap speciesMap codec daycareRecord
 
       -- Player position
       positionRecord = rawGen1PlayerPosition rawSave
@@ -92,7 +95,7 @@ interpretGen1Save gameData codec rawSave =
 
       -- Fossil resolution
       fossilRecord = rawGen1Fossil rawSave
-      (fossilItemName, fossilSpecies, fossilWarnings) =
+      WithWarnings fossilResult fossilWarnings =
         resolveFossil indexMap speciesMap itemMap fossilRecord
 
       -- Transient state
@@ -101,7 +104,7 @@ interpretGen1Save gameData codec rawSave =
       -- PC box interpretation (non-empty boxes only)
       (interpretedBoxes, boxPokemonWarnings) = unzip
         [ ( InterpretedBox { interpBoxNumber = boxNum, interpBoxMembers = boxMembers }
-          , concat perPokemonWarnings
+          , concatMap encounteredWarnings boxResults
           )
         | (boxIdx, rawBox) <- zip [0 :: Int ..] (rawGen1PCBoxes rawSave)
         , let boxNum   = boxIdx + 1
@@ -115,19 +118,22 @@ interpretGen1Save gameData codec rawSave =
                 (rawGen1BoxSpecies rawBox)
                 (rawGen1BoxMembers rawBox)
                 boxNamePairs
-              (boxMembers, perPokemonWarnings) = unzip
+              boxResults =
                 [ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
                     boxNum idx listSpec pokemon names
                 | (idx, listSpec, pokemon, names) <- boxSlots
                 ]
+              boxMembers = map computedResult boxResults
         ]
 
       -- Hall of Fame interpretation
       hofCount = fromIntegral (rawGen1HoFCount rawSave) :: Int
-      (interpretedHoF, hofWarnings) = unzip
+      hofResults =
         [ interpretHoFRecord indexMap speciesMap codec recordIndex record
         | (recordIndex, record) <- zip [1 ..] (take hofCount (rawGen1HallOfFame rawSave))
         ]
+      interpretedHoF = map computedResult hofResults
+      hofWarnings    = map encounteredWarnings hofResults
 
       -- Box bank checksum warnings
       boxBankWarnings = concat
@@ -138,15 +144,16 @@ interpretGen1Save gameData codec rawSave =
                 | otherwise = [BoxBankChecksumMismatch bankIdx
                     (bankStoredChecksum validity) (bankCalculatedChecksum validity)]
               perBoxWarnings =
-                [ BoxChecksumMismatch bankIdx boxInBankIdx stored calculated
-                | (boxInBankIdx, (stored, calculated)) <-
+                [ BoxChecksumMismatch bankIdx boxInBankIdx
+                    (checksumStored pair) (checksumCalculated pair)
+                | (boxInBankIdx, pair) <-
                     zip [0 :: Int ..] (boxChecksumPairs validity)
-                , stored /= calculated
+                , checksumStored pair /= checksumCalculated pair
                 ]
         ]
 
       -- Progress interpretation
-      (progress, progressSpeciesWarnings) = interpretProgress gameData rawSave
+      WithWarnings progress progressSpeciesWarnings = interpretProgress gameData rawSave
 
       progressWarnings
         | progActiveBoxSynced progress = []
@@ -199,8 +206,8 @@ interpretGen1Save gameData codec rawSave =
       , interpSafariBallCount = fromIntegral (rawSafariBallCount safariRecord)
       , interpInSafari        = rawSafariGameOver safariRecord == 0
                              && rawSafariSteps safariRecord > 0
-      , interpFossilItem      = fossilItemName
-      , interpFossilResult    = fossilSpecies
+      , interpFossilItem      = fossilItemName fossilResult
+      , interpFossilResult    = fossilSpecies fossilResult
       , interpTransient       = promoteTransient transientRecord
       , interpOptions         = interpretOptions gameVariant (rawGen1Options rawSave)
       , interpParty         = take partyCount interpretedMembers
