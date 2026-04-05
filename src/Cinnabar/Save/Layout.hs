@@ -37,6 +37,7 @@ module Cinnabar.Save.Layout
 
 import Data.Text (Text)
 
+import Cinnabar.Binary (SaveOffset (..))
 import Cinnabar.Types (Gen (..))
 
 
@@ -91,103 +92,103 @@ data SaveOffsets
   deriving (Show)
 
 data Gen1SaveOffsets = Gen1SaveOffsets
-  { g1PlayerName        :: !Int
-  , g1RivalName         :: !Int
-  , g1PartyData         :: !Int
-  , g1CurrentBox        :: !Int
-  , g1Checksum          :: !Int
-  , g1ChecksumStart     :: !Int
-  , g1ChecksumEnd       :: !Int
+  { g1PlayerName        :: !SaveOffset
+  , g1RivalName         :: !SaveOffset
+  , g1PartyData         :: !SaveOffset
+  , g1CurrentBox        :: !SaveOffset
+  , g1Checksum          :: !SaveOffset
+  , g1ChecksumStart     :: !SaveOffset
+  , g1ChecksumEnd       :: !SaveOffset
   , g1BoxBanks          :: ![BoxBankInfo]
-  , g1PokedexOwned      :: !Int   -- 19 bytes, bit-packed
-  , g1PokedexSeen       :: !Int   -- 19 bytes, bit-packed
-  , g1BagItems          :: !Int
-  , g1Money             :: !Int   -- 3 bytes BCD
-  , g1Options           :: !Int   -- 1 byte
-  , g1Badges            :: !Int   -- 1 byte bitfield
-  , g1PlayerID          :: !Int   -- 2 bytes big-endian
-  , g1PikachuHappiness  :: !Int   -- 1 byte (Yellow only; unused in R/B)
-  , g1PikachuMood       :: !Int   -- 1 byte (Yellow only; unused in R/B)
-  , g1SurfingHiScore    :: !Int   -- 2 bytes little-endian BCD (Yellow only)
-  , g1PrinterSettings   :: !Int   -- 1 byte (Yellow only)
-  , g1BoxItems          :: !Int
-  , g1CurrentBoxNumber  :: !Int   -- 1 byte
-  , g1HoFCount          :: !Int   -- 1 byte
-  , g1HallOfFame        :: !Int   -- Bank 0, 50 records × 6 entries × 16 bytes
-  , g1CasinoCoins       :: !Int   -- 2 bytes BCD
-  , g1PlayTime          :: !Int   -- 5 consecutive bytes
-  , g1DaycareInUse      :: !Int   -- 1 byte
-  , g1DaycarePokemon        :: !Int   -- 1 byte (internal species index)
-  , g1EventFlags        :: !Int   -- 320 bytes (2560-bit flag array)
-  , g1ToggleFlags       :: !Int   -- 32 bytes (256-bit flag array, toggleable objects)
-  , g1MapScripts        :: !Int   -- 256 bytes (per-map script progress)
-  , g1DefeatedGyms      :: !Int   -- 1 byte bitfield
-  , g1PlayerStarter     :: !Int   -- 1 byte (internal species index)
-  , g1RivalStarter      :: !Int   -- 1 byte (internal species index)
-  , g1TownsVisited      :: !Int   -- 2 bytes bitfield
-  , g1MovementStatus    :: !Int   -- 1 byte
-  , g1VarFlags1         :: !Int   -- 1 byte
-  , g1VarFlags2         :: !Int   -- 1 byte
-  , g1VarFlags3         :: !Int   -- 1 byte
-  , g1VarFlags4         :: !Int   -- 1 byte
-  , g1VarFlags5         :: !Int   -- 1 byte
-  , g1VarFlags6         :: !Int   -- 1 byte
-  , g1InGameTrades      :: !Int   -- 2 bytes bitset
-  , g1HiddenItems       :: !Int   -- 14 bytes
-  , g1HiddenCoins       :: !Int   -- 2 bytes
-  , g1CurrentMap        :: !Int   -- 1 byte
-  , g1DaycareNickname   :: !Int   -- 11 bytes, raw text
-  , g1DaycareOTName     :: !Int   -- 11 bytes, raw text
-  , g1VarFlags7         :: !Int   -- 1 byte
-  , g1VarFlags8         :: !Int   -- 1 byte
-  , g1DefeatedLorelei   :: !Int   -- 2 bytes
-  , g1PlayerY           :: !Int   -- 1 byte
-  , g1PlayerX           :: !Int   -- 1 byte
-  , g1LastMap           :: !Int   -- 1 byte
-  , g1LastBlackoutMap   :: !Int   -- 1 byte
-  , g1DestinationMap    :: !Int   -- 1 byte
-  , g1SafariSteps       :: !Int   -- 2 bytes big-endian
-  , g1SafariBallCount   :: !Int   -- 1 byte
-  , g1SafariGameOver    :: !Int   -- 1 byte
-  , g1FossilItem        :: !Int   -- 1 byte
-  , g1FossilResult      :: !Int   -- 3 bytes
-  , g1LetterDelay       :: !Int   -- 1 byte
-  , g1MusicId           :: !Int   -- 1 byte
-  , g1MusicBank         :: !Int   -- 1 byte
-  , g1ContrastId        :: !Int   -- 1 byte
-  , g1EnemyTrainerClass :: !Int   -- 1 byte
-  , g1BoulderSpriteIndex :: !Int  -- 1 byte
-  , g1DungeonWarpDest   :: !Int   -- 1 byte
-  , g1DungeonWarpUsed   :: !Int   -- 1 byte
-  , g1WarpedFromWarp    :: !Int   -- 1 byte
-  , g1WarpedFromMap     :: !Int   -- 1 byte
-  , g1CardKeyDoorY      :: !Int   -- 1 byte
-  , g1CardKeyDoorX      :: !Int   -- 1 byte
-  , g1TrashCanLock1     :: !Int   -- 1 byte
-  , g1TrashCanLock2     :: !Int   -- 1 byte
-  , g1CurrentMapScript  :: !Int   -- 1 byte
+  , g1PokedexOwned      :: !SaveOffset   -- 19 bytes, bit-packed
+  , g1PokedexSeen       :: !SaveOffset   -- 19 bytes, bit-packed
+  , g1BagItems          :: !SaveOffset
+  , g1Money             :: !SaveOffset   -- 3 bytes BCD
+  , g1Options           :: !SaveOffset   -- 1 byte
+  , g1Badges            :: !SaveOffset   -- 1 byte bitfield
+  , g1PlayerID          :: !SaveOffset   -- 2 bytes big-endian
+  , g1PikachuHappiness  :: !SaveOffset   -- 1 byte (Yellow only; unused in R/B)
+  , g1PikachuMood       :: !SaveOffset   -- 1 byte (Yellow only; unused in R/B)
+  , g1SurfingHiScore    :: !SaveOffset   -- 2 bytes little-endian BCD (Yellow only)
+  , g1PrinterSettings   :: !SaveOffset   -- 1 byte (Yellow only)
+  , g1BoxItems          :: !SaveOffset
+  , g1CurrentBoxNumber  :: !SaveOffset   -- 1 byte
+  , g1HoFCount          :: !SaveOffset   -- 1 byte
+  , g1HallOfFame        :: !SaveOffset   -- Bank 0, 50 records × 6 entries × 16 bytes
+  , g1CasinoCoins       :: !SaveOffset   -- 2 bytes BCD
+  , g1PlayTime          :: !SaveOffset   -- 5 consecutive bytes
+  , g1DaycareInUse      :: !SaveOffset   -- 1 byte
+  , g1DaycarePokemon    :: !SaveOffset   -- 1 byte (internal species index)
+  , g1EventFlags        :: !SaveOffset   -- 320 bytes (2560-bit flag array)
+  , g1ToggleFlags       :: !SaveOffset   -- 32 bytes (256-bit flag array, toggleable objects)
+  , g1MapScripts        :: !SaveOffset   -- 256 bytes (per-map script progress)
+  , g1DefeatedGyms      :: !SaveOffset   -- 1 byte bitfield
+  , g1PlayerStarter     :: !SaveOffset   -- 1 byte (internal species index)
+  , g1RivalStarter      :: !SaveOffset   -- 1 byte (internal species index)
+  , g1TownsVisited      :: !SaveOffset   -- 2 bytes bitfield
+  , g1MovementStatus    :: !SaveOffset   -- 1 byte
+  , g1VarFlags1         :: !SaveOffset   -- 1 byte
+  , g1VarFlags2         :: !SaveOffset   -- 1 byte
+  , g1VarFlags3         :: !SaveOffset   -- 1 byte
+  , g1VarFlags4         :: !SaveOffset   -- 1 byte
+  , g1VarFlags5         :: !SaveOffset   -- 1 byte
+  , g1VarFlags6         :: !SaveOffset   -- 1 byte
+  , g1InGameTrades      :: !SaveOffset   -- 2 bytes bitset
+  , g1HiddenItems       :: !SaveOffset   -- 14 bytes
+  , g1HiddenCoins       :: !SaveOffset   -- 2 bytes
+  , g1CurrentMap        :: !SaveOffset   -- 1 byte
+  , g1DaycareNickname   :: !SaveOffset   -- 11 bytes, raw text
+  , g1DaycareOTName     :: !SaveOffset   -- 11 bytes, raw text
+  , g1VarFlags7         :: !SaveOffset   -- 1 byte
+  , g1VarFlags8         :: !SaveOffset   -- 1 byte
+  , g1DefeatedLorelei   :: !SaveOffset   -- 2 bytes
+  , g1PlayerY           :: !SaveOffset   -- 1 byte
+  , g1PlayerX           :: !SaveOffset   -- 1 byte
+  , g1LastMap           :: !SaveOffset   -- 1 byte
+  , g1LastBlackoutMap   :: !SaveOffset   -- 1 byte
+  , g1DestinationMap    :: !SaveOffset   -- 1 byte
+  , g1SafariSteps       :: !SaveOffset   -- 2 bytes big-endian
+  , g1SafariBallCount   :: !SaveOffset   -- 1 byte
+  , g1SafariGameOver    :: !SaveOffset   -- 1 byte
+  , g1FossilItem        :: !SaveOffset   -- 1 byte
+  , g1FossilResult      :: !SaveOffset   -- 3 bytes
+  , g1LetterDelay       :: !SaveOffset   -- 1 byte
+  , g1MusicId           :: !SaveOffset   -- 1 byte
+  , g1MusicBank         :: !SaveOffset   -- 1 byte
+  , g1ContrastId        :: !SaveOffset   -- 1 byte
+  , g1EnemyTrainerClass :: !SaveOffset   -- 1 byte
+  , g1BoulderSpriteIndex :: !SaveOffset  -- 1 byte
+  , g1DungeonWarpDest   :: !SaveOffset   -- 1 byte
+  , g1DungeonWarpUsed   :: !SaveOffset   -- 1 byte
+  , g1WarpedFromWarp    :: !SaveOffset   -- 1 byte
+  , g1WarpedFromMap     :: !SaveOffset   -- 1 byte
+  , g1CardKeyDoorY      :: !SaveOffset   -- 1 byte
+  , g1CardKeyDoorX      :: !SaveOffset   -- 1 byte
+  , g1TrashCanLock1     :: !SaveOffset   -- 1 byte
+  , g1TrashCanLock2     :: !SaveOffset   -- 1 byte
+  , g1CurrentMapScript  :: !SaveOffset   -- 1 byte
   } deriving (Show)
 
 data Gen2SaveOffsets = Gen2SaveOffsets
-  { g2PlayerName     :: !Int
-  , g2RivalName      :: !Int
-  , g2PartyData      :: !Int
-  , g2CurrentBox     :: !Int
-  , g2Checksum1      :: !Int
-  , g2Checksum1Start :: !Int
-  , g2Checksum1End   :: !Int
-  , g2Checksum2      :: !Int
-  , g2Checksum2Start :: !Int
-  , g2Checksum2End   :: !Int
+  { g2PlayerName     :: !SaveOffset
+  , g2RivalName      :: !SaveOffset
+  , g2PartyData      :: !SaveOffset
+  , g2CurrentBox     :: !SaveOffset
+  , g2Checksum1      :: !SaveOffset
+  , g2Checksum1Start :: !SaveOffset
+  , g2Checksum1End   :: !SaveOffset
+  , g2Checksum2      :: !SaveOffset
+  , g2Checksum2Start :: !SaveOffset
+  , g2Checksum2End   :: !SaveOffset
   , g2BoxBanks       :: ![BoxBankInfo]
   } deriving (Show)
 
 data BoxBankInfo = BoxBankInfo
-  { bankStartOffset  :: !Int
+  { bankStartOffset  :: !SaveOffset
   , bankBoxCount     :: !Int
   , bankBoxDataSize  :: !Int
-  , bankAllChecksum  :: !Int   -- offset of the bank-wide checksum byte
-  , bankBoxChecksums :: !Int   -- offset of the first per-box checksum byte (consecutive)
+  , bankAllChecksum  :: !SaveOffset   -- offset of the bank-wide checksum byte
+  , bankBoxChecksums :: !SaveOffset   -- offset of the first per-box checksum byte (consecutive)
   } deriving (Show)
 
 
@@ -336,85 +337,85 @@ westernGen1Layout game = CartridgeLayout
 -- Bank 3 box checks:     0x7A4D (6 bytes, one per box)
 westernGen1Offsets :: Gen1SaveOffsets
 westernGen1Offsets = Gen1SaveOffsets
-  { g1HallOfFame        = 0x0598
-  , g1PlayerName        = 0x2598
-  , g1ChecksumStart     = 0x2598
-  , g1PokedexOwned      = 0x25A3
-  , g1PokedexSeen       = 0x25B6
-  , g1BagItems          = 0x25C9
-  , g1Money             = 0x25F3
-  , g1RivalName         = 0x25F6
-  , g1Options           = 0x2601
-  , g1Badges            = 0x2602
-  , g1LetterDelay       = 0x2604
-  , g1PlayerID          = 0x2605
-  , g1MusicId           = 0x2607
-  , g1MusicBank         = 0x2608
-  , g1ContrastId        = 0x2609
-  , g1CurrentMap        = 0x260A
-  , g1PlayerY           = 0x260D
-  , g1PlayerX           = 0x260E
-  , g1LastMap           = 0x2611
-  , g1PikachuHappiness  = 0x271B
-  , g1PikachuMood       = 0x271C
-  , g1SurfingHiScore    = 0x2740
-  , g1PrinterSettings   = 0x2743
-  , g1BoxItems          = 0x27E6
-  , g1CurrentBoxNumber  = 0x284C
-  , g1HoFCount          = 0x284E
-  , g1CasinoCoins       = 0x2850
-  , g1ToggleFlags       = 0x2852
-  , g1MapScripts        = 0x289C
-  , g1HiddenItems       = 0x299C
-  , g1HiddenCoins       = 0x29AA
-  , g1MovementStatus    = 0x29AC
-  , g1TownsVisited      = 0x29B7
-  , g1SafariSteps       = 0x29B9
-  , g1FossilItem        = 0x29BB
-  , g1FossilResult      = 0x29BC
-  , g1EnemyTrainerClass = 0x29BF
-  , g1RivalStarter      = 0x29C1
-  , g1PlayerStarter     = 0x29C3
-  , g1BoulderSpriteIndex = 0x29C4
-  , g1LastBlackoutMap   = 0x29C5
-  , g1DestinationMap    = 0x29C6
-  , g1DungeonWarpDest   = 0x29C9
-  , g1DungeonWarpUsed   = 0x29CA
-  , g1VarFlags1         = 0x29D4
-  , g1DefeatedGyms      = 0x29D6
-  , g1VarFlags2         = 0x29D8
-  , g1VarFlags3         = 0x29D9
-  , g1VarFlags4         = 0x29DA
-  , g1VarFlags5         = 0x29DC
-  , g1VarFlags6         = 0x29DE
-  , g1VarFlags7         = 0x29DF
-  , g1DefeatedLorelei   = 0x29E0
-  , g1VarFlags8         = 0x29E2
-  , g1InGameTrades      = 0x29E3
-  , g1WarpedFromWarp    = 0x29E7
-  , g1WarpedFromMap     = 0x29E8
-  , g1CardKeyDoorY      = 0x29EB
-  , g1CardKeyDoorX      = 0x29EC
-  , g1TrashCanLock1     = 0x29EF
-  , g1TrashCanLock2     = 0x29F0
-  , g1EventFlags        = 0x29F3
-  , g1CurrentMapScript  = 0x2CE5
-  , g1PlayTime          = 0x2CED
-  , g1SafariGameOver    = 0x2CF2
-  , g1SafariBallCount   = 0x2CF3
-  , g1DaycareInUse      = 0x2CF4
-  , g1DaycareNickname   = 0x2CF5
-  , g1DaycareOTName     = 0x2D00
-  , g1DaycarePokemon    = 0x2D0B
-  , g1PartyData         = 0x2F2C
-  , g1CurrentBox        = 0x30C0
-  , g1ChecksumEnd       = 0x3522
-  , g1Checksum          = 0x3523
+  { g1HallOfFame        = SaveOffset 0x0598
+  , g1PlayerName        = SaveOffset 0x2598
+  , g1ChecksumStart     = SaveOffset 0x2598
+  , g1PokedexOwned      = SaveOffset 0x25A3
+  , g1PokedexSeen       = SaveOffset 0x25B6
+  , g1BagItems          = SaveOffset 0x25C9
+  , g1Money             = SaveOffset 0x25F3
+  , g1RivalName         = SaveOffset 0x25F6
+  , g1Options           = SaveOffset 0x2601
+  , g1Badges            = SaveOffset 0x2602
+  , g1LetterDelay       = SaveOffset 0x2604
+  , g1PlayerID          = SaveOffset 0x2605
+  , g1MusicId           = SaveOffset 0x2607
+  , g1MusicBank         = SaveOffset 0x2608
+  , g1ContrastId        = SaveOffset 0x2609
+  , g1CurrentMap        = SaveOffset 0x260A
+  , g1PlayerY           = SaveOffset 0x260D
+  , g1PlayerX           = SaveOffset 0x260E
+  , g1LastMap           = SaveOffset 0x2611
+  , g1PikachuHappiness  = SaveOffset 0x271B
+  , g1PikachuMood       = SaveOffset 0x271C
+  , g1SurfingHiScore    = SaveOffset 0x2740
+  , g1PrinterSettings   = SaveOffset 0x2743
+  , g1BoxItems          = SaveOffset 0x27E6
+  , g1CurrentBoxNumber  = SaveOffset 0x284C
+  , g1HoFCount          = SaveOffset 0x284E
+  , g1CasinoCoins       = SaveOffset 0x2850
+  , g1ToggleFlags       = SaveOffset 0x2852
+  , g1MapScripts        = SaveOffset 0x289C
+  , g1HiddenItems       = SaveOffset 0x299C
+  , g1HiddenCoins       = SaveOffset 0x29AA
+  , g1MovementStatus    = SaveOffset 0x29AC
+  , g1TownsVisited      = SaveOffset 0x29B7
+  , g1SafariSteps       = SaveOffset 0x29B9
+  , g1FossilItem        = SaveOffset 0x29BB
+  , g1FossilResult      = SaveOffset 0x29BC
+  , g1EnemyTrainerClass = SaveOffset 0x29BF
+  , g1RivalStarter      = SaveOffset 0x29C1
+  , g1PlayerStarter     = SaveOffset 0x29C3
+  , g1BoulderSpriteIndex = SaveOffset 0x29C4
+  , g1LastBlackoutMap   = SaveOffset 0x29C5
+  , g1DestinationMap    = SaveOffset 0x29C6
+  , g1DungeonWarpDest   = SaveOffset 0x29C9
+  , g1DungeonWarpUsed   = SaveOffset 0x29CA
+  , g1VarFlags1         = SaveOffset 0x29D4
+  , g1DefeatedGyms      = SaveOffset 0x29D6
+  , g1VarFlags2         = SaveOffset 0x29D8
+  , g1VarFlags3         = SaveOffset 0x29D9
+  , g1VarFlags4         = SaveOffset 0x29DA
+  , g1VarFlags5         = SaveOffset 0x29DC
+  , g1VarFlags6         = SaveOffset 0x29DE
+  , g1VarFlags7         = SaveOffset 0x29DF
+  , g1DefeatedLorelei   = SaveOffset 0x29E0
+  , g1VarFlags8         = SaveOffset 0x29E2
+  , g1InGameTrades      = SaveOffset 0x29E3
+  , g1WarpedFromWarp    = SaveOffset 0x29E7
+  , g1WarpedFromMap     = SaveOffset 0x29E8
+  , g1CardKeyDoorY      = SaveOffset 0x29EB
+  , g1CardKeyDoorX      = SaveOffset 0x29EC
+  , g1TrashCanLock1     = SaveOffset 0x29EF
+  , g1TrashCanLock2     = SaveOffset 0x29F0
+  , g1EventFlags        = SaveOffset 0x29F3
+  , g1CurrentMapScript  = SaveOffset 0x2CE5
+  , g1PlayTime          = SaveOffset 0x2CED
+  , g1SafariGameOver    = SaveOffset 0x2CF2
+  , g1SafariBallCount   = SaveOffset 0x2CF3
+  , g1DaycareInUse      = SaveOffset 0x2CF4
+  , g1DaycareNickname   = SaveOffset 0x2CF5
+  , g1DaycareOTName     = SaveOffset 0x2D00
+  , g1DaycarePokemon    = SaveOffset 0x2D0B
+  , g1PartyData         = SaveOffset 0x2F2C
+  , g1CurrentBox        = SaveOffset 0x30C0
+  , g1ChecksumEnd       = SaveOffset 0x3522
+  , g1Checksum          = SaveOffset 0x3523
   , g1BoxBanks          =
-      [ BoxBankInfo { bankStartOffset = 0x4000, bankBoxCount = 6, bankBoxDataSize = 1122
-                    , bankAllChecksum = 0x5A4C, bankBoxChecksums = 0x5A4D }
-      , BoxBankInfo { bankStartOffset = 0x6000, bankBoxCount = 6, bankBoxDataSize = 1122
-                    , bankAllChecksum = 0x7A4C, bankBoxChecksums = 0x7A4D }
+      [ BoxBankInfo { bankStartOffset = SaveOffset 0x4000, bankBoxCount = 6, bankBoxDataSize = 1122
+                    , bankAllChecksum = SaveOffset 0x5A4C, bankBoxChecksums = SaveOffset 0x5A4D }
+      , BoxBankInfo { bankStartOffset = SaveOffset 0x6000, bankBoxCount = 6, bankBoxDataSize = 1122
+                    , bankAllChecksum = SaveOffset 0x7A4C, bankBoxChecksums = SaveOffset 0x7A4D }
       ]
   }
 

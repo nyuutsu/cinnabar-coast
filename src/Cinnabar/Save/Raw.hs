@@ -47,7 +47,7 @@ import qualified Data.ByteString as ByteString
 import Data.Word (Word8, Word16)
 
 import Cinnabar.Binary
-  ( SaveError (..), Parser, runParser
+  ( SaveError (..), SaveOffset (..), Parser, runParser
   , readByte, readByteAt, readWord16BE, readBytes
   , seek, skip
   )
@@ -724,8 +724,9 @@ parseBoxBanks nameLen boxCapacity bytes banks = do
 
 parseBoxBank :: NameLength -> BoxCapacity -> ByteString -> BoxBankInfo -> Either SaveError ([RawGen1Box], RawBankValidity)
 parseBoxBank nameLen boxCapacity bytes bank = do
+  let bankStart = unSaveOffset (bankStartOffset bank)
   boxes <- sequence
-    [ runParser (do seek (bankStartOffset bank + boxIndex * bankBoxDataSize bank)
+    [ runParser (do seek (SaveOffset (bankStart + boxIndex * bankBoxDataSize bank))
                     parseGen1Box nameLen boxCapacity
                 ) bytes
     | boxIndex <- [0 .. bankBoxCount bank - 1]
@@ -733,13 +734,14 @@ parseBoxBank nameLen boxCapacity bytes bank = do
 
   storedBankChecksum <- readByteAt (bankAllChecksum bank) bytes
   let calculatedBankChecksum = calculateGen1Checksum bytes
-                                 (bankStartOffset bank) (bankAllChecksum bank - 1)
+                                 (bankStartOffset bank)
+                                 (SaveOffset (unSaveOffset (bankAllChecksum bank) - 1))
 
   boxPairs <- sequence
-    [ do stored <- readByteAt (bankBoxChecksums bank + boxIndex) bytes
-         let boxOffset  = bankStartOffset bank + boxIndex * bankBoxDataSize bank
+    [ do stored <- readByteAt (SaveOffset (unSaveOffset (bankBoxChecksums bank) + boxIndex)) bytes
+         let boxOffset  = bankStart + boxIndex * bankBoxDataSize bank
              calculated = calculateGen1Checksum bytes
-                            boxOffset (boxOffset + bankBoxDataSize bank - 1)
+                            (SaveOffset boxOffset) (SaveOffset (boxOffset + bankBoxDataSize bank - 1))
          pure ChecksumPair { checksumStored = stored, checksumCalculated = calculated }
     | boxIndex <- [0 .. bankBoxCount bank - 1]
     ]
@@ -761,7 +763,7 @@ checkActiveBoxSync :: Gen1SaveOffsets -> Word8 -> ByteString -> Bool
 checkActiveBoxSync offsets boxNumber bytes =
   let bankInfos       = g1BoxBanks offsets
       boxIndex        = fromIntegral (boxNumber .&. 0x7F)
-      currentBoxStart = g1CurrentBox offsets
+      currentBoxStart = unSaveOffset (g1CurrentBox offsets)
   in case bankInfos of
     [] -> True
     (firstBank : _) ->
@@ -782,5 +784,5 @@ findPCBoxOffset banks targetBox = searchBanks banks 0
     searchBanks [] _ = Nothing
     searchBanks (bank : rest) baseBox
       | targetBox < baseBox + bankBoxCount bank =
-          Just (bankStartOffset bank + (targetBox - baseBox) * bankBoxDataSize bank)
+          Just (unSaveOffset (bankStartOffset bank) + (targetBox - baseBox) * bankBoxDataSize bank)
       | otherwise = searchBanks rest (baseBox + bankBoxCount bank)

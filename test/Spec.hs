@@ -19,7 +19,7 @@ import Cinnabar.Data (loadAllGameData)
 import Cinnabar.Error (loadOrDie)
 import Cinnabar.Legality (classifyMove)
 import Cinnabar.TextCodec (TextCodec (..), LoadedCodec (..), loadCodec, encodeText, decodeText, displayText, terminator)
-import Cinnabar.Binary (runParser, patchByte, patchBytes)
+import Cinnabar.Binary (SaveOffset (..), runParser, patchByte, patchBytes)
 import Cinnabar.Save.Checksum (calculateGen1Checksum)
 import Cinnabar.Save.Gen1.Raw
 import Cinnabar.Save.Layout
@@ -233,7 +233,7 @@ main = hspec $ do
   describe "calculateGen1Checksum" $
     it "produces complement of byte sum" $
       let saveBytes = ByteString.pack [0x01, 0x02, 0x03]
-      in calculateGen1Checksum saveBytes 0 2 `shouldBe` 0xF9
+      in calculateGen1Checksum saveBytes (SaveOffset 0) (SaveOffset 2) `shouldBe` 0xF9
 
   describe "cartridgeLayout" $
     it "returns layouts for implemented games" $ do
@@ -294,8 +294,8 @@ main = hspec $ do
           Gen2Offsets _ -> expectationFailure "expected Gen 1 offsets"
           Gen1Offsets offsets -> do
             let zeroes = ByteString.replicate 32768 0x00
-                withTerminators = patchByte (g1PartyData offsets + 1) 0xFF
-                                $ patchByte (g1CurrentBox offsets + 1) 0xFF
+                withTerminators = patchByte (SaveOffset (unSaveOffset (g1PartyData offsets) + 1)) 0xFF
+                                $ patchByte (SaveOffset (unSaveOffset (g1CurrentBox offsets) + 1)) 0xFF
                                 $ zeroes
                 checksum = calculateGen1Checksum withTerminators
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
@@ -321,9 +321,9 @@ main = hspec $ do
                            $ patchByte (g1Badges offsets) 0xA5
                            $ patchByte (g1PokedexOwned offsets) 0x03
                            $ patchByte (g1PlayTime offsets) 0x2A
-                           $ patchByte (g1PlayTime offsets + 2) 0x1E
-                           $ patchByte (g1PartyData offsets + 1) 0xFF
-                           $ patchByte (g1CurrentBox offsets + 1) 0xFF
+                           $ patchByte (SaveOffset (unSaveOffset (g1PlayTime offsets) + 2)) 0x1E
+                           $ patchByte (SaveOffset (unSaveOffset (g1PartyData offsets) + 1)) 0xFF
+                           $ patchByte (SaveOffset (unSaveOffset (g1CurrentBox offsets) + 1)) 0xFF
                            $ base
                 checksum = calculateGen1Checksum withFields
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)
@@ -373,22 +373,22 @@ main = hspec $ do
                   , 0x00, 0x6E                    -- speed: 110
                   , 0x00, 0x46                    -- special: 70
                   ]
-                partyOffset = g1PartyData offsets
+                partyOffset = unSaveOffset (g1PartyData offsets)
                 structStart = partyOffset + 1 + 7   -- past count + species list
                 otNameStart = structStart + 6 * 44   -- past 6 pokemon structs
                 nickStart   = otNameStart + 6 * 11   -- past 6 OT names
 
                 base = ByteString.replicate 32768 0x00
-                withParty = patchByte partyOffset 0x01                 -- count: 1
-                          $ patchByte (partyOffset + 1) 0x54           -- species list: Pikachu
-                          $ patchByte (partyOffset + 2) 0xFF           -- species list terminator
-                          $ patchBytes structStart pikachuStruct
-                          $ patchByte otNameStart 0x50                 -- OT name terminator
-                          $ patchByte nickStart 0x50                   -- nickname terminator
-                          $ patchByte (g1CurrentBox offsets + 1) 0xFF  -- empty box terminator
+                withParty = patchByte (SaveOffset partyOffset) 0x01                 -- count: 1
+                          $ patchByte (SaveOffset (partyOffset + 1)) 0x54           -- species list: Pikachu
+                          $ patchByte (SaveOffset (partyOffset + 2)) 0xFF           -- species list terminator
+                          $ patchBytes (SaveOffset structStart) pikachuStruct
+                          $ patchByte (SaveOffset otNameStart) 0x50                 -- OT name terminator
+                          $ patchByte (SaveOffset nickStart) 0x50                   -- nickname terminator
+                          $ patchByte (SaveOffset (unSaveOffset (g1CurrentBox offsets) + 1)) 0xFF  -- empty box terminator
                           -- Box bank checksums (complement of all-zeroes = 0xFF)
-                          $ patchBytes 0x5A4C (ByteString.replicate 7 0xFF)
-                          $ patchBytes 0x7A4C (ByteString.replicate 7 0xFF)
+                          $ patchBytes (SaveOffset 0x5A4C) (ByteString.replicate 7 0xFF)
+                          $ patchBytes (SaveOffset 0x7A4C) (ByteString.replicate 7 0xFF)
                           $ base
                 checksum = calculateGen1Checksum withParty
                              (g1ChecksumStart offsets) (g1ChecksumEnd offsets)

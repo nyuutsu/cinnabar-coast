@@ -8,6 +8,9 @@ module Cinnabar.Binary
   ( -- * Errors
     SaveError (..)
 
+    -- * Save offset
+  , SaveOffset (..)
+
     -- * Cursor
   , Cursor
   , buildCursor
@@ -66,13 +69,21 @@ data SaveError
   deriving (Eq, Show)
 
 
+-- ── Save Offset ────────────────────────────────────────────────
+
+-- | A byte offset into a save file. Distinguishes offsets from
+-- byte counts, sizes, and other bare Ints.
+newtype SaveOffset = SaveOffset { unSaveOffset :: Int }
+  deriving (Eq, Ord, Show)
+
+
 -- ── Cursor ──────────────────────────────────────────────────────
 
 -- | A position within a ByteString. Tracks the current offset
 -- for sequential reads through fixed-layout binary data.
 data Cursor = Cursor
   { cursorSource :: !ByteString
-  , cursorOffset :: !Int
+  , cursorOffset :: !SaveOffset
   , cursorLength :: !Int
   }
 
@@ -80,7 +91,7 @@ data Cursor = Cursor
 buildCursor :: ByteString -> Cursor
 buildCursor source = Cursor
   { cursorSource = source
-  , cursorOffset = 0
+  , cursorOffset = SaveOffset 0
   , cursorLength = ByteString.length source
   }
 
@@ -102,17 +113,17 @@ runParser parser bytes = evalStateT parser (buildCursor bytes)
 readByte :: Parser Word8
 readByte = do
   cursor <- get
-  let offset = cursorOffset cursor
+  let offset = unSaveOffset (cursorOffset cursor)
   when (offset >= cursorLength cursor) $
     lift $ Left (CursorOverrun offset 1 (cursorLength cursor))
   let byte = ByteString.index (cursorSource cursor) offset
-  put cursor { cursorOffset = offset + 1 }
+  put cursor { cursorOffset = SaveOffset (offset + 1) }
   pure byte
 
 -- | Read one byte at an absolute offset without a cursor.
 -- For standalone bounds-checked reads outside a Parser context.
-readByteAt :: Int -> ByteString -> Either SaveError Word8
-readByteAt offset bytes
+readByteAt :: SaveOffset -> ByteString -> Either SaveError Word8
+readByteAt (SaveOffset offset) bytes
   | offset < 0 || offset >= ByteString.length bytes =
       Left (CursorOverrun offset 1 (ByteString.length bytes))
   | otherwise = Right (ByteString.index bytes offset)
@@ -121,13 +132,13 @@ readByteAt offset bytes
 readWord16BE :: Parser Word16
 readWord16BE = do
   cursor <- get
-  let offset = cursorOffset cursor
+  let offset = unSaveOffset (cursorOffset cursor)
   when (offset + 2 > cursorLength cursor) $
     lift $ Left (CursorOverrun offset 2 (cursorLength cursor))
   let source = cursorSource cursor
       highByte = fromIntegral (ByteString.index source offset) :: Word16
       lowByte  = fromIntegral (ByteString.index source (offset + 1)) :: Word16
-  put cursor { cursorOffset = offset + 2 }
+  put cursor { cursorOffset = SaveOffset (offset + 2) }
   pure (highByte `shiftL` 8 .|. lowByte)
 
 -- | Read a 24-bit big-endian value as Int and advance by 3.
@@ -135,14 +146,14 @@ readWord16BE = do
 readWord24BE :: Parser Int
 readWord24BE = do
   cursor <- get
-  let offset = cursorOffset cursor
+  let offset = unSaveOffset (cursorOffset cursor)
   when (offset + 3 > cursorLength cursor) $
     lift $ Left (CursorOverrun offset 3 (cursorLength cursor))
   let source = cursorSource cursor
       highByte = fromIntegral (ByteString.index source offset)
       midByte  = fromIntegral (ByteString.index source (offset + 1))
       lowByte  = fromIntegral (ByteString.index source (offset + 2))
-  put cursor { cursorOffset = offset + 3 }
+  put cursor { cursorOffset = SaveOffset (offset + 3) }
   pure (highByte `shiftL` 16 .|. midByte `shiftL` 8 .|. lowByte)
 
 -- | Read a slice of n bytes and advance. Zero-copy — uses
@@ -150,11 +161,11 @@ readWord24BE = do
 readBytes :: Int -> Parser ByteString
 readBytes count = do
   cursor <- get
-  let offset = cursorOffset cursor
+  let offset = unSaveOffset (cursorOffset cursor)
   when (offset + count > cursorLength cursor) $
     lift $ Left (CursorOverrun offset count (cursorLength cursor))
   let slice = ByteString.take count (ByteString.drop offset (cursorSource cursor))
-  put cursor { cursorOffset = offset + count }
+  put cursor { cursorOffset = SaveOffset (offset + count) }
   pure slice
 
 
@@ -178,29 +189,29 @@ writeWord24BE value = ByteString.pack
 -- ── Patching ──────────────────────────────────────────────────
 
 -- | Replace a single byte at the given offset.
-patchByte :: Int -> Word8 -> ByteString -> ByteString
-patchByte offset byte bytes =
+patchByte :: SaveOffset -> Word8 -> ByteString -> ByteString
+patchByte (SaveOffset offset) byte bytes =
   let (prefix, suffix) = ByteString.splitAt offset bytes
   in prefix <> ByteString.singleton byte <> ByteString.drop 1 suffix
 
 -- | Splice a chunk into a ByteString at the given offset,
 -- replacing the same number of bytes.
-patchBytes :: Int -> ByteString -> ByteString -> ByteString
-patchBytes offset chunk bytes =
+patchBytes :: SaveOffset -> ByteString -> ByteString -> ByteString
+patchBytes (SaveOffset offset) chunk bytes =
   let (prefix, suffix) = ByteString.splitAt offset bytes
   in prefix <> chunk <> ByteString.drop (ByteString.length chunk) suffix
 
 -- | Patch a list of items at evenly-spaced positions within a region.
 -- Each item is placed at start + index * stride, leaving all other
 -- bytes in the region untouched.
-patchSlots :: Int -> Int -> [ByteString] -> ByteString -> ByteString
-patchSlots start stride items bytes =
-  foldr (\(index, item) current -> patchBytes (start + index * stride) item current)
+patchSlots :: SaveOffset -> Int -> [ByteString] -> ByteString -> ByteString
+patchSlots (SaveOffset start) stride items bytes =
+  foldr (\(index, item) current -> patchBytes (SaveOffset (start + index * stride)) item current)
     bytes (zip [0..] items)
 
 -- | A single byte-level edit: an offset and the replacement bytes.
 data ByteEdit = ByteEdit
-  { editOffset :: !Int
+  { editOffset :: !SaveOffset
   , editBytes  :: !ByteString
   } deriving (Show)
 
@@ -215,27 +226,30 @@ applyPatches edits original =
   where
     buildPatched [] position =
       Builder.byteString (ByteString.drop position original)
-    buildPatched (ByteEdit offset replacement : rest) position =
-      Builder.byteString (ByteString.take (offset - position) (ByteString.drop position original))
-      <> Builder.byteString replacement
-      <> buildPatched rest (offset + ByteString.length replacement)
+    buildPatched (edit : rest) position =
+      let offset = unSaveOffset (editOffset edit)
+          replacement = editBytes edit
+      in Builder.byteString (ByteString.take (offset - position) (ByteString.drop position original))
+         <> Builder.byteString replacement
+         <> buildPatched rest (offset + ByteString.length replacement)
 
 
 -- ── Navigation ────────────────────────────────────────────────
 
 -- | Jump to an absolute offset.
-seek :: Int -> Parser ()
-seek offset = do
+seek :: SaveOffset -> Parser ()
+seek (SaveOffset offset) = do
   cursor <- get
   when (offset < 0 || offset > cursorLength cursor) $
     lift $ Left (CursorOverrun offset 0 (cursorLength cursor))
-  put cursor { cursorOffset = offset }
+  put cursor { cursorOffset = SaveOffset offset }
 
 -- | Advance by n bytes without reading.
 skip :: Int -> Parser ()
 skip count = do
   cursor <- get
-  let newOffset = cursorOffset cursor + count
+  let offset = unSaveOffset (cursorOffset cursor)
+      newOffset = offset + count
   when (newOffset < 0 || newOffset > cursorLength cursor) $
-    lift $ Left (CursorOverrun (cursorOffset cursor) count (cursorLength cursor))
-  put cursor { cursorOffset = newOffset }
+    lift $ Left (CursorOverrun offset count (cursorLength cursor))
+  put cursor { cursorOffset = SaveOffset newOffset }
