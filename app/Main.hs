@@ -148,8 +148,8 @@ printSaveSummary interpreted = do
                   ++ ":" ++ zeroPadTwo (playSeconds time)
       maxedStr = if interpPlayTimeMaxed interpreted then " (maxed)" else ""
   putStrLn $ "Time: " ++ timeStr ++ maxedStr
-  putStrLn $ "Money: " ++ formatMoney (interpMoney interpreted)
-  putStrLn $ "Coins: " ++ show (interpCasinoCoins interpreted)
+  putStrLn $ "Money: " ++ formatMoney (unMoney (interpMoney interpreted))
+  putStrLn $ "Coins: " ++ show (unCasinoCoins (interpCasinoCoins interpreted))
   putStrLn ""
 
   let earnedBadges = filter flagIsSet (progBadges (interpProgress interpreted))
@@ -201,11 +201,11 @@ printSaveSummary interpreted = do
     ++ ", animations " ++ renderBattleAnimation (optBattleAnimation opts)
     ++ ", battle style " ++ renderBattleStyle (optBattleStyle opts)
     ++ soundStr
-  putStrLn $ "Position: (" ++ show (interpPlayerY interpreted)
-    ++ ", " ++ show (interpPlayerX interpreted)
-    ++ ") on map " ++ show (interpCurrentMap interpreted)
-    ++ ", previous map " ++ show (interpPreviousMap interpreted)
-    ++ ", blackout map " ++ show (interpLastBlackoutMap interpreted)
+  putStrLn $ "Position: (" ++ show (unCoordinate (interpPlayerY interpreted))
+    ++ ", " ++ show (unCoordinate (interpPlayerX interpreted))
+    ++ ") on map " ++ show (unMapId (interpCurrentMap interpreted))
+    ++ ", previous map " ++ show (unMapId (interpPreviousMap interpreted))
+    ++ ", blackout map " ++ show (unMapId (interpLastBlackoutMap interpreted))
   if interpInSafari interpreted
     then putStrLn $ "Safari Zone: " ++ show (interpSafariSteps interpreted)
       ++ " steps remaining, " ++ show (interpSafariBallCount interpreted) ++ " balls"
@@ -222,7 +222,7 @@ printSaveSummary interpreted = do
       <> " \"" <> displayText (daycareNickname daycare)
       <> "\" (OT: " <> displayText (daycareOTName daycare) <> ")"
     Nothing -> pure ()
-  putStrLn $ "Current Box: " ++ show (interpCurrentBox interpreted)
+  putStrLn $ "Current Box: " ++ show (unBoxNumber (interpCurrentBox interpreted))
   let hofCount = interpHoFCount interpreted
   if hofCount == 0
     then putStrLn "Hall of Fame: (empty)"
@@ -282,9 +282,10 @@ printBoxSummary interpreted = do
   mapM_ (\boxNum -> do
     let count = Map.findWithDefault 0 boxNum boxCountMap
         activeLabel = if boxNum == activeBoxNum then " (active)" else ""
+        boxNumDisplay = show (unBoxNumber boxNum)
     if count == 0
-      then putStrLn $ "  Box " ++ show boxNum ++ ": (empty)" ++ activeLabel
-      else putStrLn $ "  Box " ++ show boxNum ++ ": " ++ show count
+      then putStrLn $ "  Box " ++ boxNumDisplay ++ ": (empty)" ++ activeLabel
+      else putStrLn $ "  Box " ++ boxNumDisplay ++ ": " ++ show count
              ++ "/" ++ show boxCapacity ++ activeLabel
     ) displayNums
 
@@ -303,7 +304,7 @@ printAllBoxes interpreted = do
 printBoxDetail :: Int -> InterpretedBox -> IO ()
 printBoxDetail boxCapacity box = do
   let count = length (interpBoxMembers box)
-  putStrLn $ "Box " ++ show (interpBoxNumber box)
+  putStrLn $ "Box " ++ show (unBoxNumber (interpBoxNumber box))
     ++ " (" ++ show count ++ "/" ++ show boxCapacity ++ "):"
   mapM_ (uncurry printPartyPokemon) (zip [1 ..] (interpBoxMembers box))
 

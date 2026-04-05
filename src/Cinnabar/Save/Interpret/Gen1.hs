@@ -103,7 +103,7 @@ interpretGen1Save gameData codec rawSave =
 
       -- PC box interpretation (non-empty boxes only)
       (interpretedBoxes, boxPokemonWarnings) = unzip
-        [ ( InterpretedBox { interpBoxNumber = boxNum, interpBoxMembers = boxMembers }
+        [ ( InterpretedBox { interpBoxNumber = BoxNumber boxNum, interpBoxMembers = boxMembers }
           , concatMap encounteredWarnings boxResults
           )
         | (boxIdx, rawBox) <- zip [0 :: Int ..] (rawGen1PCBoxes rawSave)
@@ -183,26 +183,26 @@ interpretGen1Save gameData codec rawSave =
       { interpPlayerName    = decodeText codec (rawGen1PlayerName rawSave)
       , interpRivalName     = decodeText codec (rawGen1RivalName rawSave)
       , interpPlayerID      = TrainerId (fromIntegral (rawGen1PlayerID rawSave))
-      , interpMoney         = decodeBCD (rawGen1Money rawSave)
-      , interpCasinoCoins   = decodeBCD (rawGen1CasinoCoins rawSave)
+      , interpMoney         = Money (decodeBCD (rawGen1Money rawSave))
+      , interpCasinoCoins   = CasinoCoins (decodeBCD (rawGen1CasinoCoins rawSave))
       , interpPokedexOwned  = decodePokedexFlags (rawGen1PokedexOwned rawSave)
       , interpPokedexSeen   = decodePokedexFlags (rawGen1PokedexSeen rawSave)
       , interpBagItems      = resolveItems itemMap machineMap moveMap (rawGen1BagItems rawSave)
       , interpBoxItems      = resolveItems itemMap machineMap moveMap (rawGen1BoxItems rawSave)
       , interpPlayTime      = promotePlayTime rawPlayTimeRecord
       , interpPlayTimeMaxed = rawPlayMaxed rawPlayTimeRecord /= 0
-      , interpCurrentBox    = currentBoxNumber
+      , interpCurrentBox    = BoxNumber currentBoxNumber
       , interpHoFCount      = fromIntegral (rawGen1HoFCount rawSave)
       , interpPikachuHappiness = yellowOnly gameVariant (fromIntegral (rawGen1PikachuHappiness rawSave))
       , interpPikachuMood     = yellowOnly gameVariant (fromIntegral (rawGen1PikachuMood rawSave))
       , interpSurfingHiScore  = yellowOnly gameVariant (decodeBCDLE (rawGen1SurfingHiScore rawSave))
       , interpPrinterSettings = yellowOnly gameVariant (rawGen1PrinterSettings rawSave)
       , interpDaycare         = interpretedDaycare
-      , interpPlayerY         = fromIntegral (rawPlayerY positionRecord)
-      , interpPlayerX         = fromIntegral (rawPlayerX positionRecord)
-      , interpCurrentMap      = fromIntegral (rawCurrentMap (rawGen1Progress rawSave))
-      , interpPreviousMap     = fromIntegral (rawLastMap positionRecord)
-      , interpLastBlackoutMap = fromIntegral (rawLastBlackoutMap positionRecord)
+      , interpPlayerY         = Coordinate (fromIntegral (rawPlayerY positionRecord))
+      , interpPlayerX         = Coordinate (fromIntegral (rawPlayerX positionRecord))
+      , interpCurrentMap      = MapId (fromIntegral (rawCurrentMap (rawGen1Progress rawSave)))
+      , interpPreviousMap     = MapId (fromIntegral (rawLastMap positionRecord))
+      , interpLastBlackoutMap = MapId (fromIntegral (rawLastBlackoutMap positionRecord))
       , interpSafariSteps     = fromIntegral (rawSafariSteps safariRecord)
       , interpSafariBallCount = fromIntegral (rawSafariBallCount safariRecord)
       , interpInSafari        = rawSafariGameOver safariRecord == 0
@@ -214,7 +214,7 @@ interpretGen1Save gameData codec rawSave =
       , interpParty         = take partyCount interpretedMembers
       , interpPCBoxes       = interpretedBoxes
       , interpHallOfFame    = interpretedHoF
-      , interpActiveBoxNum  = currentBoxNumber
+      , interpActiveBoxNum  = BoxNumber currentBoxNumber
       , interpProgress      = progress
       , interpWarnings      = countWarnings
                            ++ concat pokemonWarnings ++ checksumWarnings

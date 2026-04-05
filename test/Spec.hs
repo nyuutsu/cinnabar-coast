@@ -434,7 +434,7 @@ main = hspec $ do
 
   describe "Interpreted trainer profile" $
     it "decodes profile fields from a real Yellow save" $ withInterpretedSave $ \interpreted -> do
-      interpMoney interpreted `shouldSatisfy` (>= 0)
+      unMoney (interpMoney interpreted) `shouldSatisfy` (>= 0)
       progBadges (interpProgress interpreted) `shouldSatisfy` (not . null)
       Set.size (interpPokedexOwned interpreted) `shouldSatisfy` (> 0)
       case interpPikachuHappiness interpreted of
@@ -503,7 +503,7 @@ main = hspec $ do
 
   describe "Interpreted remaining fields" $
     it "interprets player position and daycare from a real Yellow save" $ withInterpretedSave $ \interpreted -> do
-      interpPlayerY interpreted `shouldSatisfy` (> 0)
+      unCoordinate (interpPlayerY interpreted) `shouldSatisfy` (> 0)
       case interpDaycare interpreted of
         Just daycare ->
           displayText (daycareNickname daycare) `shouldSatisfy` (not . Text.null)

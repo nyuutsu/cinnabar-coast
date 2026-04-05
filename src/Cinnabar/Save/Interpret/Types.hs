@@ -138,7 +138,7 @@ data InterpretedPokemon = InterpretedPokemon
   } deriving (Eq, Show)
 
 data InterpretedBox = InterpretedBox
-  { interpBoxNumber  :: !Int
+  { interpBoxNumber  :: !BoxNumber
   , interpBoxMembers :: ![InterpretedPokemon]
   } deriving (Eq, Show)
 
@@ -228,21 +228,21 @@ data InterpretedHoFRecord = InterpretedHoFRecord
 -- ── Transient State ────────────────────────────────────────
 
 data InterpretedTransient = InterpretedTransient
-  { transLetterDelay        :: !Int
-  , transMusicId            :: !Int
-  , transMusicBank          :: !Int
-  , transContrastId         :: !Int
-  , transEnemyTrainerClass  :: !Int
-  , transBoulderSpriteIndex :: !Int
-  , transDungeonWarpDest    :: !Int
-  , transDungeonWarpUsed    :: !Int
-  , transWarpedFromWarp     :: !Int
-  , transWarpedFromMap      :: !Int
-  , transCardKeyDoorY       :: !Int
-  , transCardKeyDoorX       :: !Int
-  , transTrashCanLock1      :: !Int
-  , transTrashCanLock2      :: !Int
-  , transCurrentMapScript   :: !Int
+  { transLetterDelay        :: !TransientByte
+  , transMusicId            :: !TransientByte
+  , transMusicBank          :: !TransientByte
+  , transContrastId         :: !TransientByte
+  , transEnemyTrainerClass  :: !TransientByte
+  , transBoulderSpriteIndex :: !TransientByte
+  , transDungeonWarpDest    :: !TransientByte
+  , transDungeonWarpUsed    :: !TransientByte
+  , transWarpedFromWarp     :: !TransientByte
+  , transWarpedFromMap      :: !TransientByte
+  , transCardKeyDoorY       :: !TransientByte
+  , transCardKeyDoorX       :: !TransientByte
+  , transTrashCanLock1      :: !TransientByte
+  , transTrashCanLock2      :: !TransientByte
+  , transCurrentMapScript   :: !TransientByte
   } deriving (Eq, Show)
 
 
@@ -274,26 +274,26 @@ data InterpretedSave = InterpretedSave
   { interpPlayerName       :: !GameText
   , interpRivalName        :: !GameText
   , interpPlayerID         :: !TrainerId
-  , interpMoney            :: !Int
-  , interpCasinoCoins      :: !Int
+  , interpMoney            :: !Money
+  , interpCasinoCoins      :: !CasinoCoins
   , interpPokedexOwned     :: !(Set DexNumber)
   , interpPokedexSeen      :: !(Set DexNumber)
   , interpBagItems         :: ![InventoryEntry]
   , interpBoxItems         :: ![InventoryEntry]
   , interpPlayTime         :: !PlayTime
   , interpPlayTimeMaxed    :: !Bool
-  , interpCurrentBox       :: !Int
+  , interpCurrentBox       :: !BoxNumber
   , interpHoFCount         :: !Int
   , interpPikachuHappiness :: !(Maybe Int)     -- Nothing for R/B
   , interpPikachuMood      :: !(Maybe Int)     -- Nothing for R/B
   , interpSurfingHiScore   :: !(Maybe Int)     -- Nothing for R/B, decoded BCD
   , interpPrinterSettings  :: !(Maybe Word8)   -- Nothing for R/B, raw byte
   , interpDaycare          :: !(Maybe InterpretedDaycare)
-  , interpPlayerY          :: !Int
-  , interpPlayerX          :: !Int
-  , interpCurrentMap       :: !Int
-  , interpPreviousMap      :: !Int
-  , interpLastBlackoutMap  :: !Int
+  , interpPlayerY          :: !Coordinate
+  , interpPlayerX          :: !Coordinate
+  , interpCurrentMap       :: !MapId
+  , interpPreviousMap      :: !MapId
+  , interpLastBlackoutMap  :: !MapId
   , interpSafariSteps      :: !Int
   , interpSafariBallCount  :: !Int
   , interpInSafari         :: !Bool
@@ -304,7 +304,7 @@ data InterpretedSave = InterpretedSave
   , interpParty            :: ![InterpretedPokemon]
   , interpPCBoxes          :: ![InterpretedBox]
   , interpHallOfFame       :: ![InterpretedHoFRecord]
-  , interpActiveBoxNum     :: !Int
+  , interpActiveBoxNum     :: !BoxNumber
   , interpProgress         :: !InterpretedProgress
   , interpWarnings         :: ![SaveWarning]
   , interpRaw              :: !RawSaveFile

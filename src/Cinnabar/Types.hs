@@ -15,6 +15,14 @@ module Cinnabar.Types
   , TrainerId (..)
   , InternalIndex (..)
 
+    -- * Game world newtypes
+  , MapId (..)
+  , Coordinate (..)
+  , BoxNumber (..)
+  , Money (..)
+  , CasinoCoins (..)
+  , TransientByte (..)
+
     -- * Stat newtypes
   , BaseStat (..)
   , DV (..)
@@ -138,6 +146,28 @@ newtype TrainerId  = TrainerId  { unTrainerId :: Int } deriving (Eq, Ord, Show)
 -- internal index 1, Kangaskhan is 2, etc. The save file stores
 -- these; interpretation resolves them to DexNumber via a mapping.
 newtype InternalIndex = InternalIndex { unInternalIndex :: Word8 }
+  deriving (Eq, Ord, Show)
+
+-- ── Game World Newtypes ───────────────────────────────────────
+
+newtype MapId = MapId { unMapId :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype Coordinate = Coordinate { unCoordinate :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype BoxNumber = BoxNumber { unBoxNumber :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype Money = Money { unMoney :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype CasinoCoins = CasinoCoins { unCasinoCoins :: Int }
+  deriving (Eq, Ord, Show)
+
+-- | Opaque game engine byte — preserved for round-trip fidelity,
+-- not interpreted. A shared newtype for values we carry but don't understand.
+newtype TransientByte = TransientByte { unTransientByte :: Int }
   deriving (Eq, Ord, Show)
 
 -- ── Stat Newtypes ─────────────────────────────────────────────
