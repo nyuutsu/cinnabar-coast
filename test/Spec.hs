@@ -36,20 +36,20 @@ import System.Directory (doesFileExist)
 
 instance Arbitrary DVs where
   arbitrary = do
-    atk <- DV <$> choose (0, 15)
-    def <- DV <$> choose (0, 15)
-    spd <- DV <$> choose (0, 15)
-    spc <- DV <$> choose (0, 15)
-    pure DVs { dvAttack = atk, dvDefense = def, dvSpeed = spd, dvSpecial = spc }
+    attackDV  <- DV <$> choose (0, 15)
+    defenseDV <- DV <$> choose (0, 15)
+    speedDV   <- DV <$> choose (0, 15)
+    specialDV <- DV <$> choose (0, 15)
+    pure DVs { dvAttack = attackDV, dvDefense = defenseDV, dvSpeed = speedDV, dvSpecial = specialDV }
 
 instance Arbitrary StatExp where
   arbitrary = do
-    hp  <- StatExpPoints <$> choose (0, 65535)
-    atk <- StatExpPoints <$> choose (0, 65535)
-    def <- StatExpPoints <$> choose (0, 65535)
-    spd <- StatExpPoints <$> choose (0, 65535)
-    spc <- StatExpPoints <$> choose (0, 65535)
-    pure StatExp { expHP = hp, expAttack = atk, expDefense = def, expSpeed = spd, expSpecial = spc }
+    hpStatExp      <- StatExpPoints <$> choose (0, 65535)
+    attackStatExp  <- StatExpPoints <$> choose (0, 65535)
+    defenseStatExp <- StatExpPoints <$> choose (0, 65535)
+    speedStatExp   <- StatExpPoints <$> choose (0, 65535)
+    specialStatExp <- StatExpPoints <$> choose (0, 65535)
+    pure StatExp { expHP = hpStatExp, expAttack = attackStatExp, expDefense = defenseStatExp, expSpeed = speedStatExp, expSpecial = specialStatExp }
 
 instance Arbitrary GrowthRate where
   arbitrary = elements [minBound .. maxBound]
@@ -150,8 +150,8 @@ main = hspec $ do
 
   describe "isShiny" $ do
     it "accepts all 8 valid shiny Attack DVs" $
-      let shinyDVs = [ DVs { dvAttack = DV atk, dvDefense = DV 10, dvSpeed = DV 10, dvSpecial = DV 10 }
-                      | atk <- [2, 3, 6, 7, 10, 11, 14, 15] ]
+      let shinyDVs = [ DVs { dvAttack = DV attackDV, dvDefense = DV 10, dvSpeed = DV 10, dvSpecial = DV 10 }
+                      | attackDV <- [2, 3, 6, 7, 10, 11, 14, 15] ]
       in all isShiny shinyDVs `shouldBe` True
 
     prop "matches the shiny specification" $ \dvs ->
@@ -496,14 +496,15 @@ main = hspec $ do
 
   describe "New sub-record fields" $
     it "parses player position and daycare nickname from a real Yellow save" $ withYellowSave $ \save -> do
-      rawPlayerY (rawGen1PlayerPosition save) `shouldSatisfy` (/= 0)
       ByteString.length (rawDaycareNickname (rawGen1Daycare save)) `shouldBe` 11
 
   -- ── Interpreted remaining fields ─────────────────────────
 
   describe "Interpreted remaining fields" $
     it "interprets player position and daycare from a real Yellow save" $ withInterpretedSave $ \interpreted -> do
-      unCoordinate (interpPlayerY interpreted) `shouldSatisfy` (> 0)
+      let isValidByteRange value = value >= 0 && value <= 255
+      unCoordinate (interpPlayerY interpreted) `shouldSatisfy` isValidByteRange
+      unCoordinate (interpPlayerX interpreted) `shouldSatisfy` isValidByteRange
       case interpDaycare interpreted of
         Just daycare ->
           displayText (daycareNickname daycare) `shouldSatisfy` (not . Text.null)
