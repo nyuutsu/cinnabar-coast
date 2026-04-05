@@ -371,9 +371,9 @@ buildMoves gen csv = do
           { moveId       = MoveId moveIdValue
           , moveName     = name
           , moveType     = moveTypeValue
-          , movePower    = power
-          , moveAccuracy = accuracy
-          , movePP       = pp
+          , movePower    = MovePower power
+          , moveAccuracy = MoveAccuracy accuracy
+          , movePP       = BasePP pp
           }
   moveList <- traverse parseMoveRow matching
   let moveMap  = Map.fromList [(moveId move, move) | move <- moveList]

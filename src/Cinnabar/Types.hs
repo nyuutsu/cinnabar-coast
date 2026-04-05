@@ -69,6 +69,11 @@ module Cinnabar.Types
   , Special (..)
   , specialAttack, specialDefense
 
+    -- * Move property newtypes
+  , MovePower (..)
+  , MoveAccuracy (..)
+  , BasePP (..)
+
     -- * Moves (static game data)
   , MoveType (..)
   , Move (..)
@@ -348,6 +353,15 @@ data SpeciesGenFields
 
 -- ── Move ────────────────────────────────────────────────────────
 
+newtype MovePower = MovePower { unMovePower :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype MoveAccuracy = MoveAccuracy { unMoveAccuracy :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype BasePP = BasePP { unBasePP :: Int }
+  deriving (Eq, Ord, Show)
+
 -- | The type of a move. Most moves have a standard PokemonType, but
 -- Curse uses CURSE_TYPE (0x13 in the ROM, displays as "???") which
 -- doesn't correspond to any real element type. UnknownType preserves
@@ -362,9 +376,9 @@ data Move = Move
   { moveId       :: !MoveId
   , moveName     :: !Text
   , moveType     :: !MoveType
-  , movePower    :: !Int    -- 0 for status moves
-  , moveAccuracy :: !Int    -- 0 for never-miss
-  , movePP       :: !Int    -- base PP before PP Ups
+  , movePower    :: !MovePower    -- ^ 0 for status moves
+  , moveAccuracy :: !MoveAccuracy -- ^ 0 for never-miss
+  , movePP       :: !BasePP      -- ^ base PP before PP Ups
   } deriving (Eq, Show)
 
 
