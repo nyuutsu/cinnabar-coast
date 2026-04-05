@@ -53,7 +53,7 @@ resolveFossil
   -> WithWarnings FossilResult
 resolveFossil indexMap speciesMap itemMap fossil
   | rawFossilItemGiven fossil == 0 =
-      WithWarnings { computedResult = FossilResult Nothing Nothing, encounteredWarnings = [] }
+      WithWarnings { computedResult = FossilResult { fossilItemName = Nothing, fossilSpecies = Nothing }, encounteredWarnings = [] }
   | otherwise =
       let itemByte = rawFossilItemGiven fossil
           itemName = case Map.lookup (ItemId (fromIntegral itemByte)) itemMap of
@@ -68,7 +68,7 @@ resolveFossil indexMap speciesMap itemMap fossil
                       resolveSpecies indexMap speciesMap FossilSlot (InternalIndex speciesByte)
                 in WithWarnings { computedResult = Just species, encounteredWarnings = warnings }
       in WithWarnings
-           { computedResult = FossilResult (Just itemName) resolvedSpecies
+           { computedResult = FossilResult { fossilItemName = Just itemName, fossilSpecies = resolvedSpecies }
            , encounteredWarnings = speciesWarnings
            }
 

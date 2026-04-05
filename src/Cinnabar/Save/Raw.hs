@@ -740,7 +740,7 @@ parseBoxBank nameLen boxCapacity bytes bank = do
          let boxOffset  = bankStartOffset bank + boxIndex * bankBoxDataSize bank
              calculated = calculateGen1Checksum bytes
                             boxOffset (boxOffset + bankBoxDataSize bank - 1)
-         pure (ChecksumPair stored calculated)
+         pure ChecksumPair { checksumStored = stored, checksumCalculated = calculated }
     | boxIndex <- [0 .. bankBoxCount bank - 1]
     ]
 

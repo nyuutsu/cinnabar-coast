@@ -57,7 +57,7 @@ interpretGen1Save gameData codec rawSave =
       partyCount     = fromIntegral (rawGen1PartyCount party)
       gameVariant    = layoutGame (rawGen1Layout rawSave)
 
-      namePairs = zipWith RawNamePair
+      namePairs = zipWith (\ot nick -> RawNamePair { rawOTNameBytes = ot, rawNickBytes = nick })
         (rawGen1PartyOTNames party)
         (rawGen1PartyNicknames party)
 
@@ -110,7 +110,7 @@ interpretGen1Save gameData codec rawSave =
         , let boxNum   = boxIdx + 1
               boxCount = fromIntegral (rawGen1BoxCount rawBox) :: Int
         , boxCount > 0
-        , let boxNamePairs = zipWith RawNamePair
+        , let boxNamePairs = zipWith (\ot nick -> RawNamePair { rawOTNameBytes = ot, rawNickBytes = nick })
                 (rawGen1BoxOTNames rawBox)
                 (rawGen1BoxNicknames rawBox)
               boxSlots = zip4
