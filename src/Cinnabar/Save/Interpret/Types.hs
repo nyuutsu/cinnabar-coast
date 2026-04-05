@@ -125,14 +125,14 @@ data InterpretedPokemon = InterpretedPokemon
   , interpMoves      :: ![InterpretedMove]
   , interpDVs        :: !DVs
   , interpStatExp    :: !StatExp
-  , interpExp        :: !Int
+  , interpExp        :: !Experience
   , interpStatus     :: !StatusCondition
-  , interpCurrentHP  :: !Int
-  , interpMaxHP      :: !Int
-  , interpAttack     :: !Int
-  , interpDefense    :: !Int
-  , interpSpeed      :: !Int
-  , interpSpecial    :: !Special
+  , interpCurrentHP  :: !StatValue
+  , interpMaxHP      :: !StatValue
+  , interpAttack     :: !StatValue
+  , interpDefense    :: !StatValue
+  , interpSpeed      :: !StatValue
+  , interpSpecial    :: !(Special StatValue)
   , interpStatOrigin :: !StatOrigin
   , interpGenFields  :: !InterpretedGenFields
   } deriving (Eq, Show)
@@ -342,7 +342,7 @@ data SaveWarning
   | UnknownMoveId !WarningContext !Int !Word8         -- context, move slot (1-based), byte
   | SpeciesListMismatch !WarningContext !Word8 !Word8
   | ChecksumMismatch !Word8 !Word8
-  | StatMismatch !WarningContext !Text !Int !Int      -- context, stat name, stored, calculated
+  | StatMismatch !WarningContext !Text !StatValue !StatValue  -- context, stat name, stored, calculated
   | BoxBankChecksumMismatch !Int !Word8 !Word8        -- bank index, stored, calculated
   | BoxChecksumMismatch !Int !Int !Word8 !Word8       -- bank index, box-within-bank index, stored, calculated
   | ActiveBoxDesync

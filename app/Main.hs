@@ -253,14 +253,14 @@ printPartyPokemon slotNumber pokemon = do
   putStrLn $ "  " ++ show slotNumber ++ ". " ++ speciesLabel
     ++ " (Lv " ++ show levelValue ++ ") \"" ++ nicknameLabel ++ "\""
   putStrLn $ "     Moves: " ++ intercalate ", " moveLabels
-  putStrLn $ "     DVs: Atk=" ++ show (dvAttack dvs)
-    ++ " Def=" ++ show (dvDefense dvs)
-    ++ " Spd=" ++ show (dvSpeed dvs)
-    ++ " Spc=" ++ show (dvSpecial dvs)
-    ++ " (HP=" ++ show (dvHP dvs) ++ ")"
+  putStrLn $ "     DVs: Atk=" ++ show (unDV (dvAttack dvs))
+    ++ " Def=" ++ show (unDV (dvDefense dvs))
+    ++ " Spd=" ++ show (unDV (dvSpeed dvs))
+    ++ " Spc=" ++ show (unDV (dvSpecial dvs))
+    ++ " (HP=" ++ show (unDV (dvHP dvs)) ++ ")"
     ++ " \xFF0F " ++ shinyLabel
-  putStrLn $ "     HP: " ++ show (interpCurrentHP pokemon)
-    ++ "/" ++ show (interpMaxHP pokemon)
+  putStrLn $ "     HP: " ++ show (unStatValue (interpCurrentHP pokemon))
+    ++ "/" ++ show (unStatValue (interpMaxHP pokemon))
   case interpStatus pokemon of
     Healthy -> pure ()
     status  -> putStrLn $ "     Status: " ++ renderStatusCondition status
@@ -459,8 +459,8 @@ renderWarning (ChecksumMismatch stored calculated) =
     ++ ", calculated 0x" ++ showHexByte calculated
 renderWarning (StatMismatch context statName stored calculated) =
   renderWarningContext context ++ ": " ++ Text.unpack statName
-    ++ " mismatch (stored " ++ show stored
-    ++ ", calculated " ++ show calculated ++ ")"
+    ++ " mismatch (stored " ++ show (unStatValue stored)
+    ++ ", calculated " ++ show (unStatValue calculated) ++ ")"
 renderWarning (BoxBankChecksumMismatch bankIndex stored calculated) =
   "Box bank " ++ show bankIndex ++ ": checksum mismatch (stored 0x"
     ++ showHexByte stored ++ ", calculated 0x" ++ showHexByte calculated ++ ")"
@@ -645,27 +645,27 @@ demoStats gen1Data gen2Data = do
       putStrLn $ "    Max stat exp: " ++ showStats statsMaxExp
 
   -- Shiny DV check
-  let shinyExample = DVs 10 10 10 10
-      nonShiny     = DVs 15 15 15 15
+  let shinyExample = DVs { dvAttack = DV 10, dvDefense = DV 10, dvSpeed = DV 10, dvSpecial = DV 10 }
+      nonShiny     = DVs { dvAttack = DV 15, dvDefense = DV 15, dvSpeed = DV 15, dvSpecial = DV 15 }
   putStrLn $ "  DVs " ++ showDVs shinyExample ++ ": shiny = " ++ show (isShiny shinyExample)
   putStrLn $ "  DVs " ++ showDVs nonShiny     ++ ": shiny = " ++ show (isShiny nonShiny)
 
 
 showStats :: CalcStats -> String
 showStats stats =
-  "HP " ++ show (statHP stats)
-  ++ "  Atk " ++ show (statAttack stats)
-  ++ "  Def " ++ show (statDefense stats)
-  ++ "  Spd " ++ show (statSpeed stats)
+  "HP " ++ show (unStatValue (statHP stats))
+  ++ "  Atk " ++ show (unStatValue (statAttack stats))
+  ++ "  Def " ++ show (unStatValue (statDefense stats))
+  ++ "  Spd " ++ show (unStatValue (statSpeed stats))
   ++ "  " ++ showSpecial (statSpecial stats)
 
-showSpecial :: Special -> String
-showSpecial (Unified specialValue)     = "Spc " ++ show specialValue
-showSpecial (Split spAttack spDefense) = "SpA " ++ show spAttack ++ "  SpD " ++ show spDefense
+showSpecial :: Special StatValue -> String
+showSpecial (Unified specialValue)     = "Spc " ++ show (unStatValue specialValue)
+showSpecial (Split spAttack spDefense) = "SpA " ++ show (unStatValue spAttack) ++ "  SpD " ++ show (unStatValue spDefense)
 
 showDVs :: DVs -> String
-showDVs dvs = "{Atk=" ++ show (dvAttack dvs) ++ " Def=" ++ show (dvDefense dvs)
-           ++ " Spd=" ++ show (dvSpeed dvs) ++ " Spc=" ++ show (dvSpecial dvs) ++ "}"
+showDVs dvs = "{Atk=" ++ show (unDV (dvAttack dvs)) ++ " Def=" ++ show (unDV (dvDefense dvs))
+           ++ " Spd=" ++ show (unDV (dvSpeed dvs)) ++ " Spc=" ++ show (unDV (dvSpecial dvs)) ++ "}"
 
 
 -- ── Move Legality Demo ────────────────────────────────────────

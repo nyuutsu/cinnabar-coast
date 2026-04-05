@@ -75,11 +75,11 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
 
       -- Stat cross-check
       storedStats = StoredStats
-        { storedMaxHP   = fromIntegral (rawG1MaxHP partyPokemon)
-        , storedAttack  = fromIntegral (rawG1Attack partyPokemon)
-        , storedDefense = fromIntegral (rawG1Defense partyPokemon)
-        , storedSpeed   = fromIntegral (rawG1Speed partyPokemon)
-        , storedSpecial = Unified (fromIntegral (rawG1Special partyPokemon))
+        { storedMaxHP   = StatValue (fromIntegral (rawG1MaxHP partyPokemon))
+        , storedAttack  = StatValue (fromIntegral (rawG1Attack partyPokemon))
+        , storedDefense = StatValue (fromIntegral (rawG1Defense partyPokemon))
+        , storedSpeed   = StatValue (fromIntegral (rawG1Speed partyPokemon))
+        , storedSpecial = Unified (StatValue (fromIntegral (rawG1Special partyPokemon)))
         }
       statWarnings = case interpSpeciesResult of
         KnownSpecies _ species -> checkStats context species dvs promotedExp level storedStats
@@ -95,14 +95,14 @@ interpretGen1Pokemon indexMap speciesMap moveMap codec
           , interpMoves      = interpMovesResult
           , interpDVs        = dvs
           , interpStatExp    = promotedExp
-          , interpExp        = rawG1BoxExp base
+          , interpExp        = Experience (rawG1BoxExp base)
           , interpStatus     = interpretStatus (rawG1BoxStatus base)
-          , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP base)
-          , interpMaxHP      = fromIntegral (rawG1MaxHP partyPokemon)
-          , interpAttack     = fromIntegral (rawG1Attack partyPokemon)
-          , interpDefense    = fromIntegral (rawG1Defense partyPokemon)
-          , interpSpeed      = fromIntegral (rawG1Speed partyPokemon)
-          , interpSpecial    = Unified (fromIntegral (rawG1Special partyPokemon))
+          , interpCurrentHP  = StatValue (fromIntegral (rawG1BoxCurrentHP base))
+          , interpMaxHP      = StatValue (fromIntegral (rawG1MaxHP partyPokemon))
+          , interpAttack     = StatValue (fromIntegral (rawG1Attack partyPokemon))
+          , interpDefense    = StatValue (fromIntegral (rawG1Defense partyPokemon))
+          , interpSpeed      = StatValue (fromIntegral (rawG1Speed partyPokemon))
+          , interpSpecial    = Unified (StatValue (fromIntegral (rawG1Special partyPokemon)))
           , interpStatOrigin = StoredFromSave
           , interpGenFields  = InterpGen1Fields
               { interpCatchRate = rawG1BoxCatchRate base
@@ -164,14 +164,14 @@ interpretGen1BoxPokemon indexMap speciesMap moveMap codec
           , interpMoves      = resolvedMoves
           , interpDVs        = dvs
           , interpStatExp    = promotedExp
-          , interpExp        = rawG1BoxExp boxPokemon
+          , interpExp        = Experience (rawG1BoxExp boxPokemon)
           , interpStatus     = interpretStatus (rawG1BoxStatus boxPokemon)
-          , interpCurrentHP  = fromIntegral (rawG1BoxCurrentHP boxPokemon)
-          , interpMaxHP      = maybe 0 statHP calculatedStats
-          , interpAttack     = maybe 0 statAttack calculatedStats
-          , interpDefense    = maybe 0 statDefense calculatedStats
-          , interpSpeed      = maybe 0 statSpeed calculatedStats
-          , interpSpecial    = maybe (Unified 0) statSpecial calculatedStats
+          , interpCurrentHP  = StatValue (fromIntegral (rawG1BoxCurrentHP boxPokemon))
+          , interpMaxHP      = maybe (StatValue 0) statHP calculatedStats
+          , interpAttack     = maybe (StatValue 0) statAttack calculatedStats
+          , interpDefense    = maybe (StatValue 0) statDefense calculatedStats
+          , interpSpeed      = maybe (StatValue 0) statSpeed calculatedStats
+          , interpSpecial    = maybe (Unified (StatValue 0)) statSpecial calculatedStats
           , interpStatOrigin = ComputedFromBase
           , interpGenFields  = InterpGen1Fields
               { interpCatchRate = rawG1BoxCatchRate boxPokemon
@@ -238,22 +238,22 @@ resolveOneMove moveMap context moveSlot rawByte =
 
 promoteStatExp :: RawStatExp -> StatExp
 promoteStatExp raw = StatExp
-  { expHP      = fromIntegral (rawExpHP raw)
-  , expAttack  = fromIntegral (rawExpAttack raw)
-  , expDefense = fromIntegral (rawExpDefense raw)
-  , expSpeed   = fromIntegral (rawExpSpeed raw)
-  , expSpecial = fromIntegral (rawExpSpecial raw)
+  { expHP      = StatExpPoints (fromIntegral (rawExpHP raw))
+  , expAttack  = StatExpPoints (fromIntegral (rawExpAttack raw))
+  , expDefense = StatExpPoints (fromIntegral (rawExpDefense raw))
+  , expSpeed   = StatExpPoints (fromIntegral (rawExpSpeed raw))
+  , expSpecial = StatExpPoints (fromIntegral (rawExpSpecial raw))
   }
 
 
 -- ── Stat Cross-Check ───────────────────────────────────────
 
 data StoredStats = StoredStats
-  { storedMaxHP   :: !Int
-  , storedAttack  :: !Int
-  , storedDefense :: !Int
-  , storedSpeed   :: !Int
-  , storedSpecial :: !Special
+  { storedMaxHP   :: !StatValue
+  , storedAttack  :: !StatValue
+  , storedDefense :: !StatValue
+  , storedSpeed   :: !StatValue
+  , storedSpecial :: !(Special StatValue)
   }
 
 checkStats :: WarningContext -> Species -> DVs -> StatExp -> Level -> StoredStats -> [SaveWarning]
@@ -268,7 +268,7 @@ checkStats context species dvs statExp level stored =
   ++ mismatch "Speed"   (storedSpeed stored)   (statSpeed calculated)
   ++ specialStatWarnings context (storedSpecial stored) (statSpecial calculated)
 
-specialStatWarnings :: WarningContext -> Special -> Special -> [SaveWarning]
+specialStatWarnings :: WarningContext -> Special StatValue -> Special StatValue -> [SaveWarning]
 specialStatWarnings context (Unified storedValue) (Unified calculatedValue)
   | storedValue /= calculatedValue = [StatMismatch context "Special" storedValue calculatedValue]
   | otherwise                      = []

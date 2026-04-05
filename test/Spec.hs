@@ -35,13 +35,21 @@ import System.Directory (doesFileExist)
 -- ── Arbitrary instances ─────────────────────────────────────────
 
 instance Arbitrary DVs where
-  arbitrary = DVs <$> choose (0, 15) <*> choose (0, 15)
-                  <*> choose (0, 15) <*> choose (0, 15)
+  arbitrary = do
+    atk <- DV <$> choose (0, 15)
+    def <- DV <$> choose (0, 15)
+    spd <- DV <$> choose (0, 15)
+    spc <- DV <$> choose (0, 15)
+    pure DVs { dvAttack = atk, dvDefense = def, dvSpeed = spd, dvSpecial = spc }
 
 instance Arbitrary StatExp where
-  arbitrary = StatExp <$> choose (0, 65535) <*> choose (0, 65535)
-                      <*> choose (0, 65535) <*> choose (0, 65535)
-                      <*> choose (0, 65535)
+  arbitrary = do
+    hp  <- StatExpPoints <$> choose (0, 65535)
+    atk <- StatExpPoints <$> choose (0, 65535)
+    def <- StatExpPoints <$> choose (0, 65535)
+    spd <- StatExpPoints <$> choose (0, 65535)
+    spc <- StatExpPoints <$> choose (0, 65535)
+    pure StatExp { expHP = hp, expAttack = atk, expDefense = def, expSpeed = spd, expSpecial = spc }
 
 instance Arbitrary GrowthRate where
   arbitrary = elements [minBound .. maxBound]
@@ -83,7 +91,7 @@ main = hspec $ do
 
   describe "dvHP" $
     prop "returns 0-15 for any valid DVs" $ \dvs ->
-      let derivedHP = dvHP dvs
+      let derivedHP = unDV (dvHP dvs)
       in derivedHP >= 0 && derivedHP <= 15
 
   describe "expForLevel" $
@@ -92,15 +100,15 @@ main = hspec $ do
 
   describe "calcStat" $
     prop "returns positive values" $ \(dvs :: DVs) (statExp :: StatExp) ->
-      forAll (choose (1, 255)) $ \base ->
+      forAll (BaseStat <$> choose (1, 255)) $ \base ->
       forAll (Level <$> choose (1, 100)) $ \level ->
-        calcStat (StatInput base (dvAttack dvs) (expAttack statExp)) level > 0
+        calcStat StatInput { statBase = base, statDV = dvAttack dvs, statStatExp = expAttack statExp } level > StatValue 0
 
   describe "calcHP" $
     prop "returns positive values" $ \(dvs :: DVs) (statExp :: StatExp) ->
-      forAll (choose (1, 255)) $ \base ->
+      forAll (BaseStat <$> choose (1, 255)) $ \base ->
       forAll (Level <$> choose (1, 100)) $ \level ->
-        calcHP (StatInput base (dvHP dvs) (expHP statExp)) level > 0
+        calcHP StatInput { statBase = base, statDV = dvHP dvs, statStatExp = expHP statExp } level > StatValue 0
 
   describe "Text codec round-trip" $ do
     codec <- runIO $ loadedTextCodec <$> (loadOrDie =<< loadCodec Gen1 English)
@@ -122,19 +130,19 @@ main = hspec $ do
 
     it "has correct base stats" $ do
       let baseStats = speciesBaseStats pikachu
-      baseHP baseStats `shouldBe` 35
-      baseAttack baseStats `shouldBe` 55
-      baseDefense baseStats `shouldBe` 30
-      baseSpeed baseStats `shouldBe` 90
-      baseSpecial baseStats `shouldBe` Unified 50
+      baseHP baseStats `shouldBe` BaseStat 35
+      baseAttack baseStats `shouldBe` BaseStat 55
+      baseDefense baseStats `shouldBe` BaseStat 30
+      baseSpeed baseStats `shouldBe` BaseStat 90
+      baseSpecial baseStats `shouldBe` Unified (BaseStat 50)
 
     it "at level 50, max DVs, zero stat exp gives correct stats" $ do
       let stats = calcAllStats pikachu maxDVs zeroStatExp (Level 50)
-      statHP stats `shouldBe` 110
-      statAttack stats `shouldBe` 75
-      statDefense stats `shouldBe` 50
-      statSpeed stats `shouldBe` 110
-      statSpecial stats `shouldBe` Unified 70
+      statHP stats `shouldBe` StatValue 110
+      statAttack stats `shouldBe` StatValue 75
+      statDefense stats `shouldBe` StatValue 50
+      statSpeed stats `shouldBe` StatValue 110
+      statSpecial stats `shouldBe` Unified (StatValue 70)
 
   describe "expForLevel golden" $
     it "MediumFast level 100 equals 1000000" $
@@ -142,14 +150,15 @@ main = hspec $ do
 
   describe "isShiny" $ do
     it "accepts all 8 valid shiny Attack DVs" $
-      let shinyDVs = [DVs atk 10 10 10 | atk <- [2, 3, 6, 7, 10, 11, 14, 15]]
+      let shinyDVs = [ DVs { dvAttack = DV atk, dvDefense = DV 10, dvSpeed = DV 10, dvSpecial = DV 10 }
+                      | atk <- [2, 3, 6, 7, 10, 11, 14, 15] ]
       in all isShiny shinyDVs `shouldBe` True
 
     prop "matches the shiny specification" $ \dvs ->
-      isShiny dvs === ( dvDefense dvs == 10
-                     && dvSpeed dvs == 10
-                     && dvSpecial dvs == 10
-                     && dvAttack dvs `elem` [2, 3, 6, 7, 10, 11, 14, 15] )
+      isShiny dvs === ( dvDefense dvs == DV 10
+                     && dvSpeed dvs == DV 10
+                     && dvSpecial dvs == DV 10
+                     && dvAttack dvs `elem` map DV [2, 3, 6, 7, 10, 11, 14, 15] )
 
   -- ── Internal index mapping ───────────────────────────────
 

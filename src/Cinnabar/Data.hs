@@ -302,8 +302,8 @@ buildSpecies gen csv = do
         defense       <- defenseOfRow row
         speed         <- speedOfRow row
         special       <- case gen of
-          Gen1 -> Unified <$> specialOfRow row
-          Gen2 -> Split <$> specialAttackOfRow row <*> specialDefenseOfRow row
+          Gen1 -> Unified . BaseStat <$> specialOfRow row
+          Gen2 -> Split <$> (BaseStat <$> specialAttackOfRow row) <*> (BaseStat <$> specialDefenseOfRow row)
         type1Text     <- type1OfRow row
         type2Text     <- type2OfRow row
         type1         <- requireEnum row "type" typeNames type1Text
@@ -324,20 +324,20 @@ buildSpecies gen csv = do
             pure Gen2SpeciesFields
               { speciesGenderRatio   = genderRatio
               , speciesEggGroups     = EggGroupPair eggGroup1 eggGroup2
-              , speciesBaseHappiness = baseHappiness
+              , speciesBaseHappiness = BaseHappiness baseHappiness
               }
         pure Species
           { speciesDex       = DexNumber dex
           , speciesName      = name
           , speciesBaseStats = BaseStats
-              { baseHP      = hp
-              , baseAttack  = attack
-              , baseDefense = defense
-              , baseSpeed   = speed
+              { baseHP      = BaseStat hp
+              , baseAttack  = BaseStat attack
+              , baseDefense = BaseStat defense
+              , baseSpeed   = BaseStat speed
               , baseSpecial = special
               }
           , speciesTypes      = TypePair type1 type2
-          , speciesCatchRate  = catchRate
+          , speciesCatchRate  = CatchRate catchRate
           , speciesGrowthRate = growthRate
           , speciesGenFields  = genFields
           }

@@ -15,6 +15,15 @@ module Cinnabar.Types
   , TrainerId (..)
   , InternalIndex (..)
 
+    -- * Stat newtypes
+  , BaseStat (..)
+  , DV (..)
+  , StatExpPoints (..)
+  , StatValue (..)
+  , Experience (..)
+  , CatchRate (..)
+  , BaseHappiness (..)
+
     -- * CSV context
   , RowNumber (..)
   , ColumnName (..)
@@ -131,6 +140,29 @@ newtype TrainerId  = TrainerId  { unTrainerId :: Int } deriving (Eq, Ord, Show)
 newtype InternalIndex = InternalIndex { unInternalIndex :: Word8 }
   deriving (Eq, Ord, Show)
 
+-- ── Stat Newtypes ─────────────────────────────────────────────
+
+newtype BaseStat = BaseStat { unBaseStat :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype DV = DV { unDV :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype StatExpPoints = StatExpPoints { unStatExpPoints :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype StatValue = StatValue { unStatValue :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype Experience = Experience { unExperience :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype CatchRate = CatchRate { unCatchRate :: Int }
+  deriving (Eq, Ord, Show)
+
+newtype BaseHappiness = BaseHappiness { unBaseHappiness :: Int }
+  deriving (Eq, Ord, Show)
+
 -- ── CSV Context ───────────────────────────────────────────────────
 
 newtype RowNumber   = RowNumber   { unRowNumber   :: Int  } deriving (Eq, Ord, Show)
@@ -236,25 +268,27 @@ data LevelUpEntry = LevelUpEntry
 -- ── Base Stats ──────────────────────────────────────────────────
 
 data BaseStats = BaseStats
-  { baseHP      :: !Int
-  , baseAttack  :: !Int
-  , baseDefense :: !Int
-  , baseSpeed   :: !Int
-  , baseSpecial :: !Special
+  { baseHP      :: !BaseStat
+  , baseAttack  :: !BaseStat
+  , baseDefense :: !BaseStat
+  , baseSpeed   :: !BaseStat
+  , baseSpecial :: !(Special BaseStat)
   } deriving (Eq, Show)
 
 -- | Gen 1 has one Special stat; Gen 2 splits it into SpAtk / SpDef.
-data Special
-  = Unified !Int          -- Gen 1
-  | Split   !Int !Int     -- Gen 2: (SpAtk, SpDef)
+-- Polymorphic: @Special BaseStat@ in base stats, @Special StatValue@
+-- in calculated/stored stats.
+data Special a
+  = Unified !a            -- Gen 1
+  | Split   !a !a         -- Gen 2: (SpAtk, SpDef)
   deriving (Eq, Show)
 
-specialAttack :: Special -> Int
-specialAttack (Unified value)  = value
+specialAttack :: Special a -> a
+specialAttack (Unified value)    = value
 specialAttack (Split spAttack _) = spAttack
 
-specialDefense :: Special -> Int
-specialDefense (Unified value)  = value
+specialDefense :: Special a -> a
+specialDefense (Unified value)     = value
 specialDefense (Split _ spDefense) = spDefense
 
 
@@ -265,7 +299,7 @@ data Species = Species
   , speciesName          :: !Text
   , speciesBaseStats     :: !BaseStats
   , speciesTypes         :: !TypePair
-  , speciesCatchRate     :: !Int
+  , speciesCatchRate     :: !CatchRate
   , speciesGrowthRate    :: !GrowthRate
   , speciesGenFields     :: !SpeciesGenFields
   } deriving (Eq, Show)
@@ -278,7 +312,7 @@ data SpeciesGenFields
   | Gen2SpeciesFields
       { speciesGenderRatio   :: !GenderRatio
       , speciesEggGroups     :: !EggGroupPair
-      , speciesBaseHappiness :: !Int
+      , speciesBaseHappiness :: !BaseHappiness
       }
   deriving (Eq, Show)
 
@@ -310,38 +344,43 @@ data Move = Move
 -- dvSpecial governs both SpAtk and SpDef in Gen 2 — the split only
 -- affects base stats and stat calculation, not DV storage.
 data DVs = DVs
-  { dvAttack  :: !Int    -- 0–15
-  , dvDefense :: !Int
-  , dvSpeed   :: !Int
-  , dvSpecial :: !Int    -- SpAtk AND SpDef in Gen 2
+  { dvAttack  :: !DV     -- 0–15
+  , dvDefense :: !DV
+  , dvSpeed   :: !DV
+  , dvSpecial :: !DV     -- SpAtk AND SpDef in Gen 2
   } deriving (Eq, Show)
 
 -- | HP DV: derived from the low bits of the other four.
-dvHP :: DVs -> Int
+dvHP :: DVs -> DV
 dvHP dvs =
-      (dvAttack dvs  .&. 1) `shiftL` 3
-  .|. (dvDefense dvs .&. 1) `shiftL` 2
-  .|. (dvSpeed dvs   .&. 1) `shiftL` 1
-  .|. (dvSpecial dvs .&. 1)
+  DV $ (unDV (dvAttack dvs)  .&. 1) `shiftL` 3
+   .|. (unDV (dvDefense dvs) .&. 1) `shiftL` 2
+   .|. (unDV (dvSpeed dvs)   .&. 1) `shiftL` 1
+   .|. (unDV (dvSpecial dvs) .&. 1)
 
 maxDVs :: DVs
-maxDVs = DVs 15 15 15 15
+maxDVs = DVs
+  { dvAttack  = DV 15
+  , dvDefense = DV 15
+  , dvSpeed   = DV 15
+  , dvSpecial = DV 15
+  }
 
 -- | Shiny (Gen 2): Def=10, Spd=10, Spc=10, Atk bit 1 set.
 isShiny :: DVs -> Bool
 isShiny dvs =
-  dvDefense dvs == 10 && dvSpeed dvs == 10 && dvSpecial dvs == 10
-  && (dvAttack dvs .&. 2) /= 0
+  dvDefense dvs == DV 10 && dvSpeed dvs == DV 10 && dvSpecial dvs == DV 10
+  && (unDV (dvAttack dvs) .&. 2) /= 0
 
 -- | Unpack a 16-bit DV word into individual values.
 -- Packed format: Atk[15:12] Def[11:8] Spd[7:4] Spc[3:0].
 -- Both gens use the same packed layout.
 unpackDVs :: Word16 -> DVs
 unpackDVs packed = DVs
-  { dvAttack  = fromIntegral (packed `shiftR` 12) .&. 0xF
-  , dvDefense = fromIntegral (packed `shiftR` 8)  .&. 0xF
-  , dvSpeed   = fromIntegral (packed `shiftR` 4)  .&. 0xF
-  , dvSpecial = fromIntegral packed               .&. 0xF
+  { dvAttack  = DV (fromIntegral (packed `shiftR` 12) .&. 0xF)
+  , dvDefense = DV (fromIntegral (packed `shiftR` 8)  .&. 0xF)
+  , dvSpeed   = DV (fromIntegral (packed `shiftR` 4)  .&. 0xF)
+  , dvSpecial = DV (fromIntegral packed               .&. 0xF)
   }
 
 
@@ -350,18 +389,30 @@ unpackDVs packed = DVs
 -- | Stat Experience. Same 5 values in both gens.
 -- expSpecial applies to both SpAtk and SpDef calcs in Gen 2.
 data StatExp = StatExp
-  { expHP      :: !Int    -- 0–65535
-  , expAttack  :: !Int
-  , expDefense :: !Int
-  , expSpeed   :: !Int
-  , expSpecial :: !Int
+  { expHP      :: !StatExpPoints    -- 0–65535
+  , expAttack  :: !StatExpPoints
+  , expDefense :: !StatExpPoints
+  , expSpeed   :: !StatExpPoints
+  , expSpecial :: !StatExpPoints
   } deriving (Eq, Show)
 
 zeroStatExp :: StatExp
-zeroStatExp = StatExp 0 0 0 0 0
+zeroStatExp = StatExp
+  { expHP      = StatExpPoints 0
+  , expAttack  = StatExpPoints 0
+  , expDefense = StatExpPoints 0
+  , expSpeed   = StatExpPoints 0
+  , expSpecial = StatExpPoints 0
+  }
 
 maxStatExp :: StatExp
-maxStatExp = StatExp 65535 65535 65535 65535 65535
+maxStatExp = StatExp
+  { expHP      = StatExpPoints 65535
+  , expAttack  = StatExpPoints 65535
+  , expDefense = StatExpPoints 65535
+  , expSpeed   = StatExpPoints 65535
+  , expSpecial = StatExpPoints 65535
+  }
 
 
 -- ── Move Slot ───────────────────────────────────────────────────
